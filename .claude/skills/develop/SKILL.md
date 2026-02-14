@@ -100,14 +100,14 @@ prompt: |
   Key conventions:
   - Working directory: /home/bobmc/development/vire-portal
   - Tech stack: Go 1.25+, net/http, html/template, Alpine.js (CDN), BadgerDB via badgerhold
-  - Build: go build ./cmd/portal/
-  - Tests: go test ./... (4 test packages: config, handlers, server, storage/badger)
+  - Build: go build ./cmd/vire-portal/
+  - Tests: go test ./... (5 test packages: config, handlers, mcp, server, storage/badger)
   - Vet: go vet ./...
-  - Docker build: docker build -t vire-portal:latest .
-  - Script validation: ./scripts/test-scripts.sh (130 tests)
+  - Docker build: docker build -f docker/Dockerfile -t vire-portal:latest .
+  - Script validation: ./scripts/test-scripts.sh (131 tests)
   - The portal is a Go server rendering HTML templates, served via Docker on Cloud Run
   - Design: 80s B&W aesthetic -- IBM Plex Mono, no border-radius, no box-shadow, monochrome only
-  - All backend calls go through the vire-gateway REST API
+  - All backend calls go through the vire-server REST API
   - Auth: direct OAuth (Google/GitHub) via gateway, JWT in memory, refresh via httpOnly cookie
   - Config: TOML with defaults -> file -> env (VIRE_ prefix) -> CLI flags
   - Storage: BadgerDB embedded, interface-based for future swap
@@ -264,17 +264,18 @@ When all tasks are complete:
 
 | Component | Location |
 |-----------|----------|
-| Entry Point | `cmd/portal/` |
+| Entry Point | `cmd/vire-portal/` |
 | Application | `internal/app/` |
 | Configuration | `internal/config/` |
 | HTTP Handlers | `internal/handlers/` |
+| MCP Server | `internal/mcp/` |
 | Storage Interfaces | `internal/interfaces/` |
 | HTTP Server | `internal/server/` |
 | BadgerDB Storage | `internal/storage/badger/` |
 | HTML Templates | `pages/` |
 | Template Partials | `pages/partials/` |
 | Static Assets | `pages/static/` |
-| Docker | `Dockerfile`, `docker/` |
+| Docker | `docker/` (Dockerfile, compose, config) |
 | CI/CD Workflows | `.github/workflows/` |
 | Documentation | `docs/`, `README.md` |
 | Scripts | `scripts/` |
@@ -286,6 +287,7 @@ When all tasks are complete:
 |-------|---------|------|
 | `GET /` | PageHandler | No |
 | `GET /static/*` | PageHandler | No |
+| `POST /mcp` | MCPHandler | No |
 | `GET /api/health` | HealthHandler | No |
 | `GET /api/version` | VersionHandler | No |
 
@@ -297,15 +299,28 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 |---------|---------|---------|
 | Server port | `VIRE_SERVER_PORT` | `8080` |
 | Server host | `VIRE_SERVER_HOST` | `localhost` |
+| API URL | `VIRE_API_URL` | `http://localhost:4242` |
+| Default portfolio | `VIRE_DEFAULT_PORTFOLIO` | `""` |
+| Display currency | `VIRE_DISPLAY_CURRENCY` | `""` |
+| EODHD API key | `EODHD_API_KEY` | `""` |
+| Navexa API key | `NAVEXA_API_KEY` | `""` |
+| Gemini API key | `GEMINI_API_KEY` | `""` |
 | BadgerDB path | `VIRE_BADGER_PATH` | `./data/vire` |
 | Log level | `VIRE_LOG_LEVEL` | `info` |
 | Log format | `VIRE_LOG_FORMAT` | `text` |
 
 ### API Integration
 
-All API calls go through the vire-gateway REST API:
+MCP tool calls are proxied to vire-server with X-Vire-* header injection:
+- MCP endpoint: `POST /mcp` (mcp-go StreamableHTTPServer, stateless)
+- Proxy: `internal/mcp/proxy.go` forwards to vire-server (default `http://localhost:4242`)
+- Headers: X-Vire-Portfolios, X-Vire-Display-Currency, X-Vire-Navexa-Key, X-Vire-EODHD-Key, X-Vire-Gemini-Key
+- Tools: dynamic catalog from `GET /api/mcp/tools` (registered at startup via `internal/mcp/catalog.go`, 3-attempt retry, validated)
+- Response format: raw JSON from vire-server (no markdown formatting)
+- Timeouts: 300s proxy + 300s server WriteTimeout (for slow tools like generate_report)
+
+Future gateway integration (deferred):
 - Auth: JWT in `Authorization: Bearer` header
-- Go HTTP client handles cookies and auth headers server-side
 - Error responses follow consistent `{ error: { code, message } }` shape
 - Token refresh: `POST /api/auth/refresh` (automatic on 401)
 

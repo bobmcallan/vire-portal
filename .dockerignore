@@ -10,7 +10,8 @@
 
 # Build artifacts
 bin/
-portal
+vire-portal
+vire-mcp
 
 # Test artifacts
 coverage.out
@@ -27,7 +28,7 @@ logs/
 # Claude
 .claude/
 
-# Docker artifacts (keep portal.toml for COPY)
+# Docker artifacts (keep vire-portal.toml for COPY)
 docker/.last_build
 docker/docker-compose*.yml
 docker/README.md

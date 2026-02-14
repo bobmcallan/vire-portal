@@ -1,12 +1,22 @@
 # Vire Portal
 
-User-facing web application for the Vire managed service. Sign in, manage API keys, provision your MCP endpoint, and connect Claude to Vire.
+Web application and MCP server for the Vire investment platform. Hosts a landing page, serves the MCP tool endpoint at `/mcp`, and proxies all tool calls to vire-server.
 
-The portal is a Go server rendering HTML templates with Alpine.js for interactivity, served from a Docker container on Cloud Run. It calls the vire-gateway (control plane) REST API for all backend operations. It does **not** call vire-server or vire-mcp directly.
+The portal is a Go server that renders HTML templates with Alpine.js for interactivity and provides an MCP (Model Context Protocol) endpoint for Claude and other MCP clients. It proxies tool calls to vire-server, injecting X-Vire-* headers for user context. Served from a Docker container alongside vire-server.
 
-> **Repository layout:** This repo contains the portal server code. Portal infrastructure (Cloud Run deployment) is managed by [vire-infra](https://github.com/bobmcallan/vire-infra) Terraform (`infra/modules/portal/`). The Docker image published here (`ghcr.io/bobmcallan/vire-portal:latest`) is consumed by that Terraform module -- the same pattern as `vire`, which publishes `ghcr.io/bobmcallan/vire-server` and `ghcr.io/bobmcallan/vire-mcp` images consumed by vire-infra.
+> **Repository layout:** This repo contains the portal server code. The Docker image (`ghcr.io/bobmcallan/vire-portal:latest`) runs alongside `ghcr.io/bobmcallan/vire-server:latest` in a two-service Docker Compose stack. Portal infrastructure (Cloud Run deployment) is managed by [vire-infra](https://github.com/bobmcallan/vire-infra) Terraform (`infra/modules/portal/`).
 
-## Pages
+## Routes (Implemented)
+
+| Route | Handler | Auth | Description |
+|-------|---------|------|-------------|
+| `GET /` | PageHandler | No | Landing page (server-rendered HTML template) |
+| `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
+| `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP, dynamic tools from vire-server catalog) |
+| `GET /api/health` | HealthHandler | No | Health check (`{"status":"ok"}`) |
+| `GET /api/version` | VersionHandler | No | Version info (JSON) |
+
+## Pages (Future)
 
 | Route | Page | Auth Required | Purpose |
 |-------|------|---------------|---------|
@@ -482,13 +492,19 @@ Configuration is handled via TOML file and environment variables with the `VIRE_
 |----------|---------|-------------|
 | `VIRE_SERVER_HOST` | `localhost` | Server bind address |
 | `VIRE_SERVER_PORT` | `8080` | Server port |
+| `VIRE_API_URL` | `http://localhost:4242` | vire-server URL for MCP proxy |
+| `VIRE_DEFAULT_PORTFOLIO` | `""` | Default portfolio name |
+| `VIRE_DISPLAY_CURRENCY` | `""` | Display currency (e.g., AUD, USD) |
+| `EODHD_API_KEY` | `""` | EODHD market data API key |
+| `NAVEXA_API_KEY` | `""` | Navexa portfolio sync API key |
+| `GEMINI_API_KEY` | `""` | Google Gemini AI API key |
 | `VIRE_BADGER_PATH` | `./data/vire` | BadgerDB storage path |
 | `VIRE_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 | `VIRE_LOG_FORMAT` | `text` | Log format (text, json) |
 
 ## Dockerfile
 
-Multi-stage build matching the vire ecosystem pattern. Stage 1 builds the Go binary; stage 2 runs it on Alpine.
+Located at `docker/Dockerfile`. Multi-stage build matching the vire ecosystem pattern. Stage 1 builds the Go binary; stage 2 runs it on Alpine.
 
 ```dockerfile
 # Build stage
@@ -505,7 +521,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -X 'github.com/bobmcallan/vire-portal/internal/config.Version=${VERSION}' \
     -X 'github.com/bobmcallan/vire-portal/internal/config.Build=${BUILD}' \
     -X 'github.com/bobmcallan/vire-portal/internal/config.GitCommit=${GIT_COMMIT}'" \
-    -o vire-portal ./cmd/portal
+    -o vire-portal ./cmd/vire-portal
 
 # Runtime stage
 FROM alpine:3.21
@@ -514,7 +530,7 @@ WORKDIR /app
 RUN apk --no-cache add ca-certificates wget
 COPY --from=builder /build/vire-portal .
 COPY --from=builder /build/pages ./pages
-COPY --from=builder /build/docker/portal.toml .
+COPY --from=builder /build/docker/vire-portal.toml .
 COPY .version .
 RUN mkdir -p /app/data
 EXPOSE 8080
@@ -588,7 +604,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile
+          file: docker/Dockerfile
           push: true
           tags: ${{ steps.docker-meta.outputs.tags }}
           labels: ${{ steps.docker-meta.outputs.labels }}
@@ -605,7 +621,7 @@ jobs:
 | Aspect | vire | vire-portal |
 |--------|------|-------------|
 | Matrix strategy | Yes (2 services: server, mcp) | No (single image) |
-| Dockerfile path | `docker/Dockerfile.server`, `docker/Dockerfile.mcp` | `Dockerfile` (root) |
+| Dockerfile path | `docker/Dockerfile.server`, `docker/Dockerfile.mcp` | `docker/Dockerfile` |
 | Image name | `vire-server`, `vire-mcp` | `vire-portal` |
 | Cache scope | Per service (`vire-server`, `vire-mcp`) | Single (`vire-portal`) |
 
@@ -652,6 +668,13 @@ vire-portal/
 │   │   └── version.go               # GET /api/version
 │   ├── interfaces/
 │   │   └── storage.go               # StorageManager + KeyValueStorage interfaces
+│   ├── mcp/
+│   │   ├── catalog.go               # Dynamic tool catalog (fetch, validate, build, generic handler)
+│   │   ├── handler.go               # MCP HTTP handler (StreamableHTTP, catalog startup)
+│   │   ├── handlers.go              # Shared helpers (errorResult, resolvePortfolio)
+│   │   ├── mcp_test.go              # MCP test suite (catalog, tools, handlers, proxy)
+│   │   ├── proxy.go                 # MCPProxy (HTTP client, X-Vire-* header injection)
+│   │   └── tools.go                 # RegisterToolsFromCatalog
 │   ├── server/
 │   │   ├── middleware.go             # Correlation ID, logging, CORS, recovery
 │   │   ├── middleware_test.go
@@ -678,9 +701,10 @@ vire-portal/
 │       │   └── portal.css            # 80s B&W aesthetic (no border-radius, no box-shadow)
 │       └── common.js                 # Alpine.js component skeleton
 ├── docker/
+│   ├── Dockerfile                    # Multi-stage build (golang:1.25 -> alpine)
 │   ├── docker-compose.yml            # Local build + run
 │   ├── docker-compose.ghcr.yml       # GHCR pull + watchtower auto-update
-│   ├── portal.toml                   # Configuration file
+│   ├── vire-portal.toml              # Configuration file
 │   └── README.md                     # Docker usage documentation
 ├── docs/
 │   ├── requirements.md               # API contracts and architecture (this file)
@@ -689,7 +713,6 @@ vire-portal/
 │   ├── deploy.sh                     # Deploy orchestration (local/ghcr/down/prune)
 │   ├── build.sh                      # Standalone Docker image builder
 │   └── test-scripts.sh               # Validation suite for scripts and configs
-├── Dockerfile                        # Multi-stage build (golang:1.25 -> alpine)
 ├── .dockerignore
 ├── .version                          # Version metadata (source of truth)
 ├── go.mod
@@ -709,16 +732,16 @@ vire-portal/
 
 ```bash
 # Build the server binary
-go build ./cmd/portal/
+go build ./cmd/vire-portal/
 
-# Run the server (auto-discovers docker/portal.toml)
-go run ./cmd/portal/
+# Run the server (auto-discovers docker/vire-portal.toml)
+go run ./cmd/vire-portal/
 
 # Run with custom port
-go run ./cmd/portal/ -p 9090
+go run ./cmd/vire-portal/ -p 9090
 
 # Run with custom config
-go run ./cmd/portal/ -c custom.toml
+go run ./cmd/vire-portal/ -c custom.toml
 ```
 
 The server runs on `http://localhost:8080` by default.
@@ -740,7 +763,7 @@ go vet ./...
 
 ```bash
 # Build the Docker image
-docker build -t vire-portal:latest .
+docker build -f docker/Dockerfile -t vire-portal:latest .
 
 # Run on host port 8080
 docker run -p 8080:8080 \

@@ -37,12 +37,16 @@ for f in \
     "scripts/build.sh" \
     "docker/docker-compose.yml" \
     "docker/docker-compose.ghcr.yml" \
-    "docker/portal.toml" \
-    "Dockerfile" \
+    "docker/vire-portal.toml" \
+    "docker/vire-mcp.toml" \
+    "docker/vire-mcp.toml.docker" \
+    "docker/Dockerfile" \
+    "docker/Dockerfile.mcp" \
     ".version" \
     "go.mod" \
     "go.sum" \
-    "cmd/portal/main.go"; do
+    "cmd/vire-portal/main.go" \
+    "cmd/vire-mcp/main.go"; do
     if [ -f "$PROJECT_DIR/$f" ]; then
         pass "$f exists"
     else
@@ -51,7 +55,7 @@ for f in \
 done
 
 # Check directories exist
-for d in "internal" "pages" "cmd/portal"; do
+for d in "internal" "pages" "cmd/vire-portal" "cmd/vire-mcp" "internal/vire/common" "internal/vire/models" "internal/vire/interfaces"; do
     if [ -d "$PROJECT_DIR/$d" ]; then
         pass "$d/ directory exists"
     else
@@ -83,6 +87,13 @@ for d in "src" "node_modules"; do
         fail "$d/ still exists (should be removed)"
     fi
 done
+
+# Verify Dockerfile is in docker/ not root
+if [ ! -f "$PROJECT_DIR/Dockerfile" ]; then
+    pass "Dockerfile moved from root to docker/"
+else
+    fail "Root Dockerfile still exists (should be at docker/Dockerfile)"
+fi
 
 # ---------------------------------------------------------------------------
 # 2. Scripts are executable
@@ -346,6 +357,19 @@ if [ -f "$BUILD" ]; then
         fail "build.sh missing --clean flag"
     fi
 
+    # Check vire-mcp support
+    if grep -q 'vire-mcp' "$BUILD"; then
+        pass "build.sh supports vire-mcp"
+    else
+        fail "build.sh missing vire-mcp support"
+    fi
+
+    if grep -q 'Dockerfile.mcp' "$BUILD"; then
+        pass "build.sh references Dockerfile.mcp"
+    else
+        fail "build.sh missing Dockerfile.mcp reference"
+    fi
+
     # Verify no SPA references remain
     if ! grep -q 'package\.json' "$BUILD"; then
         pass "build.sh has no package.json references (SPA removed)"
@@ -370,17 +394,23 @@ section "docker-compose.yml"
 LOCAL_COMPOSE="$PROJECT_DIR/docker/docker-compose.yml"
 if [ -f "$LOCAL_COMPOSE" ]; then
     # Check compose name
-    if grep -q '^name: vire-portal' "$LOCAL_COMPOSE"; then
+    if grep -q '^name: vire' "$LOCAL_COMPOSE"; then
         pass "docker-compose.yml has correct project name"
     else
-        fail "docker-compose.yml missing project name 'vire-portal'"
+        fail "docker-compose.yml missing project name 'vire'"
     fi
 
-    # Check service name
+    # Check service names
     if grep -q 'vire-portal:' "$LOCAL_COMPOSE"; then
         pass "docker-compose.yml has vire-portal service"
     else
         fail "docker-compose.yml missing vire-portal service"
+    fi
+
+    if grep -q 'vire-mcp:' "$LOCAL_COMPOSE"; then
+        pass "docker-compose.yml has vire-mcp service"
+    else
+        fail "docker-compose.yml missing vire-mcp service"
     fi
 
     # Check build context points to parent
@@ -391,10 +421,10 @@ if [ -f "$LOCAL_COMPOSE" ]; then
     fi
 
     # Check Dockerfile reference
-    if grep -q 'dockerfile: Dockerfile' "$LOCAL_COMPOSE"; then
-        pass "docker-compose.yml references root Dockerfile"
+    if grep -q 'dockerfile: docker/Dockerfile' "$LOCAL_COMPOSE"; then
+        pass "docker-compose.yml references docker/Dockerfile"
     else
-        fail "docker-compose.yml missing Dockerfile reference"
+        fail "docker-compose.yml missing docker/Dockerfile reference"
     fi
 
     # Check build args
@@ -421,10 +451,10 @@ if [ -f "$LOCAL_COMPOSE" ]; then
     fi
 
     # Check port mapping (may use PORTAL_PORT variable)
-    if grep -qE '8080' "$LOCAL_COMPOSE"; then
-        pass "docker-compose.yml maps port 8080"
+    if grep -qE '4241' "$LOCAL_COMPOSE"; then
+        pass "docker-compose.yml maps port 4241"
     else
-        fail "docker-compose.yml missing port 8080 mapping"
+        fail "docker-compose.yml missing port 4241 mapping"
     fi
 
     # Check VIRE_ environment vars
@@ -475,11 +505,17 @@ if [ -f "$GHCR_COMPOSE" ]; then
         fail "docker-compose.ghcr.yml missing project name 'vire-portal'"
     fi
 
-    # Check GHCR image reference
+    # Check GHCR image references
     if grep -q 'ghcr.io/bobmcallan/vire-portal' "$GHCR_COMPOSE"; then
-        pass "docker-compose.ghcr.yml uses GHCR image"
+        pass "docker-compose.ghcr.yml uses GHCR image for vire-portal"
     else
-        fail "docker-compose.ghcr.yml missing GHCR image reference"
+        fail "docker-compose.ghcr.yml missing GHCR image for vire-portal"
+    fi
+
+    if grep -q 'ghcr.io/bobmcallan/vire-mcp' "$GHCR_COMPOSE"; then
+        pass "docker-compose.ghcr.yml uses GHCR image for vire-mcp"
+    else
+        fail "docker-compose.ghcr.yml missing GHCR image for vire-mcp"
     fi
 
     # Check pull_policy
@@ -564,7 +600,7 @@ fi
 # ---------------------------------------------------------------------------
 section "Dockerfile build args"
 
-DOCKERFILE="$PROJECT_DIR/Dockerfile"
+DOCKERFILE="$PROJECT_DIR/docker/Dockerfile"
 if [ -f "$DOCKERFILE" ]; then
     for arg in VERSION BUILD GIT_COMMIT; do
         if grep -q "ARG $arg" "$DOCKERFILE"; then
@@ -607,11 +643,11 @@ if [ -f "$DOCKERFILE" ]; then
         fail "Dockerfile missing pages copy"
     fi
 
-    # Check portal.toml is copied
-    if grep -q 'portal.toml' "$DOCKERFILE"; then
-        pass "Dockerfile copies portal.toml config"
+    # Check vire-portal.toml is copied
+    if grep -q 'vire-portal.toml' "$DOCKERFILE"; then
+        pass "Dockerfile copies vire-portal.toml config"
     else
-        fail "Dockerfile missing portal.toml copy"
+        fail "Dockerfile missing vire-portal.toml copy"
     fi
 
     # Verify no SPA references
@@ -622,6 +658,38 @@ if [ -f "$DOCKERFILE" ]; then
     fi
 else
     fail "Dockerfile not found"
+fi
+
+# Dockerfile.mcp checks
+DOCKERFILE_MCP="$PROJECT_DIR/docker/Dockerfile.mcp"
+if [ -f "$DOCKERFILE_MCP" ]; then
+    for arg in VERSION BUILD GIT_COMMIT; do
+        if grep -q "ARG $arg" "$DOCKERFILE_MCP"; then
+            pass "Dockerfile.mcp declares ARG $arg"
+        else
+            fail "Dockerfile.mcp missing ARG $arg"
+        fi
+    done
+
+    if grep -q 'cmd/vire-mcp' "$DOCKERFILE_MCP"; then
+        pass "Dockerfile.mcp builds cmd/vire-mcp"
+    else
+        fail "Dockerfile.mcp missing cmd/vire-mcp reference"
+    fi
+
+    if grep -q 'internal/vire/common' "$DOCKERFILE_MCP"; then
+        pass "Dockerfile.mcp ldflags use internal/vire/common path"
+    else
+        fail "Dockerfile.mcp ldflags missing internal/vire/common path"
+    fi
+
+    if grep -q 'vire-mcp.toml.docker' "$DOCKERFILE_MCP"; then
+        pass "Dockerfile.mcp copies vire-mcp.toml.docker"
+    else
+        fail "Dockerfile.mcp missing vire-mcp.toml.docker copy"
+    fi
+else
+    fail "Dockerfile.mcp not found"
 fi
 
 # ---------------------------------------------------------------------------
@@ -637,10 +705,16 @@ if [ -f "$GITIGNORE" ]; then
         fail ".gitignore missing .last_build entry"
     fi
 
-    if grep -q '/portal' "$GITIGNORE"; then
-        pass ".gitignore includes /portal binary"
+    if grep -q '/vire-portal' "$GITIGNORE"; then
+        pass ".gitignore includes /vire-portal binary"
     else
-        fail ".gitignore missing /portal binary entry"
+        fail ".gitignore missing /vire-portal binary entry"
+    fi
+
+    if grep -q '/vire-mcp' "$GITIGNORE"; then
+        pass ".gitignore includes /vire-mcp binary"
+    else
+        fail ".gitignore missing /vire-mcp binary entry"
     fi
 
     if grep -q 'data/' "$GITIGNORE"; then
@@ -756,7 +830,7 @@ section "Build arg consistency across files"
 # All files that reference VERSION/BUILD/GIT_COMMIT should be consistent
 BUILD_ARG_FILES=()
 for f in \
-    "$PROJECT_DIR/Dockerfile" \
+    "$PROJECT_DIR/docker/Dockerfile" \
     "$PROJECT_DIR/docker/docker-compose.yml" \
     "$PROJECT_DIR/scripts/deploy.sh" \
     "$PROJECT_DIR/scripts/build.sh" \
@@ -818,10 +892,16 @@ fi
 
 # Verify Go compiles
 if command -v go &>/dev/null; then
-    if (cd "$PROJECT_DIR" && go build ./cmd/portal/) 2>/dev/null; then
-        pass "Go project compiles successfully"
+    if (cd "$PROJECT_DIR" && go build ./cmd/vire-portal/) 2>/dev/null; then
+        pass "vire-portal compiles successfully"
     else
-        fail "Go project fails to compile"
+        fail "vire-portal fails to compile"
+    fi
+
+    if (cd "$PROJECT_DIR" && go build ./cmd/vire-mcp/) 2>/dev/null; then
+        pass "vire-mcp compiles successfully"
+    else
+        fail "vire-mcp fails to compile"
     fi
 
     if (cd "$PROJECT_DIR" && go vet ./...) 2>/dev/null; then

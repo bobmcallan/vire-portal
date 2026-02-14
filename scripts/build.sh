@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# Docker image builder for vire-portal
-# Builds a Go binary in a multi-stage Docker image
+# Docker image builder for vire-portal and vire-mcp
+# Builds Go binaries in multi-stage Docker images
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -10,16 +10,21 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Parse arguments
 VERBOSE=false
 CLEAN=false
+BUILD_TARGET="all"  # all, portal, mcp
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         -v|--verbose) VERBOSE=true; shift ;;
         -c|--clean) CLEAN=true; shift ;;
+        --portal) BUILD_TARGET="portal"; shift ;;
+        --mcp) BUILD_TARGET="mcp"; shift ;;
         -h|--help)
             echo "Usage: $0 [options]"
             echo "Options:"
             echo "  -v, --verbose  Show verbose build output"
             echo "  -c, --clean    Remove existing images before building"
+            echo "  --portal       Build only vire-portal image"
+            echo "  --mcp          Build only vire-mcp image"
             echo "  -h, --help     Show this help message"
             exit 0
             ;;
@@ -31,13 +36,12 @@ cd "$PROJECT_ROOT"
 
 # Clean if requested
 if [[ "$CLEAN" == "true" ]]; then
-    echo "Removing existing vire-portal images..."
-    # Extract current version for targeted removal (glob not supported in docker image rm)
+    echo "Removing existing images..."
     CLEAN_VERSION="unknown"
     if [[ -f "$PROJECT_ROOT/.version" ]]; then
         CLEAN_VERSION=$(grep "^version:" "$PROJECT_ROOT/.version" | sed 's/version:\s*//' | tr -d ' ')
     fi
-    docker image rm vire-portal:latest "vire-portal:$CLEAN_VERSION" 2>/dev/null || true
+    docker image rm vire-portal:latest "vire-portal:$CLEAN_VERSION" vire-mcp:latest "vire-mcp:$CLEAN_VERSION" 2>/dev/null || true
 fi
 
 # Extract version info
@@ -59,31 +63,47 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-echo "Building vire-portal v$VERSION (commit: $GIT_COMMIT)..."
+# build_image builds a Docker image with version injection.
+# Usage: build_image <dockerfile> <image-name>
+build_image() {
+    local dockerfile="$1"
+    local image_name="$2"
 
-# Build Docker image (args passed individually to avoid word-splitting issues)
-if [[ "$VERBOSE" == "true" ]]; then
-    docker build \
-        --build-arg "VERSION=$VERSION" \
-        --build-arg "BUILD=$BUILD_TS" \
-        --build-arg "GIT_COMMIT=$GIT_COMMIT" \
-        --progress=plain \
-        -t "vire-portal:latest" \
-        -t "vire-portal:$VERSION" .
-else
-    docker build \
-        --build-arg "VERSION=$VERSION" \
-        --build-arg "BUILD=$BUILD_TS" \
-        --build-arg "GIT_COMMIT=$GIT_COMMIT" \
-        -t "vire-portal:latest" \
-        -t "vire-portal:$VERSION" .
+    echo "Building $image_name v$VERSION (commit: $GIT_COMMIT)..."
+
+    if [[ "$VERBOSE" == "true" ]]; then
+        docker build \
+            -f "$dockerfile" \
+            --build-arg "VERSION=$VERSION" \
+            --build-arg "BUILD=$BUILD_TS" \
+            --build-arg "GIT_COMMIT=$GIT_COMMIT" \
+            --progress=plain \
+            -t "$image_name:latest" \
+            -t "$image_name:$VERSION" .
+    else
+        docker build \
+            -f "$dockerfile" \
+            --build-arg "VERSION=$VERSION" \
+            --build-arg "BUILD=$BUILD_TS" \
+            --build-arg "GIT_COMMIT=$GIT_COMMIT" \
+            -t "$image_name:latest" \
+            -t "$image_name:$VERSION" .
+    fi
+
+    local image_size
+    image_size=$(docker image inspect "$image_name:latest" --format='{{.Size}}' 2>/dev/null | awk '{printf "%.1fMB", $1/1024/1024}')
+    echo "  Built: $image_name:latest ($image_size)"
+    echo "  Built: $image_name:$VERSION"
+}
+
+# Build images based on target
+if [[ "$BUILD_TARGET" == "all" || "$BUILD_TARGET" == "portal" ]]; then
+    build_image "docker/Dockerfile" "vire-portal"
 fi
 
-# Show result
-IMAGE_SIZE=$(docker image inspect "vire-portal:latest" --format='{{.Size}}' 2>/dev/null | awk '{printf "%.1fMB", $1/1024/1024}')
+if [[ "$BUILD_TARGET" == "all" || "$BUILD_TARGET" == "mcp" ]]; then
+    build_image "docker/Dockerfile.mcp" "vire-mcp"
+fi
+
 echo ""
-echo "Built Docker image:"
-echo "  vire-portal:latest ($IMAGE_SIZE)"
-echo "  vire-portal:$VERSION"
-echo ""
-echo "Run: docker run -p 8080:8080 vire-portal:latest"
+echo "Done."

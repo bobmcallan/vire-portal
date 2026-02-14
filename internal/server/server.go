@@ -32,7 +32,7 @@ func New(application *app.App) *Server {
 		Addr:         addr,
 		Handler:      s.withMiddleware(s.router),
 		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
+		WriteTimeout: 300 * time.Second, // 5 min: MCP tools (generate_report, etc.) can take minutes
 		IdleTimeout:  120 * time.Second,
 	}
 

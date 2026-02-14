@@ -4,7 +4,8 @@
 *.dll
 *.so
 *.dylib
-/portal
+/vire-portal
+/vire-mcp
 bin/
 
 # Test binary, built with `go test -c`

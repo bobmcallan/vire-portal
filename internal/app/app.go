@@ -7,6 +7,7 @@ import (
 	"github.com/bobmcallan/vire-portal/internal/config"
 	"github.com/bobmcallan/vire-portal/internal/handlers"
 	"github.com/bobmcallan/vire-portal/internal/interfaces"
+	"github.com/bobmcallan/vire-portal/internal/mcp"
 	"github.com/bobmcallan/vire-portal/internal/storage"
 )
 
@@ -20,6 +21,7 @@ type App struct {
 	PageHandler    *handlers.PageHandler
 	HealthHandler  *handlers.HealthHandler
 	VersionHandler *handlers.VersionHandler
+	MCPHandler     *mcp.Handler
 }
 
 // New initializes the application with all dependencies.
@@ -61,6 +63,7 @@ func (a *App) initHandlers() {
 	a.PageHandler = handlers.NewPageHandler(a.Logger)
 	a.HealthHandler = handlers.NewHealthHandler(a.Logger)
 	a.VersionHandler = handlers.NewVersionHandler(a.Logger)
+	a.MCPHandler = mcp.NewHandler(a.Config, a.Logger)
 
 	a.Logger.Debug("HTTP handlers initialized")
 }

@@ -1,10 +1,10 @@
-name: vire-portal
+name: vire
 
 services:
   vire-portal:
     build:
       context: ..
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
       args:
         VERSION: "${VERSION:-dev}"
         BUILD: "${BUILD:-unknown}"
@@ -12,16 +12,63 @@ services:
     image: vire-portal:latest
     container_name: vire-portal
     ports:
-      - "${PORTAL_PORT:-8080}:8080"
+      - "${PORTAL_PORT:-4241}:4241"
     environment:
       - VIRE_SERVER_HOST=0.0.0.0
-      - VIRE_SERVER_PORT=8080
+      - VIRE_SERVER_PORT=4241
+      - VIRE_API_URL=http://vire-server:4242
       - VIRE_BADGER_PATH=/app/data/vire
       - VIRE_LOG_LEVEL=info
     volumes:
       - portal-data:/app/data
+    depends_on:
+      vire-server:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4241/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  vire-mcp:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mcp
+      args:
+        VERSION: "${VERSION:-dev}"
+        BUILD: "${BUILD:-unknown}"
+        GIT_COMMIT: "${GIT_COMMIT:-unknown}"
+    image: vire-mcp:latest
+    container_name: vire-mcp
+    ports:
+      - "${MCP_PORT:-4243}:4243"
+    environment:
+      - VIRE_SERVER_URL=http://vire-server:4242
+      - VIRE_MCP_PORT=4243
+      - VIRE_LOG_LEVEL=info
+    volumes:
+      - ./vire-mcp.toml:/app/vire-mcp.toml:ro
+    depends_on:
+      vire-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --timeout=2 --method=POST -qO /dev/null http://localhost:4243/mcp 2>&1 || [ $? -eq 8 ]"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  vire-server:
+    image: ghcr.io/bobmcallan/vire-server:latest
+    pull_policy: always
+    container_name: vire-server
+    ports:
+      - "4242:4242"
+    volumes:
+      - vire-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4242/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -29,3 +76,4 @@ services:
 
 volumes:
   portal-data:
+  vire-data:

@@ -9,8 +9,8 @@ import (
 func TestNewDefaultConfig(t *testing.T) {
 	cfg := NewDefaultConfig()
 
-	if cfg.Server.Port != 8080 {
-		t.Errorf("expected default port 8080, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 4241 {
+		t.Errorf("expected default port 4241, got %d", cfg.Server.Port)
 	}
 	if cfg.Server.Host != "localhost" {
 		t.Errorf("expected default host localhost, got %s", cfg.Server.Host)
@@ -31,8 +31,8 @@ func TestLoadFromFiles_NoFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFromFiles with no files should not error: %v", err)
 	}
-	if cfg.Server.Port != 8080 {
-		t.Errorf("expected default port 8080, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 4241 {
+		t.Errorf("expected default port 4241, got %d", cfg.Server.Port)
 	}
 }
 
@@ -199,8 +199,8 @@ func TestApplyEnvOverrides_InvalidPort(t *testing.T) {
 	applyEnvOverrides(cfg)
 
 	// Port should remain default when env var is not a valid integer
-	if cfg.Server.Port != 8080 {
-		t.Errorf("expected default port 8080 for invalid env, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 4241 {
+		t.Errorf("expected default port 4241 for invalid env, got %d", cfg.Server.Port)
 	}
 }
 
@@ -223,11 +223,178 @@ func TestApplyFlagOverrides_ZeroPortNoOverride(t *testing.T) {
 	ApplyFlagOverrides(cfg, 0, "")
 
 	// No override when port is 0 and host is empty
-	if cfg.Server.Port != 8080 {
-		t.Errorf("expected default port 8080, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 4241 {
+		t.Errorf("expected default port 4241, got %d", cfg.Server.Port)
 	}
 	if cfg.Server.Host != "localhost" {
 		t.Errorf("expected default host localhost, got %s", cfg.Server.Host)
+	}
+}
+
+// --- MCP Config Tests ---
+
+func TestNewDefaultConfig_APIDefaults(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	if cfg.API.URL != "http://localhost:4242" {
+		t.Errorf("expected default API URL http://localhost:4242, got %s", cfg.API.URL)
+	}
+}
+
+func TestNewDefaultConfig_UserDefaults(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	if len(cfg.User.Portfolios) != 0 {
+		t.Errorf("expected empty default portfolios, got %v", cfg.User.Portfolios)
+	}
+	if cfg.User.DisplayCurrency != "" {
+		t.Errorf("expected empty default display currency, got %s", cfg.User.DisplayCurrency)
+	}
+}
+
+func TestNewDefaultConfig_KeysDefaults(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	if cfg.Keys.EODHD != "" {
+		t.Errorf("expected empty default EODHD key, got %s", cfg.Keys.EODHD)
+	}
+	if cfg.Keys.Navexa != "" {
+		t.Errorf("expected empty default Navexa key, got %s", cfg.Keys.Navexa)
+	}
+	if cfg.Keys.Gemini != "" {
+		t.Errorf("expected empty default Gemini key, got %s", cfg.Keys.Gemini)
+	}
+}
+
+func TestLoadFromFiles_MCPSections(t *testing.T) {
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "mcp.toml")
+
+	content := `
+[api]
+url = "http://vire-server:4242"
+
+[user]
+portfolios = ["SMSF", "Personal"]
+display_currency = "AUD"
+
+[keys]
+eodhd = "test-eodhd"
+navexa = "test-navexa"
+gemini = "test-gemini"
+`
+	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromFiles(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
+	}
+
+	if cfg.API.URL != "http://vire-server:4242" {
+		t.Errorf("expected API URL http://vire-server:4242, got %s", cfg.API.URL)
+	}
+	if len(cfg.User.Portfolios) != 2 || cfg.User.Portfolios[0] != "SMSF" || cfg.User.Portfolios[1] != "Personal" {
+		t.Errorf("expected portfolios [SMSF Personal], got %v", cfg.User.Portfolios)
+	}
+	if cfg.User.DisplayCurrency != "AUD" {
+		t.Errorf("expected display currency AUD, got %s", cfg.User.DisplayCurrency)
+	}
+	if cfg.Keys.EODHD != "test-eodhd" {
+		t.Errorf("expected EODHD key test-eodhd, got %s", cfg.Keys.EODHD)
+	}
+	if cfg.Keys.Navexa != "test-navexa" {
+		t.Errorf("expected Navexa key test-navexa, got %s", cfg.Keys.Navexa)
+	}
+	if cfg.Keys.Gemini != "test-gemini" {
+		t.Errorf("expected Gemini key test-gemini, got %s", cfg.Keys.Gemini)
+	}
+}
+
+func TestApplyEnvOverrides_APIURL(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_API_URL", "http://custom-server:9999")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.API.URL != "http://custom-server:9999" {
+		t.Errorf("expected API URL http://custom-server:9999, got %s", cfg.API.URL)
+	}
+}
+
+func TestApplyEnvOverrides_DefaultPortfolio(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_DEFAULT_PORTFOLIO", "SMSF")
+
+	applyEnvOverrides(cfg)
+
+	if len(cfg.User.Portfolios) != 1 || cfg.User.Portfolios[0] != "SMSF" {
+		t.Errorf("expected portfolios [SMSF], got %v", cfg.User.Portfolios)
+	}
+}
+
+func TestApplyEnvOverrides_DisplayCurrency(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_DISPLAY_CURRENCY", "USD")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.User.DisplayCurrency != "USD" {
+		t.Errorf("expected display currency USD, got %s", cfg.User.DisplayCurrency)
+	}
+}
+
+func TestApplyEnvOverrides_APIKeys(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("EODHD_API_KEY", "env-eodhd")
+	t.Setenv("NAVEXA_API_KEY", "env-navexa")
+	t.Setenv("GEMINI_API_KEY", "env-gemini")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.Keys.EODHD != "env-eodhd" {
+		t.Errorf("expected EODHD key env-eodhd, got %s", cfg.Keys.EODHD)
+	}
+	if cfg.Keys.Navexa != "env-navexa" {
+		t.Errorf("expected Navexa key env-navexa, got %s", cfg.Keys.Navexa)
+	}
+	if cfg.Keys.Gemini != "env-gemini" {
+		t.Errorf("expected Gemini key env-gemini, got %s", cfg.Keys.Gemini)
+	}
+}
+
+func TestLoadFromFiles_MCPSectionsDefaultsPreserved(t *testing.T) {
+	// When TOML only sets [api], [user] and [keys] should keep defaults
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "partial-mcp.toml")
+
+	content := `
+[api]
+url = "http://vire-server:4242"
+`
+	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromFiles(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
+	}
+
+	if cfg.API.URL != "http://vire-server:4242" {
+		t.Errorf("expected API URL from file, got %s", cfg.API.URL)
+	}
+	// User and Keys should remain defaults
+	if len(cfg.User.Portfolios) != 0 {
+		t.Errorf("expected empty portfolios, got %v", cfg.User.Portfolios)
+	}
+	if cfg.Keys.EODHD != "" {
+		t.Errorf("expected empty EODHD key, got %s", cfg.Keys.EODHD)
 	}
 }
 

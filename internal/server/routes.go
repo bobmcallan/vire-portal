@@ -12,6 +12,11 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	// Static files (CSS, JS, images)
 	mux.HandleFunc("/static/", s.app.PageHandler.StaticFileHandler)
 
+	// MCP endpoint (JSON-RPC over HTTP)
+	if s.app.MCPHandler != nil {
+		mux.Handle("/mcp", s.app.MCPHandler)
+	}
+
 	// API routes
 	mux.HandleFunc("/api/health", s.app.HealthHandler.ServeHTTP)
 	mux.HandleFunc("/api/version", s.app.VersionHandler.ServeHTTP)

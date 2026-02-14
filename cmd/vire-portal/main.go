@@ -57,7 +57,7 @@ func main() {
 
 	// Auto-discover config file if not specified
 	if len(configFiles) == 0 {
-		for _, path := range []string{"portal.toml", "docker/portal.toml"} {
+		for _, path := range []string{"vire-portal.toml", "docker/vire-portal.toml"} {
 			if _, err := os.Stat(path); err == nil {
 				configFiles = append(configFiles, path)
 				break

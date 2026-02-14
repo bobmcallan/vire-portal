@@ -129,11 +129,16 @@ func (s *Server) securityHeadersMiddleware(next http.Handler) http.Handler {
 }
 
 // maxBodySizeMiddleware limits the size of request bodies.
+// The MCP endpoint gets a larger limit (10MB) for JSON-RPC payloads.
 func (s *Server) maxBodySizeMiddleware(maxBytes int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Body != nil {
-				r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+				limit := maxBytes
+				if r.URL.Path == "/mcp" {
+					limit = 10 << 20 // 10MB for MCP
+				}
+				r.Body = http.MaxBytesReader(w, r.Body, limit)
 			}
 			next.ServeHTTP(w, r)
 		})
@@ -167,8 +172,8 @@ func (s *Server) csrfMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Skip API routes (they use Bearer tokens)
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		// Skip API routes (they use Bearer tokens) and MCP endpoint (JSON-RPC)
+		if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/mcp" {
 			next.ServeHTTP(w, r)
 			return
 		}

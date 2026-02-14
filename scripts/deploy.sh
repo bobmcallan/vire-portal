@@ -46,42 +46,44 @@ case "$MODE" in
            find "$PROJECT_DIR/pages" -newer "$COMPOSE_DIR/.last_build" 2>/dev/null | grep -q . || \
            [ "$PROJECT_DIR/go.mod" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/go.sum" -nt "$COMPOSE_DIR/.last_build" ] || \
-           [ "$PROJECT_DIR/docker/portal.toml" -nt "$COMPOSE_DIR/.last_build" ] || \
-           [ "$PROJECT_DIR/Dockerfile" -nt "$COMPOSE_DIR/.last_build" ] || \
+           [ "$PROJECT_DIR/docker/vire-portal.toml" -nt "$COMPOSE_DIR/.last_build" ] || \
+           [ "$PROJECT_DIR/docker/vire-mcp.toml" -nt "$COMPOSE_DIR/.last_build" ] || \
+           [ "$PROJECT_DIR/docker/Dockerfile" -nt "$COMPOSE_DIR/.last_build" ] || \
+           [ "$PROJECT_DIR/docker/Dockerfile.mcp" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/.version" -nt "$COMPOSE_DIR/.last_build" ]; then
             NEEDS_REBUILD=true
         fi
     fi
 
     if [ "$NEEDS_REBUILD" = true ]; then
-        echo "Building vire-portal v$VERSION (commit: $GIT_COMMIT)..."
+        echo "Building vire stack v$VERSION (commit: $GIT_COMMIT)..."
         # Stop any ghcr container first (different compose file)
         docker compose -f "$COMPOSE_DIR/docker-compose.ghcr.yml" down --remove-orphans 2>/dev/null || true
-        # Build new image while old containers keep running
+        # Build new images while old containers keep running
         if [ "$FORCE" = true ]; then
-            docker image rm vire-portal:latest 2>/dev/null || true
+            docker image rm vire-portal:latest vire-mcp:latest 2>/dev/null || true
             docker compose -f "$COMPOSE_DIR/docker-compose.yml" build --no-cache
         else
             docker compose -f "$COMPOSE_DIR/docker-compose.yml" build
         fi
         touch "$COMPOSE_DIR/.last_build"
-        echo " Image vire-portal:latest built "
+        echo " Images built "
     else
         echo "No changes detected, skipping rebuild."
     fi
 
-    # Start or recreate container with latest image
+    # Start or recreate containers with latest images
     docker compose -f "$COMPOSE_DIR/docker-compose.yml" up -d --force-recreate --remove-orphans
     ;;
   ghcr)
-    echo "Deploying ghcr image with auto-update..."
+    echo "Deploying ghcr images with auto-update..."
     # Stop any local-build container first (different compose file)
     docker compose -f "$COMPOSE_DIR/docker-compose.yml" down --remove-orphans 2>/dev/null || true
-    # Pull new image and swap container in one step
+    # Pull new images and swap containers in one step
     docker compose -f "$COMPOSE_DIR/docker-compose.ghcr.yml" up --pull always -d --force-recreate --remove-orphans
     ;;
   down)
-    echo "Stopping all vire-portal containers..."
+    echo "Stopping all vire containers..."
     docker compose -f "$COMPOSE_DIR/docker-compose.yml" down --remove-orphans 2>/dev/null || true
     docker compose -f "$COMPOSE_DIR/docker-compose.ghcr.yml" down --remove-orphans 2>/dev/null || true
     exit 0
@@ -101,8 +103,8 @@ case "$MODE" in
 esac
 
 sleep 2
-docker ps --filter "name=vire-portal" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+docker ps --filter "name=vire" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
 echo ""
-PORTAL_PORT="${PORTAL_PORT:-8080}"
+PORTAL_PORT="${PORTAL_PORT:-4241}"
 echo "Logs: docker logs -f vire-portal"
 echo "Health: curl http://localhost:$PORTAL_PORT/api/health"

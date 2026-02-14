@@ -1,0 +1,181 @@
+// Package interfaces defines service contracts for Vire.
+// Copied from github.com/bobmcallan/vire at commit 9d10ce5 (2026-02-15).
+package interfaces
+
+import (
+	"context"
+
+	"github.com/bobmcallan/vire-portal/internal/vire/models"
+)
+
+// StorageManager coordinates all storage backends
+type StorageManager interface {
+	// Storage accessors
+	PortfolioStorage() PortfolioStorage
+	MarketDataStorage() MarketDataStorage
+	SignalStorage() SignalStorage
+	KeyValueStorage() KeyValueStorage
+	ReportStorage() ReportStorage
+	StrategyStorage() StrategyStorage
+	PlanStorage() PlanStorage
+	SearchHistoryStorage() SearchHistoryStorage
+	WatchlistStorage() WatchlistStorage
+
+	// DataPath returns the base data directory path (e.g. /app/data).
+	DataPath() string
+
+	// WriteRaw writes arbitrary binary data to a subdirectory atomically.
+	// Key is sanitized for safe filenames (e.g. "smsf-growth.png").
+	WriteRaw(subdir, key string, data []byte) error
+
+	// PurgeDerivedData deletes all derived/cached data (Portfolio, MarketData,
+	// Signals, Reports) while preserving user data (Strategy, KV, Plans).
+	// Returns counts of deleted items per type.
+	PurgeDerivedData(ctx context.Context) (map[string]int, error)
+
+	// PurgeReports deletes only cached reports (used by dev mode on build change).
+	// Returns count of deleted reports.
+	PurgeReports(ctx context.Context) (int, error)
+
+	// Lifecycle
+	Close() error
+}
+
+// PortfolioStorage handles portfolio persistence
+type PortfolioStorage interface {
+	// GetPortfolio retrieves a portfolio by name
+	GetPortfolio(ctx context.Context, name string) (*models.Portfolio, error)
+
+	// SavePortfolio persists a portfolio
+	SavePortfolio(ctx context.Context, portfolio *models.Portfolio) error
+
+	// ListPortfolios returns all portfolio names
+	ListPortfolios(ctx context.Context) ([]string, error)
+
+	// DeletePortfolio removes a portfolio
+	DeletePortfolio(ctx context.Context, name string) error
+}
+
+// MarketDataStorage handles market data persistence
+type MarketDataStorage interface {
+	// GetMarketData retrieves market data for a ticker
+	GetMarketData(ctx context.Context, ticker string) (*models.MarketData, error)
+
+	// SaveMarketData persists market data
+	SaveMarketData(ctx context.Context, data *models.MarketData) error
+
+	// GetMarketDataBatch retrieves market data for multiple tickers
+	GetMarketDataBatch(ctx context.Context, tickers []string) ([]*models.MarketData, error)
+
+	// GetStaleTickers returns tickers that need refreshing
+	GetStaleTickers(ctx context.Context, exchange string, maxAge int64) ([]string, error)
+}
+
+// SignalStorage handles signal persistence
+type SignalStorage interface {
+	// GetSignals retrieves signals for a ticker
+	GetSignals(ctx context.Context, ticker string) (*models.TickerSignals, error)
+
+	// SaveSignals persists signals
+	SaveSignals(ctx context.Context, signals *models.TickerSignals) error
+
+	// GetSignalsBatch retrieves signals for multiple tickers
+	GetSignalsBatch(ctx context.Context, tickers []string) ([]*models.TickerSignals, error)
+}
+
+// ReportStorage handles report persistence
+type ReportStorage interface {
+	// GetReport retrieves a report by portfolio name
+	GetReport(ctx context.Context, portfolio string) (*models.PortfolioReport, error)
+
+	// SaveReport persists a report
+	SaveReport(ctx context.Context, report *models.PortfolioReport) error
+
+	// ListReports returns all portfolio names that have reports
+	ListReports(ctx context.Context) ([]string, error)
+
+	// DeleteReport removes a report
+	DeleteReport(ctx context.Context, portfolio string) error
+}
+
+// KeyValueStorage provides generic key-value storage
+type KeyValueStorage interface {
+	// Get retrieves a value by key
+	Get(ctx context.Context, key string) (string, error)
+
+	// Set stores a value
+	Set(ctx context.Context, key, value string) error
+
+	// Delete removes a key
+	Delete(ctx context.Context, key string) error
+
+	// GetAll returns all key-value pairs
+	GetAll(ctx context.Context) (map[string]string, error)
+}
+
+// StrategyStorage handles portfolio strategy persistence
+type StrategyStorage interface {
+	// GetStrategy retrieves a strategy by portfolio name
+	GetStrategy(ctx context.Context, portfolioName string) (*models.PortfolioStrategy, error)
+
+	// SaveStrategy persists a strategy (upsert with version increment)
+	SaveStrategy(ctx context.Context, strategy *models.PortfolioStrategy) error
+
+	// DeleteStrategy removes a strategy
+	DeleteStrategy(ctx context.Context, portfolioName string) error
+
+	// ListStrategies returns all portfolio names that have strategies
+	ListStrategies(ctx context.Context) ([]string, error)
+}
+
+// PlanStorage handles portfolio plan persistence
+type PlanStorage interface {
+	// GetPlan retrieves a plan by portfolio name
+	GetPlan(ctx context.Context, portfolioName string) (*models.PortfolioPlan, error)
+
+	// SavePlan persists a plan (upsert with version increment)
+	SavePlan(ctx context.Context, plan *models.PortfolioPlan) error
+
+	// DeletePlan removes a plan
+	DeletePlan(ctx context.Context, portfolioName string) error
+
+	// ListPlans returns all portfolio names that have plans
+	ListPlans(ctx context.Context) ([]string, error)
+}
+
+// SearchHistoryStorage handles search/screen result persistence
+type SearchHistoryStorage interface {
+	// SaveSearch persists a search record
+	SaveSearch(ctx context.Context, record *models.SearchRecord) error
+
+	// GetSearch retrieves a search record by ID
+	GetSearch(ctx context.Context, id string) (*models.SearchRecord, error)
+
+	// ListSearches returns search records matching filters, ordered by most recent first
+	ListSearches(ctx context.Context, options SearchListOptions) ([]*models.SearchRecord, error)
+
+	// DeleteSearch removes a search record
+	DeleteSearch(ctx context.Context, id string) error
+}
+
+// WatchlistStorage handles portfolio watchlist persistence
+type WatchlistStorage interface {
+	// GetWatchlist retrieves a watchlist by portfolio name
+	GetWatchlist(ctx context.Context, portfolioName string) (*models.PortfolioWatchlist, error)
+
+	// SaveWatchlist persists a watchlist (upsert with version increment)
+	SaveWatchlist(ctx context.Context, watchlist *models.PortfolioWatchlist) error
+
+	// DeleteWatchlist removes a watchlist
+	DeleteWatchlist(ctx context.Context, portfolioName string) error
+
+	// ListWatchlists returns all portfolio names that have watchlists
+	ListWatchlists(ctx context.Context) ([]string, error)
+}
+
+// SearchListOptions configures search history listing
+type SearchListOptions struct {
+	Type     string // Filter by type: "screen", "snipe", "funnel" (empty = all)
+	Exchange string // Filter by exchange (empty = all)
+	Limit    int    // Max results (0 = default 20)
+}

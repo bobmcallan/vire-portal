@@ -11,8 +11,29 @@ import (
 // Config represents the application configuration.
 type Config struct {
 	Server  ServerConfig  `toml:"server"`
+	API     APIConfig     `toml:"api"`
+	User    UserConfig    `toml:"user"`
+	Keys    KeysConfig    `toml:"keys"`
 	Storage StorageConfig `toml:"storage"`
 	Logging LoggingConfig `toml:"logging"`
+}
+
+// APIConfig contains vire-server API connection settings.
+type APIConfig struct {
+	URL string `toml:"url"`
+}
+
+// UserConfig contains per-user settings injected as X-Vire-* headers.
+type UserConfig struct {
+	Portfolios      []string `toml:"portfolios"`
+	DisplayCurrency string   `toml:"display_currency"`
+}
+
+// KeysConfig contains API keys for external services.
+type KeysConfig struct {
+	EODHD  string `toml:"eodhd"`
+	Navexa string `toml:"navexa"`
+	Gemini string `toml:"gemini"`
 }
 
 // ServerConfig contains HTTP server settings.
@@ -91,6 +112,29 @@ func applyEnvOverrides(config *Config) {
 	if format := os.Getenv("VIRE_LOG_FORMAT"); format != "" {
 		config.Logging.Format = format
 	}
+
+	// MCP / API overrides
+	if apiURL := os.Getenv("VIRE_API_URL"); apiURL != "" {
+		config.API.URL = apiURL
+	}
+	if portfolio := os.Getenv("VIRE_DEFAULT_PORTFOLIO"); portfolio != "" {
+		config.User.Portfolios = []string{portfolio}
+	}
+	if currency := os.Getenv("VIRE_DISPLAY_CURRENCY"); currency != "" {
+		config.User.DisplayCurrency = currency
+	}
+
+	// API key overrides (match vire-mcp convention)
+	if key := os.Getenv("EODHD_API_KEY"); key != "" {
+		config.Keys.EODHD = key
+	}
+	if key := os.Getenv("NAVEXA_API_KEY"); key != "" {
+		config.Keys.Navexa = key
+	}
+	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
+		config.Keys.Gemini = key
+	}
+
 }
 
 // ApplyFlagOverrides applies command-line flag overrides to config.

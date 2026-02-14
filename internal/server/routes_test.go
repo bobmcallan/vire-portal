@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/bobmcallan/vire-portal/internal/app"
@@ -187,6 +188,66 @@ func TestRoutes_CSRFCookieOnLandingPage(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected _csrf cookie to be set on landing page response")
+	}
+}
+
+// --- MCP Route Tests ---
+
+func TestRoutes_MCPEndpointAcceptsPost(t *testing.T) {
+	application := newTestApp(t)
+	srv := New(application)
+
+	// POST /mcp should return a valid MCP response (not 403, 404, or 501)
+	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	// Must not be blocked by CSRF (403), missing route (404), or unimplemented (501)
+	if w.Code == http.StatusForbidden {
+		t.Error("POST /mcp blocked by CSRF middleware — should be exempt")
+	}
+	if w.Code == http.StatusNotFound {
+		t.Error("POST /mcp returned 404 — route not registered")
+	}
+	if w.Code == http.StatusNotImplemented {
+		t.Error("POST /mcp returned 501 — handler not implemented")
+	}
+	// A working MCP endpoint returns 200 for initialize
+	if w.Code != http.StatusOK {
+		t.Errorf("POST /mcp expected 200, got %d", w.Code)
+	}
+}
+
+func TestRoutes_MCPNotBlockedByCSRF(t *testing.T) {
+	application := newTestApp(t)
+	srv := New(application)
+
+	// POST /mcp without CSRF token should NOT be rejected with 403
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code == http.StatusForbidden {
+		t.Error("POST /mcp blocked by CSRF middleware — /mcp should be exempt")
+	}
+}
+
+func TestRoutes_MCPHasCorrelationID(t *testing.T) {
+	application := newTestApp(t)
+	srv := New(application)
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Header().Get("X-Correlation-ID") == "" {
+		t.Error("expected X-Correlation-ID header on /mcp response")
 	}
 }
 

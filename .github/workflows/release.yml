@@ -23,6 +23,14 @@ jobs:
       contents: read
       packages: write
 
+    strategy:
+      matrix:
+        include:
+          - image: vire-portal
+            dockerfile: docker/Dockerfile
+          - image: vire-mcp
+            dockerfile: docker/Dockerfile.mcp
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,7 +57,7 @@ jobs:
         id: docker-meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/vire-portal
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
           tags: |
             type=sha,prefix=,format=short
             type=raw,value=${{ steps.meta.outputs.version }}
@@ -59,7 +67,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile
+          file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.docker-meta.outputs.tags }}
           labels: ${{ steps.docker-meta.outputs.labels }}
@@ -67,5 +75,5 @@ jobs:
             VERSION=${{ steps.meta.outputs.version }}
             BUILD=${{ steps.meta.outputs.build }}
             GIT_COMMIT=${{ steps.meta.outputs.commit }}
-          cache-from: type=gha,scope=vire-portal
-          cache-to: type=gha,mode=max,scope=vire-portal
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
