@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {{template "head.html" .}}
+    <title>VIRE</title>
+</head>
+
+<body>
+
+    <main class="landing">
+        <div class="landing-inner">
+
+            <div class="landing-hero">
+                <h1 class="landing-title">VIRE</h1>
+                <p class="landing-tagline">
+                    Connect your stock portfolio to Claude via MCP.
+                </p>
+            </div>
+
+            <div class="landing-actions">
+                <a href="/api/auth/login/google" class="btn btn-primary">
+                    SIGN IN WITH GOOGLE
+                </a>
+                <a href="/api/auth/login/github" class="btn btn-secondary">
+                    SIGN IN WITH GITHUB
+                </a>
+            </div>
+
+            <div class="landing-features">
+                <div class="feature-card">
+                    <div class="feature-label">[01] API KEYS</div>
+                    <p>Bring your own EODHD, Navexa, and Gemini API keys. Your data, your keys.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-label">[02] MCP PROXY</div>
+                    <p>One-click provisioning of your dedicated MCP endpoint on Cloud Run.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-label">[03] CONNECT</div>
+                    <p>Copy your config into Claude Code or Claude Desktop and start querying.</p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    {{template "footer.html" .}}
+
+</body>
+
+</html>

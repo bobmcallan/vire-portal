@@ -30,3 +30,12 @@ npm-debug.log*
 
 # Docker build sentinel
 docker/.last_build
+
+# Go
+data/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+__debug_bin*

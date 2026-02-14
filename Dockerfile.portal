@@ -1,0 +1,39 @@
+# Stage 1: Build
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+# Copy dependency files first for layer caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build binary with version info
+ARG VERSION=dev
+ARG BUILD=unknown
+ARG GIT_COMMIT=unknown
+
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-s -w \
+    -X github.com/bobmcallan/vire-portal/internal/config.Version=${VERSION} \
+    -X github.com/bobmcallan/vire-portal/internal/config.Build=${BUILD} \
+    -X github.com/bobmcallan/vire-portal/internal/config.GitCommit=${GIT_COMMIT}" \
+    -o /app/vire-portal ./cmd/portal
+
+# Stage 2: Runtime
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /app
+
+COPY --from=builder /app/vire-portal .
+COPY --from=builder /app/pages ./pages
+COPY --from=builder /app/portal.toml .
+COPY --from=builder /app/.version .
+
+EXPOSE 8080
+
+CMD ["./vire-portal"]

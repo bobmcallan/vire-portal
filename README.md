@@ -782,7 +782,152 @@ vire-portal/
 └── README.md
 ```
 
-## Development
+## Go Server (Scaffold)
+
+The repository now includes a Go-based server scaffold alongside the existing SPA. This is the foundation for migrating to a server-rendered architecture following the [Quaero project](https://github.com/ternarybob/quaero) patterns.
+
+### Go Project Structure
+
+```
+cmd/portal/main.go              # Entry point (flag parsing, config, graceful shutdown)
+internal/
+  app/app.go                    # Dependency container (Config, Logger, StorageManager, Handlers)
+  config/
+    config.go                   # TOML loading with defaults -> file -> env -> CLI priority
+    defaults.go                 # Default configuration values
+    version.go                  # Version info (ldflags + .version file)
+  handlers/
+    landing.go                  # PageHandler (template rendering + static file serving)
+    health.go                   # GET /api/health
+    version.go                  # GET /api/version
+    helpers.go                  # WriteJSON, RequireMethod, WriteError
+  interfaces/storage.go         # StorageManager + KeyValueStorage interfaces
+  models/
+    user.go                     # User model
+    session.go                  # Session model
+  server/
+    server.go                   # HTTP server (net/http, timeouts, graceful shutdown)
+    routes.go                   # Route registration
+    middleware.go               # Correlation ID, logging, CORS, recovery
+    route_helpers.go            # RouteByMethod, RouteResourceCollection
+  storage/
+    factory.go                  # Storage factory (creates BadgerDB manager)
+    badger/
+      connection.go             # BadgerDB connection via badgerhold
+      manager.go                # StorageManager implementation
+      kv_storage.go             # KeyValueStorage implementation
+pages/
+  landing.html                  # Landing page (Go html/template)
+  partials/
+    head.html                   # HTML head (IBM Plex Mono, Alpine.js CDN)
+    nav.html                    # Navigation bar
+    footer.html                 # Footer
+  static/
+    css/portal.css              # 80s B&W aesthetic (no border-radius, no box-shadow)
+    common.js                   # Alpine.js component skeleton
+portal.toml                     # Configuration file
+Dockerfile.portal               # Multi-stage Go build (golang:1.25 -> alpine)
+docker/docker-compose.go.yml    # Docker Compose for Go server
+```
+
+### Go Prerequisites
+
+- Go 1.25+
+
+### Go Development
+
+```bash
+# Build the server binary
+go build ./cmd/portal/
+
+# Run the server (auto-discovers portal.toml)
+go run ./cmd/portal/
+
+# Run with custom port
+go run ./cmd/portal/ -p 9090
+
+# Run with custom config
+go run ./cmd/portal/ -c custom.toml
+
+# Run all tests (52 tests)
+go test ./...
+
+# Run tests verbose
+go test -v ./...
+
+# Vet for issues
+go vet ./...
+```
+
+The Go server runs on `http://localhost:8080` by default.
+
+### Go Routes
+
+| Route | Handler | Description |
+|-------|---------|-------------|
+| `GET /` | PageHandler | Landing page (server-rendered HTML template) |
+| `GET /static/*` | PageHandler | Static files (CSS, JS) |
+| `GET /api/health` | HealthHandler | Health check (`{"status":"ok"}`) |
+| `GET /api/version` | VersionHandler | Version info (JSON) |
+
+### Go Configuration
+
+Configuration priority (highest wins): CLI flags > environment variables > TOML file > defaults.
+
+| Setting | TOML Key | Environment Variable | Default |
+|---------|----------|---------------------|---------|
+| Server port | `server.port` | `VIRE_SERVER_PORT` | `8080` |
+| Server host | `server.host` | `VIRE_SERVER_HOST` | `localhost` |
+| BadgerDB path | `storage.badger.path` | `VIRE_BADGER_PATH` | `./data/vire` |
+| Log level | `logging.level` | `VIRE_LOG_LEVEL` | `info` |
+| Log format | `logging.format` | `VIRE_LOG_FORMAT` | `text` |
+
+### Go Docker
+
+```bash
+# Build Go Docker image
+docker build -f Dockerfile.portal -t vire-portal-go:latest \
+  --build-arg VERSION=$(grep '^version:' .version | awk '{print $2}') \
+  --build-arg GIT_COMMIT=$(git rev-parse --short HEAD) .
+
+# Run Go Docker container
+docker run -p 8080:8080 \
+  -e VIRE_SERVER_HOST=0.0.0.0 \
+  vire-portal-go:latest
+
+# Docker Compose
+docker compose -f docker/docker-compose.go.yml up
+```
+
+### Data Layer (Interface Pattern)
+
+The storage layer uses interfaces so BadgerDB can be swapped for a centralised database later:
+
+```go
+type StorageManager interface {
+    KeyValueStorage() KeyValueStorage
+    DB() interface{}
+    Close() error
+}
+
+type KeyValueStorage interface {
+    Get(ctx context.Context, key string) (string, error)
+    Set(ctx context.Context, key, value string) error
+    Delete(ctx context.Context, key string) error
+    GetAll(ctx context.Context) (map[string]string, error)
+}
+```
+
+To switch from BadgerDB to PostgreSQL or another database, implement these interfaces and update `internal/storage/factory.go`.
+
+### SPA and Go Coexistence
+
+Both the SPA and Go scaffold coexist in this repository:
+- SPA code: `src/`, `index.html`, `vite.config.ts`, `package.json`, `Dockerfile`
+- Go code: `cmd/`, `internal/`, `pages/`, `portal.toml`, `Dockerfile.portal`
+- Both build and test independently (`npm test` and `go test ./...`)
+
+## Development (SPA)
 
 ### Prerequisites
 
