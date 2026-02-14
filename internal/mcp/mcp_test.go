@@ -4,24 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/config"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
 
 // --- Helpers ---
 
-func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+func testLogger() *common.Logger {
+	return common.NewSilentLogger()
 }
 
 func testConfig() *config.Config {
@@ -29,9 +28,6 @@ func testConfig() *config.Config {
 	cfg.API.URL = "http://localhost:4242"
 	cfg.User.Portfolios = []string{"SMSF", "Personal"}
 	cfg.User.DisplayCurrency = "AUD"
-	cfg.Keys.EODHD = "test-eodhd-key"
-	cfg.Keys.Navexa = "test-navexa-key"
-	cfg.Keys.Gemini = "test-gemini-key"
 	return cfg
 }
 
@@ -1709,42 +1705,6 @@ func TestNewMCPProxy_UserHeaders_DisplayCurrency(t *testing.T) {
 	}
 }
 
-func TestNewMCPProxy_UserHeaders_NavexaKey(t *testing.T) {
-	cfg := testConfig()
-	cfg.Keys.Navexa = "navexa-secret-123"
-
-	p := NewMCPProxy("http://localhost:4242", testLogger(), cfg)
-
-	key := p.UserHeaders().Get("X-Vire-Navexa-Key")
-	if key != "navexa-secret-123" {
-		t.Errorf("expected X-Vire-Navexa-Key 'navexa-secret-123', got %q", key)
-	}
-}
-
-func TestNewMCPProxy_UserHeaders_EODHDKey(t *testing.T) {
-	cfg := testConfig()
-	cfg.Keys.EODHD = "eodhd-secret-456"
-
-	p := NewMCPProxy("http://localhost:4242", testLogger(), cfg)
-
-	key := p.UserHeaders().Get("X-Vire-EODHD-Key")
-	if key != "eodhd-secret-456" {
-		t.Errorf("expected X-Vire-EODHD-Key 'eodhd-secret-456', got %q", key)
-	}
-}
-
-func TestNewMCPProxy_UserHeaders_GeminiKey(t *testing.T) {
-	cfg := testConfig()
-	cfg.Keys.Gemini = "gemini-secret-789"
-
-	p := NewMCPProxy("http://localhost:4242", testLogger(), cfg)
-
-	key := p.UserHeaders().Get("X-Vire-Gemini-Key")
-	if key != "gemini-secret-789" {
-		t.Errorf("expected X-Vire-Gemini-Key 'gemini-secret-789', got %q", key)
-	}
-}
-
 func TestNewMCPProxy_UserHeaders_EmptyConfig(t *testing.T) {
 	cfg := config.NewDefaultConfig()
 
@@ -1755,15 +1715,6 @@ func TestNewMCPProxy_UserHeaders_EmptyConfig(t *testing.T) {
 	}
 	if p.UserHeaders().Get("X-Vire-Display-Currency") != "" {
 		t.Error("expected no X-Vire-Display-Currency header with empty config")
-	}
-	if p.UserHeaders().Get("X-Vire-Navexa-Key") != "" {
-		t.Error("expected no X-Vire-Navexa-Key header with empty config")
-	}
-	if p.UserHeaders().Get("X-Vire-EODHD-Key") != "" {
-		t.Error("expected no X-Vire-EODHD-Key header with empty config")
-	}
-	if p.UserHeaders().Get("X-Vire-Gemini-Key") != "" {
-		t.Error("expected no X-Vire-Gemini-Key header with empty config")
 	}
 }
 

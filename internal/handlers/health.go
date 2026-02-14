@@ -1,17 +1,18 @@
 package handlers
 
 import (
-	"log/slog"
 	"net/http"
+
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 // HealthHandler handles health check requests.
 type HealthHandler struct {
-	logger *slog.Logger
+	logger *common.Logger
 }
 
 // NewHealthHandler creates a new health handler.
-func NewHealthHandler(logger *slog.Logger) *HealthHandler {
+func NewHealthHandler(logger *common.Logger) *HealthHandler {
 	return &HealthHandler{logger: logger}
 }
 

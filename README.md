@@ -13,7 +13,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 - **Alpine.js** (CDN) for client-side interactivity
 - **BadgerDB** via [badgerhold](https://github.com/timshannon/badgerhold) for embedded storage
 - **TOML** configuration with priority: defaults < file < env (VIRE_ prefix) < CLI flags
-- **Port 8080** -- required by Cloud Run
+- **Port 8080** -- default port; Docker local dev overrides to 4241 via `docker/vire-portal.toml`
 - **80s B&W aesthetic** -- IBM Plex Mono, no border-radius, no box-shadow, monochrome only
 - **No Firebase Auth SDK** -- OAuth is handled via direct HTTP redirects and gateway API calls
 
@@ -22,10 +22,12 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | Route | Handler | Auth | Description |
 |-------|---------|------|-------------|
 | `GET /` | PageHandler | No | Landing page (server-rendered HTML template) |
+| `GET /dashboard` | DashboardHandler | No | Dashboard (MCP config, tools, config status) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP transport, dynamic tools) |
 | `GET /api/health` | HealthHandler | No | Health check (`{"status":"ok"}`) |
 | `GET /api/version` | VersionHandler | No | Version info (JSON) |
+| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (creates session, redirects to `/`; 404 in prod) |
 
 ## Prerequisites
 
@@ -56,7 +58,39 @@ go test -v ./...
 go vet ./...
 ```
 
-The server runs on `http://localhost:8080` by default.
+The server runs on `http://localhost:4241` by default.
+
+## Dev Mode
+
+Set `environment = "dev"` in the TOML config or `VIRE_ENV=dev` as an environment variable to enable dev mode. This adds:
+
+- A "DEV LOGIN" button on the landing page that bypasses OAuth
+- `POST /api/auth/dev` endpoint that creates a minimal HS256 JWT session for `bobmcallan@gmail.com` and sets an httpOnly `vire_session` cookie
+- All other functionality remains identical to prod
+
+Dev mode is disabled by default (`environment = "prod"`). The `POST /api/auth/dev` route returns 404 when not in dev mode.
+
+```bash
+# Run in dev mode
+VIRE_ENV=dev go run ./cmd/vire-portal/
+
+# Or set in config file
+# environment = "dev"
+```
+
+## Logging
+
+Logging uses [arbor](https://github.com/ternarybob/arbor) with a fluent API. By default, logs are written to both console and file (`logs/vire-portal.log`). Configure via the `[logging]` section in the TOML config:
+
+```toml
+[logging]
+level = "info"
+format = "text"
+outputs = ["console", "file"]
+file_path = "logs/vire-portal.log"
+max_size_mb = 10
+max_backups = 5
+```
 
 ## Configuration
 
@@ -69,16 +103,20 @@ Configuration priority (highest wins): CLI flags > environment variables > TOML 
 | API URL | `api.url` | `VIRE_API_URL` | -- | `http://localhost:4242` |
 | Portfolios | `user.portfolios` | `VIRE_DEFAULT_PORTFOLIO` | -- | `[]` |
 | Display currency | `user.display_currency` | `VIRE_DISPLAY_CURRENCY` | -- | `""` |
-| EODHD API key | `keys.eodhd` | `EODHD_API_KEY` | -- | `""` |
-| Navexa API key | `keys.navexa` | `NAVEXA_API_KEY` | -- | `""` |
-| Gemini API key | `keys.gemini` | `GEMINI_API_KEY` | -- | `""` |
+| Import users | `import.users` | -- | -- | `false` |
+| Import users file | `import.users_file` | -- | -- | `data/users.json` |
 | BadgerDB path | `storage.badger.path` | `VIRE_BADGER_PATH` | -- | `./data/vire` |
+| Environment | `environment` | `VIRE_ENV` | -- | `prod` |
 | Log level | `logging.level` | `VIRE_LOG_LEVEL` | -- | `info` |
 | Log format | `logging.format` | `VIRE_LOG_FORMAT` | -- | `text` |
+| Log outputs | `logging.outputs` | -- | -- | `["console", "file"]` |
+| Log file path | `logging.file_path` | -- | -- | `logs/vire-portal.log` |
+| Log max size (MB) | `logging.max_size_mb` | -- | -- | `10` |
+| Log max backups | `logging.max_backups` | -- | -- | `5` |
 
 The config file is auto-discovered from `vire-portal.toml` or `docker/vire-portal.toml`. Specify explicitly with `-c path/to/config.toml`.
 
-The `[api]`, `[user]`, and `[keys]` sections configure the MCP proxy. `api.url` points to the vire-server instance. User context and API keys are injected as X-Vire-* headers on every proxied request.
+The `[api]` and `[user]` sections configure the MCP proxy. `api.url` points to the vire-server instance. User context is injected as X-Vire-* headers on every proxied request. The `[import]` section controls startup data loading (e.g., importing users from JSON into BadgerDB).
 
 ## MCP Endpoint
 
@@ -91,7 +129,7 @@ Claude / MCP Client
   |
   | POST /mcp (Streamable HTTP)
   v
-vire-portal (:8080)
+vire-portal (:4241)
   |  internal/mcp/ package
   |  - Dynamic tool catalog from GET /api/mcp/tools
   |  - Generic proxy handler (path/query/body params)
@@ -113,7 +151,7 @@ Add this to your Claude Code MCP settings or `~/.claude.json`:
   "mcpServers": {
     "vire": {
       "type": "http",
-      "url": "http://localhost:8080/mcp"
+      "url": "http://localhost:4241/mcp"
     }
   }
 }
@@ -131,9 +169,6 @@ The proxy injects these headers on every request to vire-server, built from conf
 |--------|-------------|-------------|
 | `X-Vire-Portfolios` | `user.portfolios` | Comma-separated portfolio names |
 | `X-Vire-Display-Currency` | `user.display_currency` | Currency for display values |
-| `X-Vire-Navexa-Key` | `keys.navexa` | Navexa API key |
-| `X-Vire-EODHD-Key` | `keys.eodhd` | EODHD API key |
-| `X-Vire-Gemini-Key` | `keys.gemini` | Gemini API key |
 
 ## Authentication Flow
 
@@ -599,9 +634,10 @@ RUN apk --no-cache add ca-certificates wget
 COPY --from=builder /build/vire-portal .
 COPY --from=builder /build/pages ./pages
 COPY --from=builder /build/docker/vire-portal.toml .
+COPY --from=builder /build/data ./seed
 COPY .version .
-RUN mkdir -p /app/data
-EXPOSE 8080
+RUN mkdir -p /app/data /app/logs
+EXPOSE 4241
 HEALTHCHECK NONE
 ENTRYPOINT ["./vire-portal"]
 ```
@@ -676,6 +712,8 @@ vire-portal/
 │   │   ├── version.go               # Version info (ldflags + .version file)
 │   │   └── version_test.go
 │   ├── handlers/
+│   │   ├── auth.go                  # POST /api/auth/dev (dev-only login)
+│   │   ├── dashboard.go             # GET /dashboard (MCP config, tools, config status)
 │   │   ├── handlers_test.go
 │   │   ├── health.go                # GET /api/health
 │   │   ├── helpers.go               # WriteJSON, RequireMethod, WriteError
@@ -688,8 +726,13 @@ vire-portal/
 │   │   ├── mcp_test.go              # 81 tests: catalog, validation, tools, handlers, proxy, integration
 │   │   ├── proxy.go                 # HTTP proxy to vire-server with X-Vire-* headers
 │   │   └── tools.go                 # RegisterToolsFromCatalog (dynamic registration)
+│   ├── importer/
+│   │   ├── users.go                 # ImportUsers (JSON -> BadgerDB, bcrypt password hashing)
+│   │   └── users_test.go
 │   ├── interfaces/
 │   │   └── storage.go               # StorageManager + KeyValueStorage interfaces
+│   ├── models/
+│   │   └── user.go                  # User model (username, email, password, role)
 │   ├── server/
 │   │   ├── middleware.go             # Correlation ID, logging, CORS, recovery
 │   │   ├── middleware_test.go
@@ -710,6 +753,7 @@ vire-portal/
 │       ├── interfaces/               # Service and storage interface contracts
 │       └── models/                   # Data structures (portfolio, market, strategy, etc.)
 ├── pages/
+│   ├── dashboard.html                # Dashboard page (MCP config, tools, config status)
 │   ├── landing.html                  # Landing page (Go html/template)
 │   ├── partials/
 │   │   ├── head.html                 # HTML head (IBM Plex Mono, Alpine.js CDN)
@@ -719,6 +763,8 @@ vire-portal/
 │       ├── css/
 │       │   └── portal.css            # 80s B&W aesthetic (no border-radius, no box-shadow)
 │       └── common.js                 # Alpine.js component skeleton
+├── data/
+│   └── users.json                   # Seed users for import (dev, admin)
 ├── docker/
 │   ├── Dockerfile                    # Portal multi-stage build (golang:1.25 -> alpine)
 │   ├── Dockerfile.mcp               # MCP multi-stage build (golang:1.25 -> alpine)
@@ -761,10 +807,10 @@ docker compose -f docker/docker-compose.yml up --build
 ```
 
 This starts:
-- **vire-portal** on port 8080 -- landing page + MCP endpoint
+- **vire-portal** on port 4241 -- landing page + MCP endpoint
 - **vire-server** on port 4242 -- backend API (pulled from GHCR)
 
-The portal connects to vire-server via `VIRE_API_URL=http://vire-server:4242` (Docker internal network). Claude connects to `http://localhost:8080/mcp`.
+The portal connects to vire-server via `VIRE_API_URL=http://vire-server:4242` (Docker internal network). Claude connects to `http://localhost:4241/mcp`.
 
 ### Portal Only
 
@@ -804,8 +850,8 @@ Or use docker directly:
 # Build the Docker image
 docker build -f docker/Dockerfile -t vire-portal:latest .
 
-# Run on host port 8080
-docker run -p 8080:8080 \
+# Run on host port 4241
+docker run -p 4241:4241 \
   -e VIRE_SERVER_HOST=0.0.0.0 \
   -e VIRE_API_URL=http://host.docker.internal:4242 \
   -v portal-data:/app/data \
@@ -880,7 +926,7 @@ The portal runs alongside vire-server in a two-service Docker Compose stack:
              │ GET /               │ POST /mcp
              │                     │
     ┌────────┴─────────────────────┴──────────┐
-    │  vire-portal (:8080)   (this repo)      │
+    │  vire-portal (:4241)   (this repo)      │
     │  - Landing page (html/template)         │
     │  - MCP endpoint (mcp-go, dynamic tools) │
     │  - Proxy with X-Vire-* header injection │
@@ -895,7 +941,7 @@ The portal runs alongside vire-server in a two-service Docker Compose stack:
     └─────────────────────────────────────────┘
 ```
 
-The portal proxies all MCP tool calls to vire-server, injecting X-Vire-* headers for user context (portfolios, API keys, display currency). For future multi-user cloud deployment, the portal will also integrate with vire-gateway for OAuth and user management.
+The portal proxies all MCP tool calls to vire-server, injecting X-Vire-* headers for user context (portfolios, display currency). For future multi-user cloud deployment, the portal will also integrate with vire-gateway for OAuth and user management.
 
 ## License
 

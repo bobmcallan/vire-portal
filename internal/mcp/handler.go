@@ -2,11 +2,11 @@ package mcp
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/config"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
 
@@ -14,7 +14,8 @@ import (
 // It wraps mcp-go's StreamableHTTPServer and delegates to it.
 type Handler struct {
 	streamable *mcpserver.StreamableHTTPServer
-	logger     *slog.Logger
+	logger     *common.Logger
+	catalog    []CatalogTool
 }
 
 // catalogRetryAttempts is the number of times to retry fetching the catalog.
@@ -24,7 +25,7 @@ const catalogRetryAttempts = 3
 const catalogRetryDelay = 2 * time.Second
 
 // NewHandler creates a new MCP handler with dynamic tool registration from vire-server.
-func NewHandler(cfg *config.Config, logger *slog.Logger) *Handler {
+func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 	mcpSrv := mcpserver.NewMCPServer(
 		"vire-portal",
 		"1.0.0",
@@ -43,20 +44,27 @@ func NewHandler(cfg *config.Config, logger *slog.Logger) *Handler {
 		if fetchErr == nil {
 			break
 		}
-		logger.Warn("failed to fetch tool catalog, retrying",
-			"attempt", attempt, "max_attempts", catalogRetryAttempts,
-			"error", fetchErr, "api_url", cfg.API.URL)
+		logger.Warn().
+			Int("attempt", attempt).
+			Int("max_attempts", catalogRetryAttempts).
+			Str("error", fetchErr.Error()).
+			Str("api_url", cfg.API.URL).
+			Msg("failed to fetch tool catalog, retrying")
 		if attempt < catalogRetryAttempts {
 			time.Sleep(catalogRetryDelay)
 		}
 	}
 
+	var validated []CatalogTool
 	var toolCount int
 	if fetchErr != nil {
-		logger.Warn("failed to fetch tool catalog after retries, starting with 0 tools",
-			"attempts", catalogRetryAttempts, "error", fetchErr, "api_url", cfg.API.URL)
+		logger.Warn().
+			Int("attempts", catalogRetryAttempts).
+			Str("error", fetchErr.Error()).
+			Str("api_url", cfg.API.URL).
+			Msg("failed to fetch tool catalog after retries, starting with 0 tools")
 	} else {
-		validated := ValidateCatalog(catalog, logger)
+		validated = ValidateCatalog(catalog, logger)
 		toolCount = RegisterToolsFromCatalog(mcpSrv, proxy, validated)
 	}
 
@@ -64,15 +72,23 @@ func NewHandler(cfg *config.Config, logger *slog.Logger) *Handler {
 		mcpserver.WithStateLess(true),
 	)
 
-	logger.Info("MCP handler initialized",
-		"tools", toolCount,
-		"api_url", cfg.API.URL,
-	)
+	logger.Info().
+		Int("tools", toolCount).
+		Str("api_url", cfg.API.URL).
+		Msg("MCP handler initialized")
 
 	return &Handler{
 		streamable: streamable,
 		logger:     logger,
+		catalog:    validated,
 	}
+}
+
+// Catalog returns a copy of the validated tool catalog.
+func (h *Handler) Catalog() []CatalogTool {
+	result := make([]CatalogTool, len(h.catalog))
+	copy(result, h.catalog)
+	return result
 }
 
 // ServeHTTP delegates to the mcp-go StreamableHTTPServer.

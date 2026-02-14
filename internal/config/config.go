@@ -4,18 +4,26 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
 
 // Config represents the application configuration.
 type Config struct {
-	Server  ServerConfig  `toml:"server"`
-	API     APIConfig     `toml:"api"`
-	User    UserConfig    `toml:"user"`
-	Keys    KeysConfig    `toml:"keys"`
-	Storage StorageConfig `toml:"storage"`
-	Logging LoggingConfig `toml:"logging"`
+	Environment string        `toml:"environment"`
+	Server      ServerConfig  `toml:"server"`
+	API         APIConfig     `toml:"api"`
+	User        UserConfig    `toml:"user"`
+	Import      ImportConfig  `toml:"import"`
+	Storage     StorageConfig `toml:"storage"`
+	Logging     LoggingConfig `toml:"logging"`
+}
+
+// IsDevMode returns true when the environment is set to "dev" (case-insensitive, trimmed).
+// Only the literal value "dev" enables dev mode. "development", "staging", etc. do not.
+func (c *Config) IsDevMode() bool {
+	return strings.ToLower(strings.TrimSpace(c.Environment)) == "dev"
 }
 
 // APIConfig contains vire-server API connection settings.
@@ -29,11 +37,10 @@ type UserConfig struct {
 	DisplayCurrency string   `toml:"display_currency"`
 }
 
-// KeysConfig contains API keys for external services.
-type KeysConfig struct {
-	EODHD  string `toml:"eodhd"`
-	Navexa string `toml:"navexa"`
-	Gemini string `toml:"gemini"`
+// ImportConfig contains settings for data import on startup.
+type ImportConfig struct {
+	Users     bool   `toml:"users"`
+	UsersFile string `toml:"users_file"`
 }
 
 // ServerConfig contains HTTP server settings.
@@ -54,8 +61,12 @@ type BadgerConfig struct {
 
 // LoggingConfig contains logging settings.
 type LoggingConfig struct {
-	Level  string `toml:"level"`
-	Format string `toml:"format"`
+	Level      string   `toml:"level"`
+	Format     string   `toml:"format"`
+	Outputs    []string `toml:"outputs"`
+	FilePath   string   `toml:"file_path"`
+	MaxSizeMB  int      `toml:"max_size_mb"`
+	MaxBackups int      `toml:"max_backups"`
 }
 
 // LoadFromFile loads configuration with priority: defaults -> file -> env.
@@ -95,6 +106,9 @@ func LoadFromFiles(paths ...string) (*Config, error) {
 
 // applyEnvOverrides applies VIRE_* environment variable overrides to config.
 func applyEnvOverrides(config *Config) {
+	if env := os.Getenv("VIRE_ENV"); env != "" {
+		config.Environment = env
+	}
 	if port := os.Getenv("VIRE_SERVER_PORT"); port != "" {
 		if p, err := strconv.Atoi(port); err == nil {
 			config.Server.Port = p
@@ -123,18 +137,6 @@ func applyEnvOverrides(config *Config) {
 	if currency := os.Getenv("VIRE_DISPLAY_CURRENCY"); currency != "" {
 		config.User.DisplayCurrency = currency
 	}
-
-	// API key overrides (match vire-mcp convention)
-	if key := os.Getenv("EODHD_API_KEY"); key != "" {
-		config.Keys.EODHD = key
-	}
-	if key := os.Getenv("NAVEXA_API_KEY"); key != "" {
-		config.Keys.Navexa = key
-	}
-	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
-		config.Keys.Gemini = key
-	}
-
 }
 
 // ApplyFlagOverrides applies command-line flag overrides to config.

@@ -7,6 +7,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// UI page routes (HTML templates)
+	mux.HandleFunc("GET /dashboard", s.app.DashboardHandler.ServeHTTP)
 	mux.HandleFunc("/", s.app.PageHandler.ServePage("landing.html", "home"))
 
 	// Static files (CSS, JS, images)
@@ -16,6 +17,9 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	if s.app.MCPHandler != nil {
 		mux.Handle("/mcp", s.app.MCPHandler)
 	}
+
+	// Auth routes
+	mux.HandleFunc("POST /api/auth/dev", s.app.AuthHandler.HandleDevLogin)
 
 	// API routes
 	mux.HandleFunc("/api/health", s.app.HealthHandler.ServeHTTP)

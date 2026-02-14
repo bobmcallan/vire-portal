@@ -11,10 +11,12 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | Route | Handler | Auth | Description |
 |-------|---------|------|-------------|
 | `GET /` | PageHandler | No | Landing page (server-rendered HTML template) |
+| `GET /dashboard` | DashboardHandler | No | Dashboard (MCP config, tools, config status) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP, dynamic tools from vire-server catalog) |
 | `GET /api/health` | HealthHandler | No | Health check (`{"status":"ok"}`) |
 | `GET /api/version` | VersionHandler | No | Version info (JSON) |
+| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (creates session, redirects to `/`; 404 in prod) |
 
 ## Pages (Future)
 
@@ -34,7 +36,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 - **Alpine.js** (CDN) for client-side interactivity
 - **BadgerDB** via [badgerhold](https://github.com/timshannon/badgerhold) for embedded storage
 - **TOML** configuration with priority: defaults < file < env (VIRE_ prefix) < CLI flags
-- **Port 8080** -- required by Cloud Run
+- **Port 8080** -- default port; Docker local dev overrides to 4241 via `docker/vire-portal.toml`
 - **80s B&W aesthetic** -- IBM Plex Mono, no border-radius, no box-shadow, monochrome only
 - **No Firebase Auth SDK** -- OAuth is handled via direct HTTP redirects and gateway API calls
 
@@ -495,12 +497,10 @@ Configuration is handled via TOML file and environment variables with the `VIRE_
 | `VIRE_API_URL` | `http://localhost:4242` | vire-server URL for MCP proxy |
 | `VIRE_DEFAULT_PORTFOLIO` | `""` | Default portfolio name |
 | `VIRE_DISPLAY_CURRENCY` | `""` | Display currency (e.g., AUD, USD) |
-| `EODHD_API_KEY` | `""` | EODHD market data API key |
-| `NAVEXA_API_KEY` | `""` | Navexa portfolio sync API key |
-| `GEMINI_API_KEY` | `""` | Google Gemini AI API key |
 | `VIRE_BADGER_PATH` | `./data/vire` | BadgerDB storage path |
 | `VIRE_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 | `VIRE_LOG_FORMAT` | `text` | Log format (text, json) |
+| `VIRE_ENV` | `prod` | Environment (`prod` or `dev`; enables dev login when `dev`) |
 
 ## Dockerfile
 
@@ -531,9 +531,10 @@ RUN apk --no-cache add ca-certificates wget
 COPY --from=builder /build/vire-portal .
 COPY --from=builder /build/pages ./pages
 COPY --from=builder /build/docker/vire-portal.toml .
+COPY --from=builder /build/data ./seed
 COPY .version .
-RUN mkdir -p /app/data
-EXPOSE 8080
+RUN mkdir -p /app/data /app/logs
+EXPOSE 4241
 HEALTHCHECK NONE
 ENTRYPOINT ["./vire-portal"]
 ```
@@ -661,13 +662,20 @@ vire-portal/
 │   │   ├── version.go               # Version info (ldflags + .version file)
 │   │   └── version_test.go
 │   ├── handlers/
+│   │   ├── auth.go                  # POST /api/auth/dev (dev-only login)
+│   │   ├── dashboard.go             # GET /dashboard (MCP config, tools, config status)
 │   │   ├── handlers_test.go
 │   │   ├── health.go                # GET /api/health
 │   │   ├── helpers.go               # WriteJSON, RequireMethod, WriteError
 │   │   ├── landing.go               # PageHandler (template rendering + static file serving)
 │   │   └── version.go               # GET /api/version
+│   ├── importer/
+│   │   ├── users.go                 # ImportUsers (JSON -> BadgerDB, bcrypt password hashing)
+│   │   └── users_test.go
 │   ├── interfaces/
 │   │   └── storage.go               # StorageManager + KeyValueStorage interfaces
+│   ├── models/
+│   │   └── user.go                  # User model (username, email, password, role)
 │   ├── mcp/
 │   │   ├── catalog.go               # Dynamic tool catalog (fetch, validate, build, generic handler)
 │   │   ├── handler.go               # MCP HTTP handler (StreamableHTTP, catalog startup)
@@ -691,6 +699,7 @@ vire-portal/
 │           ├── kv_storage_test.go
 │           └── manager.go            # StorageManager implementation
 ├── pages/
+│   ├── dashboard.html                # Dashboard page (MCP config, tools, config status)
 │   ├── landing.html                  # Landing page (Go html/template)
 │   ├── partials/
 │   │   ├── head.html                 # HTML head (IBM Plex Mono, Alpine.js CDN)
@@ -744,7 +753,7 @@ go run ./cmd/vire-portal/ -p 9090
 go run ./cmd/vire-portal/ -c custom.toml
 ```
 
-The server runs on `http://localhost:8080` by default.
+The server runs on `http://localhost:4241` by default.
 
 ### Testing
 
@@ -765,8 +774,8 @@ go vet ./...
 # Build the Docker image
 docker build -f docker/Dockerfile -t vire-portal:latest .
 
-# Run on host port 8080
-docker run -p 8080:8080 \
+# Run on host port 4241
+docker run -p 4241:4241 \
   -e VIRE_SERVER_HOST=0.0.0.0 \
   -v portal-data:/app/data \
   vire-portal:latest

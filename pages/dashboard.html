@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {{template "head.html" .}}
+    <title>VIRE DASHBOARD</title>
+</head>
+
+<body>
+
+    {{template "nav.html" .}}
+
+    <main class="dashboard">
+        <div class="dashboard-inner">
+
+            <h1 class="dashboard-title">DASHBOARD</h1>
+
+            <section class="dashboard-section">
+                <h2 class="section-title">MCP CONNECTION</h2>
+                <div class="config-block">
+                    <p>Endpoint: <code>{{.MCPEndpoint}}</code></p>
+                    <p>Add to your Claude Code config:</p>
+                    <pre><code>{
+  "mcpServers": {
+    "vire": {
+      "type": "streamable-http",
+      "url": "http://localhost:{{.Port}}/mcp"
+    }
+  }
+}</code></pre>
+                </div>
+            </section>
+
+            <section class="dashboard-section">
+                <h2 class="section-title">CONFIG</h2>
+                <div class="config-block">
+                    <p>Portfolios: {{if .Config.Portfolios}}{{.Config.Portfolios}}{{else}}(none){{end}}</p>
+                </div>
+            </section>
+
+            <section class="dashboard-section">
+                <h2 class="section-title">TOOLS [{{.ToolStatus}}]</h2>
+                {{if .Tools}}
+                <div class="tool-list">
+                    {{range .Tools}}
+                    <div class="tool-card">
+                        <div class="tool-name">{{.Name}}</div>
+                        <div class="tool-desc">{{.Description}}</div>
+                        <div class="tool-meta">{{.Method}} {{.Path}}</div>
+                    </div>
+                    {{end}}
+                </div>
+                {{else}}
+                <p class="no-tools">NO TOOLS available. Ensure vire-server is running.</p>
+                {{end}}
+            </section>
+
+        </div>
+    </main>
+
+    {{template "footer.html" .}}
+
+</body>
+
+</html>

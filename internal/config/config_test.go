@@ -9,8 +9,8 @@ import (
 func TestNewDefaultConfig(t *testing.T) {
 	cfg := NewDefaultConfig()
 
-	if cfg.Server.Port != 4241 {
-		t.Errorf("expected default port 4241, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 8080 {
+		t.Errorf("expected default port 8080, got %d", cfg.Server.Port)
 	}
 	if cfg.Server.Host != "localhost" {
 		t.Errorf("expected default host localhost, got %s", cfg.Server.Host)
@@ -31,8 +31,8 @@ func TestLoadFromFiles_NoFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFromFiles with no files should not error: %v", err)
 	}
-	if cfg.Server.Port != 4241 {
-		t.Errorf("expected default port 4241, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 8080 {
+		t.Errorf("expected default port 8080, got %d", cfg.Server.Port)
 	}
 }
 
@@ -199,8 +199,8 @@ func TestApplyEnvOverrides_InvalidPort(t *testing.T) {
 	applyEnvOverrides(cfg)
 
 	// Port should remain default when env var is not a valid integer
-	if cfg.Server.Port != 4241 {
-		t.Errorf("expected default port 4241 for invalid env, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 8080 {
+		t.Errorf("expected default port 8080 for invalid env, got %d", cfg.Server.Port)
 	}
 }
 
@@ -223,8 +223,8 @@ func TestApplyFlagOverrides_ZeroPortNoOverride(t *testing.T) {
 	ApplyFlagOverrides(cfg, 0, "")
 
 	// No override when port is 0 and host is empty
-	if cfg.Server.Port != 4241 {
-		t.Errorf("expected default port 4241, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 8080 {
+		t.Errorf("expected default port 8080, got %d", cfg.Server.Port)
 	}
 	if cfg.Server.Host != "localhost" {
 		t.Errorf("expected default host localhost, got %s", cfg.Server.Host)
@@ -252,17 +252,11 @@ func TestNewDefaultConfig_UserDefaults(t *testing.T) {
 	}
 }
 
-func TestNewDefaultConfig_KeysDefaults(t *testing.T) {
+func TestNewDefaultConfig_ImportDefaults(t *testing.T) {
 	cfg := NewDefaultConfig()
 
-	if cfg.Keys.EODHD != "" {
-		t.Errorf("expected empty default EODHD key, got %s", cfg.Keys.EODHD)
-	}
-	if cfg.Keys.Navexa != "" {
-		t.Errorf("expected empty default Navexa key, got %s", cfg.Keys.Navexa)
-	}
-	if cfg.Keys.Gemini != "" {
-		t.Errorf("expected empty default Gemini key, got %s", cfg.Keys.Gemini)
+	if cfg.Import.Users != false {
+		t.Errorf("expected default import.users false, got %v", cfg.Import.Users)
 	}
 }
 
@@ -277,11 +271,6 @@ url = "http://vire-server:4242"
 [user]
 portfolios = ["SMSF", "Personal"]
 display_currency = "AUD"
-
-[keys]
-eodhd = "test-eodhd"
-navexa = "test-navexa"
-gemini = "test-gemini"
 `
 	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
 		t.Fatal(err)
@@ -300,15 +289,6 @@ gemini = "test-gemini"
 	}
 	if cfg.User.DisplayCurrency != "AUD" {
 		t.Errorf("expected display currency AUD, got %s", cfg.User.DisplayCurrency)
-	}
-	if cfg.Keys.EODHD != "test-eodhd" {
-		t.Errorf("expected EODHD key test-eodhd, got %s", cfg.Keys.EODHD)
-	}
-	if cfg.Keys.Navexa != "test-navexa" {
-		t.Errorf("expected Navexa key test-navexa, got %s", cfg.Keys.Navexa)
-	}
-	if cfg.Keys.Gemini != "test-gemini" {
-		t.Errorf("expected Gemini key test-gemini, got %s", cfg.Keys.Gemini)
 	}
 }
 
@@ -348,28 +328,30 @@ func TestApplyEnvOverrides_DisplayCurrency(t *testing.T) {
 	}
 }
 
-func TestApplyEnvOverrides_APIKeys(t *testing.T) {
-	cfg := NewDefaultConfig()
+func TestLoadFromFiles_ImportSection(t *testing.T) {
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "import.toml")
 
-	t.Setenv("EODHD_API_KEY", "env-eodhd")
-	t.Setenv("NAVEXA_API_KEY", "env-navexa")
-	t.Setenv("GEMINI_API_KEY", "env-gemini")
-
-	applyEnvOverrides(cfg)
-
-	if cfg.Keys.EODHD != "env-eodhd" {
-		t.Errorf("expected EODHD key env-eodhd, got %s", cfg.Keys.EODHD)
+	content := `
+[import]
+users = true
+`
+	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
 	}
-	if cfg.Keys.Navexa != "env-navexa" {
-		t.Errorf("expected Navexa key env-navexa, got %s", cfg.Keys.Navexa)
+
+	cfg, err := LoadFromFiles(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
 	}
-	if cfg.Keys.Gemini != "env-gemini" {
-		t.Errorf("expected Gemini key env-gemini, got %s", cfg.Keys.Gemini)
+
+	if !cfg.Import.Users {
+		t.Error("expected import.users true from TOML")
 	}
 }
 
 func TestLoadFromFiles_MCPSectionsDefaultsPreserved(t *testing.T) {
-	// When TOML only sets [api], [user] and [keys] should keep defaults
+	// When TOML only sets [api], [user] should keep defaults
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "partial-mcp.toml")
 
@@ -389,12 +371,201 @@ url = "http://vire-server:4242"
 	if cfg.API.URL != "http://vire-server:4242" {
 		t.Errorf("expected API URL from file, got %s", cfg.API.URL)
 	}
-	// User and Keys should remain defaults
+	// User should remain defaults
 	if len(cfg.User.Portfolios) != 0 {
 		t.Errorf("expected empty portfolios, got %v", cfg.User.Portfolios)
 	}
-	if cfg.Keys.EODHD != "" {
-		t.Errorf("expected empty EODHD key, got %s", cfg.Keys.EODHD)
+}
+
+// --- Environment / Dev Mode Config Tests ---
+
+func TestNewDefaultConfig_Environment(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	if cfg.Environment != "prod" {
+		t.Errorf("expected default environment prod, got %s", cfg.Environment)
+	}
+}
+
+func TestIsDevMode_Dev(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Environment = "dev"
+
+	if !cfg.IsDevMode() {
+		t.Error("expected IsDevMode() to return true for environment=dev")
+	}
+}
+
+func TestIsDevMode_Prod(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	if cfg.IsDevMode() {
+		t.Error("expected IsDevMode() to return false for environment=prod")
+	}
+}
+
+func TestIsDevMode_Empty(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Environment = ""
+
+	if cfg.IsDevMode() {
+		t.Error("expected IsDevMode() to return false for empty environment")
+	}
+}
+
+func TestIsDevMode_Adversarial(t *testing.T) {
+	cases := []struct {
+		env  string
+		want bool
+	}{
+		{"dev", true},
+		{"DEV", true},
+		{"Dev", true},
+		{" dev ", true},
+		{"development", false},
+		{"staging", false},
+		{"prod", false},
+		{"production", false},
+		{"", false},
+		{" ", false},
+		{"devv", false},
+		{"de v", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.env, func(t *testing.T) {
+			cfg := NewDefaultConfig()
+			cfg.Environment = tc.env
+			if got := cfg.IsDevMode(); got != tc.want {
+				t.Errorf("IsDevMode() for %q = %v, want %v", tc.env, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadFromFiles_Environment(t *testing.T) {
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "env.toml")
+
+	content := `
+environment = "dev"
+`
+	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromFiles(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
+	}
+
+	if cfg.Environment != "dev" {
+		t.Errorf("expected environment dev from TOML, got %s", cfg.Environment)
+	}
+	if !cfg.IsDevMode() {
+		t.Error("expected IsDevMode() true after loading environment=dev from TOML")
+	}
+}
+
+func TestApplyEnvOverrides_Environment(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_ENV", "dev")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.Environment != "dev" {
+		t.Errorf("expected environment dev from VIRE_ENV, got %s", cfg.Environment)
+	}
+	if !cfg.IsDevMode() {
+		t.Error("expected IsDevMode() true after VIRE_ENV=dev")
+	}
+}
+
+func TestApplyEnvOverrides_EnvironmentOverridesFile(t *testing.T) {
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "prod.toml")
+
+	content := `
+environment = "prod"
+`
+	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("VIRE_ENV", "dev")
+
+	cfg, err := LoadFromFiles(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
+	}
+
+	// Env should override file value
+	if cfg.Environment != "dev" {
+		t.Errorf("expected VIRE_ENV to override file environment, got %s", cfg.Environment)
+	}
+}
+
+// --- Extended Logging Config Tests ---
+
+func TestNewDefaultConfig_LoggingExtended(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	if len(cfg.Logging.Outputs) != 2 {
+		t.Errorf("expected 2 default logging outputs, got %d", len(cfg.Logging.Outputs))
+	}
+	if len(cfg.Logging.Outputs) >= 2 {
+		if cfg.Logging.Outputs[0] != "console" {
+			t.Errorf("expected first output 'console', got %s", cfg.Logging.Outputs[0])
+		}
+		if cfg.Logging.Outputs[1] != "file" {
+			t.Errorf("expected second output 'file', got %s", cfg.Logging.Outputs[1])
+		}
+	}
+	if cfg.Logging.FilePath != "logs/vire-portal.log" {
+		t.Errorf("expected default file path logs/vire-portal.log, got %s", cfg.Logging.FilePath)
+	}
+	// MaxSizeMB and MaxBackups default to 0 (let arbor use its own defaults)
+	if cfg.Logging.MaxSizeMB != 0 {
+		t.Errorf("expected default max_size_mb 0, got %d", cfg.Logging.MaxSizeMB)
+	}
+	if cfg.Logging.MaxBackups != 0 {
+		t.Errorf("expected default max_backups 0, got %d", cfg.Logging.MaxBackups)
+	}
+}
+
+func TestLoadFromFiles_LoggingExtended(t *testing.T) {
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "logging.toml")
+
+	content := `
+[logging]
+level = "debug"
+outputs = ["console"]
+file_path = "/var/log/custom.log"
+max_size_mb = 50
+max_backups = 5
+`
+	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromFiles(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
+	}
+
+	if len(cfg.Logging.Outputs) != 1 || cfg.Logging.Outputs[0] != "console" {
+		t.Errorf("expected outputs [console], got %v", cfg.Logging.Outputs)
+	}
+	if cfg.Logging.FilePath != "/var/log/custom.log" {
+		t.Errorf("expected file path /var/log/custom.log, got %s", cfg.Logging.FilePath)
+	}
+	if cfg.Logging.MaxSizeMB != 50 {
+		t.Errorf("expected max_size_mb 50, got %d", cfg.Logging.MaxSizeMB)
+	}
+	if cfg.Logging.MaxBackups != 5 {
+		t.Errorf("expected max_backups 5, got %d", cfg.Logging.MaxBackups)
 	}
 }
 

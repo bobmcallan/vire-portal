@@ -52,10 +52,9 @@ if [[ -f "$VERSION_FILE" ]]; then
     VERSION=$(grep "^version:" "$VERSION_FILE" | sed 's/version:\s*//' | tr -d ' ')
     # Note: local builds use MM-DD-HH-MM-SS format; CI uses YYYYMMDDHHmmss (intentional difference)
     BUILD_TS=$(date +"%m-%d-%H-%M-%S")
-    # Update build timestamp in .version file
-    sed -i "s/^build:.*/build: $BUILD_TS/" "$VERSION_FILE"
 fi
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+CONTRIBUTOR=$(git config user.email 2>/dev/null || echo "unknown")
 
 # Validate version is not empty (would produce invalid docker tags)
 if [ -z "$VERSION" ]; then
@@ -77,6 +76,7 @@ build_image() {
             --build-arg "VERSION=$VERSION" \
             --build-arg "BUILD=$BUILD_TS" \
             --build-arg "GIT_COMMIT=$GIT_COMMIT" \
+            --build-arg "CONTRIBUTOR=$CONTRIBUTOR" \
             --progress=plain \
             -t "$image_name:latest" \
             -t "$image_name:$VERSION" .
@@ -86,6 +86,7 @@ build_image() {
             --build-arg "VERSION=$VERSION" \
             --build-arg "BUILD=$BUILD_TS" \
             --build-arg "GIT_COMMIT=$GIT_COMMIT" \
+            --build-arg "CONTRIBUTOR=$CONTRIBUTOR" \
             -t "$image_name:latest" \
             -t "$image_name:$VERSION" .
     fi

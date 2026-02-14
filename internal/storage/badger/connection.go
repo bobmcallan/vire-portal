@@ -2,29 +2,29 @@ package badger
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/bobmcallan/vire-portal/internal/config"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 	"github.com/timshannon/badgerhold/v4"
 )
 
 // BadgerDB manages the Badger database connection.
 type BadgerDB struct {
 	store  *badgerhold.Store
-	logger *slog.Logger
+	logger *common.Logger
 	config *config.BadgerConfig
 }
 
 // NewBadgerDB creates a new Badger database connection.
-func NewBadgerDB(logger *slog.Logger, cfg *config.BadgerConfig) (*BadgerDB, error) {
+func NewBadgerDB(logger *common.Logger, cfg *config.BadgerConfig) (*BadgerDB, error) {
 	dir := filepath.Dir(cfg.Path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	logger.Debug("opening Badger database", "path", cfg.Path)
+	logger.Debug().Str("path", cfg.Path).Msg("opening Badger database")
 
 	options := badgerhold.DefaultOptions
 	options.Dir = cfg.Path
@@ -36,7 +36,7 @@ func NewBadgerDB(logger *slog.Logger, cfg *config.BadgerConfig) (*BadgerDB, erro
 		return nil, fmt.Errorf("failed to open badger database: %w", err)
 	}
 
-	logger.Debug("Badger database initialized", "path", cfg.Path)
+	logger.Debug().Str("path", cfg.Path).Msg("Badger database initialized")
 
 	return &BadgerDB{
 		store:  store,

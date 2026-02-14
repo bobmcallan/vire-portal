@@ -3,11 +3,11 @@ package server
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/app"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 // Server manages the HTTP server and routes.
@@ -15,7 +15,7 @@ type Server struct {
 	app    *app.App
 	router *http.ServeMux
 	server *http.Server
-	logger *slog.Logger
+	logger *common.Logger
 }
 
 // New creates a new HTTP server with the given app.
@@ -41,10 +41,10 @@ func New(application *app.App) *Server {
 
 // Start starts the HTTP server.
 func (s *Server) Start() error {
-	s.logger.Info("HTTP server starting",
-		"address", s.server.Addr,
-		"url", fmt.Sprintf("http://%s", s.server.Addr),
-	)
+	s.logger.Info().
+		Str("address", s.server.Addr).
+		Str("url", fmt.Sprintf("http://%s", s.server.Addr)).
+		Msg("HTTP server starting")
 
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server failed: %w", err)
@@ -55,13 +55,13 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the server.
 func (s *Server) Shutdown(ctx context.Context) error {
-	s.logger.Info("shutting down HTTP server")
+	s.logger.Info().Msg("shutting down HTTP server")
 
 	if err := s.server.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
 	}
 
-	s.logger.Info("HTTP server stopped")
+	s.logger.Info().Msg("HTTP server stopped")
 	return nil
 }
 

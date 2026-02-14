@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -60,22 +59,22 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 		durationMs := time.Since(start).Milliseconds()
 		correlationID, _ := r.Context().Value(correlationIDKey).(string)
 
-		level := slog.LevelDebug
+		event := s.logger.Debug()
 		if rw.statusCode >= 500 {
-			level = slog.LevelError
+			event = s.logger.Error()
 		} else if rw.statusCode >= 400 {
-			level = slog.LevelWarn
+			event = s.logger.Warn()
 		}
 
-		s.logger.Log(r.Context(), level, "HTTP request",
-			"correlation_id", correlationID,
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", rw.statusCode,
-			"duration_ms", durationMs,
-			"bytes", rw.bytesWritten,
-			"remote", r.RemoteAddr,
-		)
+		event.
+			Str("correlation_id", correlationID).
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Int("status", rw.statusCode).
+			Int64("duration_ms", durationMs).
+			Int("bytes", rw.bytesWritten).
+			Str("remote", r.RemoteAddr).
+			Msg("HTTP request")
 	})
 }
 
@@ -102,11 +101,11 @@ func (s *Server) recoveryMiddleware(next http.Handler) http.Handler {
 			if err := recover(); err != nil {
 				correlationID, _ := r.Context().Value(correlationIDKey).(string)
 
-				s.logger.Error("panic recovered",
-					"correlation_id", correlationID,
-					"error", fmt.Sprintf("%v", err),
-					"path", r.URL.Path,
-				)
+				s.logger.Error().
+					Str("correlation_id", correlationID).
+					Str("error", fmt.Sprintf("%v", err)).
+					Str("path", r.URL.Path).
+					Msg("panic recovered")
 
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
 			}

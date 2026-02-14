@@ -3,8 +3,9 @@ package config
 // NewDefaultConfig creates a configuration with default values.
 func NewDefaultConfig() *Config {
 	return &Config{
+		Environment: "prod",
 		Server: ServerConfig{
-			Port: 4241,
+			Port: 8080,
 			Host: "localhost",
 		},
 		API: APIConfig{
@@ -14,15 +15,20 @@ func NewDefaultConfig() *Config {
 			Portfolios:      []string{},
 			DisplayCurrency: "",
 		},
-		Keys: KeysConfig{},
+		Import: ImportConfig{
+			Users:     false,
+			UsersFile: "data/users.json",
+		},
 		Storage: StorageConfig{
 			Badger: BadgerConfig{
 				Path: "./data/vire",
 			},
 		},
 		Logging: LoggingConfig{
-			Level:  "info",
-			Format: "text",
+			Level:    "info",
+			Format:   "text",
+			Outputs:  []string{"console", "file"},
+			FilePath: "logs/vire-portal.log",
 		},
 	}
 }

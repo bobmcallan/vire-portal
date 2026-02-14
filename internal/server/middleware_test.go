@@ -2,16 +2,16 @@ package server
 
 import (
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
+
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 func newTestServer() *Server {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := common.NewSilentLogger()
 	return &Server{logger: logger}
 }
 

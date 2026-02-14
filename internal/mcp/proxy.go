@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/config"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 // maxResponseSize caps the proxy response body to prevent OOM from unexpectedly large responses.
@@ -21,28 +21,19 @@ const maxResponseSize = 50 << 20 // 50MB
 type MCPProxy struct {
 	serverURL   string
 	httpClient  *http.Client
-	logger      *slog.Logger
+	logger      *common.Logger
 	userHeaders http.Header
 }
 
 // NewMCPProxy creates a new MCP proxy targeting the given vire-server URL.
-// User config and API keys are converted to X-Vire-* headers injected on every request.
-func NewMCPProxy(serverURL string, logger *slog.Logger, cfg *config.Config) *MCPProxy {
+// User config is converted to X-Vire-* headers injected on every request.
+func NewMCPProxy(serverURL string, logger *common.Logger, cfg *config.Config) *MCPProxy {
 	headers := make(http.Header)
 	if len(cfg.User.Portfolios) > 0 {
 		headers.Set("X-Vire-Portfolios", strings.Join(cfg.User.Portfolios, ","))
 	}
 	if cfg.User.DisplayCurrency != "" {
 		headers.Set("X-Vire-Display-Currency", cfg.User.DisplayCurrency)
-	}
-	if cfg.Keys.Navexa != "" {
-		headers.Set("X-Vire-Navexa-Key", cfg.Keys.Navexa)
-	}
-	if cfg.Keys.EODHD != "" {
-		headers.Set("X-Vire-EODHD-Key", cfg.Keys.EODHD)
-	}
-	if cfg.Keys.Gemini != "" {
-		headers.Set("X-Vire-Gemini-Key", cfg.Keys.Gemini)
 	}
 
 	return &MCPProxy{
@@ -76,7 +67,7 @@ func (p *MCPProxy) applyUserHeaders(req *http.Request) {
 
 // get performs a GET request to the given path on vire-server.
 func (p *MCPProxy) get(ctx context.Context, path string) ([]byte, error) {
-	p.logger.Debug("proxy request", "method", "GET", "path", path)
+	p.logger.Debug().Str("method", "GET").Str("path", path).Msg("proxy request")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.serverURL+path, nil)
 	if err != nil {
@@ -88,7 +79,7 @@ func (p *MCPProxy) get(ctx context.Context, path string) ([]byte, error) {
 	resp, err := p.httpClient.Do(req)
 	duration := time.Since(start)
 	if err != nil {
-		p.logger.Error("proxy request failed", "method", "GET", "path", path, "duration_ms", duration.Milliseconds(), "error", err)
+		p.logger.Error().Str("method", "GET").Str("path", path).Int64("duration_ms", duration.Milliseconds()).Str("error", err.Error()).Msg("proxy request failed")
 		return nil, fmt.Errorf("server request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -98,7 +89,7 @@ func (p *MCPProxy) get(ctx context.Context, path string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	p.logger.Debug("proxy response", "status", resp.StatusCode, "duration_ms", duration.Milliseconds())
+	p.logger.Debug().Int("status", resp.StatusCode).Int64("duration_ms", duration.Milliseconds()).Msg("proxy response")
 
 	if resp.StatusCode >= 400 {
 		return nil, parseErrorResponse(resp.StatusCode, body)
@@ -124,7 +115,7 @@ func (p *MCPProxy) patch(ctx context.Context, path string, data interface{}) ([]
 
 // del performs a DELETE request to the given path on vire-server.
 func (p *MCPProxy) del(ctx context.Context, path string) ([]byte, error) {
-	p.logger.Debug("proxy request", "method", "DELETE", "path", path)
+	p.logger.Debug().Str("method", "DELETE").Str("path", path).Msg("proxy request")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, p.serverURL+path, nil)
 	if err != nil {
@@ -137,7 +128,7 @@ func (p *MCPProxy) del(ctx context.Context, path string) ([]byte, error) {
 	resp, err := p.httpClient.Do(req)
 	duration := time.Since(start)
 	if err != nil {
-		p.logger.Error("proxy request failed", "method", "DELETE", "path", path, "duration_ms", duration.Milliseconds(), "error", err)
+		p.logger.Error().Str("method", "DELETE").Str("path", path).Int64("duration_ms", duration.Milliseconds()).Str("error", err.Error()).Msg("proxy request failed")
 		return nil, fmt.Errorf("server request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -147,7 +138,7 @@ func (p *MCPProxy) del(ctx context.Context, path string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	p.logger.Debug("proxy response", "status", resp.StatusCode, "duration_ms", duration.Milliseconds())
+	p.logger.Debug().Int("status", resp.StatusCode).Int64("duration_ms", duration.Milliseconds()).Msg("proxy response")
 
 	if resp.StatusCode >= 400 {
 		return nil, parseErrorResponse(resp.StatusCode, body)
@@ -158,7 +149,7 @@ func (p *MCPProxy) del(ctx context.Context, path string) ([]byte, error) {
 
 // doJSON performs an HTTP request with JSON body.
 func (p *MCPProxy) doJSON(ctx context.Context, method, path string, data interface{}) ([]byte, error) {
-	p.logger.Debug("proxy request", "method", method, "path", path)
+	p.logger.Debug().Str("method", method).Str("path", path).Msg("proxy request")
 
 	var bodyReader io.Reader
 	if data != nil {
@@ -180,7 +171,7 @@ func (p *MCPProxy) doJSON(ctx context.Context, method, path string, data interfa
 	resp, err := p.httpClient.Do(req)
 	duration := time.Since(start)
 	if err != nil {
-		p.logger.Error("proxy request failed", "method", method, "path", path, "duration_ms", duration.Milliseconds(), "error", err)
+		p.logger.Error().Str("method", method).Str("path", path).Int64("duration_ms", duration.Milliseconds()).Str("error", err.Error()).Msg("proxy request failed")
 		return nil, fmt.Errorf("server request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -190,7 +181,7 @@ func (p *MCPProxy) doJSON(ctx context.Context, method, path string, data interfa
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	p.logger.Debug("proxy response", "status", resp.StatusCode, "duration_ms", duration.Milliseconds())
+	p.logger.Debug().Int("status", resp.StatusCode).Int64("duration_ms", duration.Milliseconds()).Msg("proxy response")
 
 	if resp.StatusCode >= 400 {
 		return nil, parseErrorResponse(resp.StatusCode, body)

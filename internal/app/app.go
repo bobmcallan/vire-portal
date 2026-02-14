@@ -2,42 +2,83 @@ package app
 
 import (
 	"fmt"
-	"log/slog"
+	"strings"
 
 	"github.com/bobmcallan/vire-portal/internal/config"
 	"github.com/bobmcallan/vire-portal/internal/handlers"
+	"github.com/bobmcallan/vire-portal/internal/importer"
 	"github.com/bobmcallan/vire-portal/internal/interfaces"
 	"github.com/bobmcallan/vire-portal/internal/mcp"
 	"github.com/bobmcallan/vire-portal/internal/storage"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
+
+// catalogAdapter converts MCP catalog tools to dashboard display tools.
+func catalogAdapter(mcpHandler *mcp.Handler) func() []handlers.DashboardTool {
+	return func() []handlers.DashboardTool {
+		if mcpHandler == nil {
+			return nil
+		}
+		catalog := mcpHandler.Catalog()
+		tools := make([]handlers.DashboardTool, len(catalog))
+		for i, ct := range catalog {
+			tools[i] = handlers.DashboardTool{
+				Name:        ct.Name,
+				Description: ct.Description,
+				Method:      ct.Method,
+				Path:        ct.Path,
+			}
+		}
+		return tools
+	}
+}
 
 // App holds all application components and dependencies.
 type App struct {
 	Config         *config.Config
-	Logger         *slog.Logger
+	Logger         *common.Logger
 	StorageManager interfaces.StorageManager
 
 	// HTTP handlers
-	PageHandler    *handlers.PageHandler
-	HealthHandler  *handlers.HealthHandler
-	VersionHandler *handlers.VersionHandler
-	MCPHandler     *mcp.Handler
+	PageHandler      *handlers.PageHandler
+	HealthHandler    *handlers.HealthHandler
+	VersionHandler   *handlers.VersionHandler
+	AuthHandler      *handlers.AuthHandler
+	DashboardHandler *handlers.DashboardHandler
+	MCPHandler       *mcp.Handler
 }
 
 // New initializes the application with all dependencies.
-func New(cfg *config.Config, logger *slog.Logger) (*App, error) {
+func New(cfg *config.Config, logger *common.Logger) (*App, error) {
 	a := &App{
 		Config: cfg,
 		Logger: logger,
+	}
+
+	// Validate environment setting
+	env := strings.ToLower(strings.TrimSpace(cfg.Environment))
+	if cfg.IsDevMode() {
+		logger.Warn().Msg("RUNNING IN DEV MODE — dev login enabled, do not use in production")
+	} else if env != "prod" && env != "" {
+		logger.Warn().
+			Str("environment", cfg.Environment).
+			Msg("unrecognized environment value, defaulting to prod behavior")
 	}
 
 	if err := a.initStorage(); err != nil {
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
+	// Import users from JSON if configured
+	if cfg.Import.Users {
+		if err := importer.ImportUsers(a.StorageManager.DB(), logger, cfg.Import.UsersFile); err != nil {
+			logger.Warn().Str("error", err.Error()).Msg("user import failed (non-fatal)")
+		}
+	}
+
 	a.initHandlers()
 
-	logger.Info("application initialization complete")
+	logger.Info().Msg("application initialization complete")
 
 	return a, nil
 }
@@ -50,22 +91,33 @@ func (a *App) initStorage() error {
 	}
 
 	a.StorageManager = storageManager
-	a.Logger.Debug("storage layer initialized",
-		"storage", "badger",
-		"path", a.Config.Storage.Badger.Path,
-	)
+	a.Logger.Debug().
+		Str("storage", "badger").
+		Str("path", a.Config.Storage.Badger.Path).
+		Msg("storage layer initialized")
 
 	return nil
 }
 
 // initHandlers initializes all HTTP handlers.
 func (a *App) initHandlers() {
-	a.PageHandler = handlers.NewPageHandler(a.Logger)
+	a.PageHandler = handlers.NewPageHandler(a.Logger, a.Config.IsDevMode())
 	a.HealthHandler = handlers.NewHealthHandler(a.Logger)
 	a.VersionHandler = handlers.NewVersionHandler(a.Logger)
+	a.AuthHandler = handlers.NewAuthHandler(a.Logger, a.Config.IsDevMode())
 	a.MCPHandler = mcp.NewHandler(a.Config, a.Logger)
 
-	a.Logger.Debug("HTTP handlers initialized")
+	a.DashboardHandler = handlers.NewDashboardHandler(
+		a.Logger,
+		a.Config.IsDevMode(),
+		a.Config.Server.Port,
+		catalogAdapter(a.MCPHandler),
+	)
+	a.DashboardHandler.SetConfigStatus(handlers.DashboardConfigStatus{
+		Portfolios: strings.Join(a.Config.User.Portfolios, ", "),
+	})
+
+	a.Logger.Debug().Msg("HTTP handlers initialized")
 }
 
 // Close closes all application resources.
@@ -74,7 +126,7 @@ func (a *App) Close() error {
 		if err := a.StorageManager.Close(); err != nil {
 			return fmt.Errorf("failed to close storage: %w", err)
 		}
-		a.Logger.Info("storage closed")
+		a.Logger.Info().Msg("storage closed")
 	}
 
 	return nil

@@ -13,6 +13,7 @@ import (
 	"github.com/bobmcallan/vire-portal/internal/app"
 	"github.com/bobmcallan/vire-portal/internal/config"
 	"github.com/bobmcallan/vire-portal/internal/server"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 // configPaths is a custom flag type that allows multiple -config flags.
@@ -78,16 +79,17 @@ func main() {
 	// Initialize logger
 	logger := setupLogger(cfg)
 
-	logger.Info("configuration loaded",
-		"port", cfg.Server.Port,
-		"host", cfg.Server.Host,
-		"config_files", fmt.Sprintf("%v", configFiles),
-	)
+	logger.Info().
+		Int("port", cfg.Server.Port).
+		Str("host", cfg.Server.Host).
+		Str("environment", cfg.Environment).
+		Str("config_files", fmt.Sprintf("%v", configFiles)).
+		Msg("configuration loaded")
 
 	// Initialize application
 	application, err := app.New(cfg, logger)
 	if err != nil {
-		logger.Error("failed to initialize application", "error", err)
+		logger.Error().Str("error", err.Error()).Msg("failed to initialize application")
 		os.Exit(1)
 	}
 
@@ -97,7 +99,7 @@ func main() {
 	// Start server in goroutine
 	go func() {
 		if err := srv.Start(); err != nil {
-			logger.Error("server failed to start", "error", err)
+			logger.Error().Str("error", err.Error()).Msg("server failed to start")
 			os.Exit(1)
 		}
 	}()
@@ -105,54 +107,40 @@ func main() {
 	// Give goroutine a moment to start
 	time.Sleep(100 * time.Millisecond)
 
-	logger.Info("server ready",
-		"url", fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port),
-	)
+	logger.Info().
+		Str("url", fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port)).
+		Msg("server ready")
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan
 
-	logger.Info("shutdown signal received")
+	logger.Info().Msg("shutdown signal received")
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("server shutdown failed", "error", err)
+		logger.Error().Str("error", err.Error()).Msg("server shutdown failed")
 	}
 
 	if err := application.Close(); err != nil {
-		logger.Error("application shutdown failed", "error", err)
+		logger.Error().Str("error", err.Error()).Msg("application shutdown failed")
 	}
 
-	logger.Info("server stopped")
+	logger.Info().Msg("server stopped")
 }
 
-// setupLogger creates a structured logger based on config.
-func setupLogger(cfg *config.Config) *slog.Logger {
-	var level slog.Level
-	switch cfg.Logging.Level {
-	case "debug":
-		level = slog.LevelDebug
-	case "warn":
-		level = slog.LevelWarn
-	case "error":
-		level = slog.LevelError
-	default:
-		level = slog.LevelInfo
+// setupLogger creates an arbor logger based on config.
+func setupLogger(cfg *config.Config) *common.Logger {
+	arborCfg := common.LoggingConfig{
+		Level:      cfg.Logging.Level,
+		Outputs:    cfg.Logging.Outputs,
+		FilePath:   cfg.Logging.FilePath,
+		MaxSizeMB:  cfg.Logging.MaxSizeMB,
+		MaxBackups: cfg.Logging.MaxBackups,
 	}
-
-	opts := &slog.HandlerOptions{Level: level}
-
-	var handler slog.Handler
-	if cfg.Logging.Format == "json" {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
-	} else {
-		handler = slog.NewTextHandler(os.Stdout, opts)
-	}
-
-	return slog.New(handler)
+	return common.NewLoggerFromConfig(arborCfg)
 }

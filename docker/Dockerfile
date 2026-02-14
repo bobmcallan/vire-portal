@@ -36,13 +36,17 @@ RUN apk --no-cache add ca-certificates wget
 # Copy binary from builder
 COPY --from=builder /build/vire-portal .
 
-# Copy templates, config, and version file
+# Copy templates, config, seed data, and version file
 COPY --from=builder /build/pages ./pages
 COPY --from=builder /build/docker/vire-portal.toml .
+COPY --from=builder /build/data ./seed
 COPY .version .
 
-# Create data directory for BadgerDB
-RUN mkdir -p /app/data
+# Create data and logs directories
+RUN mkdir -p /app/data /app/logs
+
+# Default to prod mode — prevents accidental dev mode in containers
+ENV VIRE_ENV=prod
 
 EXPOSE 4241
 

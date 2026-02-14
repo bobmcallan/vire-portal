@@ -25,6 +25,11 @@
                 <a href="/api/auth/login/github" class="btn btn-secondary">
                     SIGN IN WITH GITHUB
                 </a>
+                {{if .DevMode}}
+                <form method="POST" action="/api/auth/dev" class="landing-dev-login">
+                    <button type="submit" class="btn btn-dev">DEV LOGIN</button>
+                </form>
+                {{end}}
             </div>
 
             <div class="landing-features">

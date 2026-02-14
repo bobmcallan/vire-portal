@@ -2,18 +2,17 @@ package badger
 
 import (
 	"context"
-	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/bobmcallan/vire-portal/internal/config"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 func setupTestDB(t *testing.T) (*BadgerDB, func()) {
 	t.Helper()
 
 	dir := t.TempDir()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := common.NewSilentLogger()
 
 	cfg := &config.BadgerConfig{Path: dir}
 	db, err := NewBadgerDB(logger, cfg)
@@ -32,7 +31,7 @@ func TestKVStorage_SetAndGet(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := common.NewSilentLogger()
 	kv := NewKVStorage(db, logger)
 	ctx := context.Background()
 
@@ -53,7 +52,7 @@ func TestKVStorage_GetNotFound(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := common.NewSilentLogger()
 	kv := NewKVStorage(db, logger)
 	ctx := context.Background()
 
@@ -67,7 +66,7 @@ func TestKVStorage_Upsert(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := common.NewSilentLogger()
 	kv := NewKVStorage(db, logger)
 	ctx := context.Background()
 
@@ -93,7 +92,7 @@ func TestKVStorage_Delete(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := common.NewSilentLogger()
 	kv := NewKVStorage(db, logger)
 	ctx := context.Background()
 
@@ -115,7 +114,7 @@ func TestKVStorage_DeleteNonexistent(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := common.NewSilentLogger()
 	kv := NewKVStorage(db, logger)
 	ctx := context.Background()
 
@@ -129,7 +128,7 @@ func TestKVStorage_GetAll(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := common.NewSilentLogger()
 	kv := NewKVStorage(db, logger)
 	ctx := context.Background()
 
@@ -160,7 +159,7 @@ func TestKVStorage_GetAllEmpty(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	logger := common.NewSilentLogger()
 	kv := NewKVStorage(db, logger)
 	ctx := context.Background()
 

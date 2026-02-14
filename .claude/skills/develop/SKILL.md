@@ -240,7 +240,9 @@ When all tasks are complete:
 | Configuration | `internal/config/` |
 | HTTP Handlers | `internal/handlers/` |
 | MCP Server | `internal/mcp/` |
+| User Importer | `internal/importer/` |
 | Storage Interfaces | `internal/interfaces/` |
+| User Model | `internal/models/` |
 | HTTP Server | `internal/server/` |
 | BadgerDB Storage | `internal/storage/badger/` |
 | HTML Templates | `pages/` |
@@ -275,9 +277,8 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 | API URL | `VIRE_API_URL` | `http://localhost:4242` |
 | Default portfolio | `VIRE_DEFAULT_PORTFOLIO` | `""` |
 | Display currency | `VIRE_DISPLAY_CURRENCY` | `""` |
-| EODHD API key | `EODHD_API_KEY` | `""` |
-| Navexa API key | `NAVEXA_API_KEY` | `""` |
-| Gemini API key | `GEMINI_API_KEY` | `""` |
+| Import users | -- | `false` (TOML: `import.users`) |
+| Import users file | -- | `data/users.json` (TOML: `import.users_file`) |
 | BadgerDB path | `VIRE_BADGER_PATH` | `./data/vire` |
 | Environment | `VIRE_ENV` | `prod` |
 | Log level | `VIRE_LOG_LEVEL` | `info` |
@@ -290,7 +291,7 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 MCP tool calls are proxied to vire-server with X-Vire-* header injection:
 - MCP endpoint: `POST /mcp` (mcp-go StreamableHTTPServer, stateless)
 - Proxy: `internal/mcp/proxy.go` forwards to vire-server (default `http://localhost:4242`)
-- Headers: X-Vire-Portfolios, X-Vire-Display-Currency, X-Vire-Navexa-Key, X-Vire-EODHD-Key, X-Vire-Gemini-Key
+- Headers: X-Vire-Portfolios, X-Vire-Display-Currency
 - Tools: dynamic catalog from `GET /api/mcp/tools` (registered at startup via `internal/mcp/catalog.go`, 3-attempt retry, validated)
 - Response format: raw JSON from vire-server (no markdown formatting)
 - Timeouts: 300s proxy + 300s server WriteTimeout (for slow tools like generate_report)

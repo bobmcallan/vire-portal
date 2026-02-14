@@ -17,9 +17,9 @@ vire-mcp
 coverage.out
 *.test
 
-# Data directories
-data/
-*/data/
+# Data directories (keep data/users.json for import)
+data/vire/
+*/data/vire/
 
 # Logs
 logs/

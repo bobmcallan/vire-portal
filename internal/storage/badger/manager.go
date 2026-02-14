@@ -1,21 +1,20 @@
 package badger
 
 import (
-	"log/slog"
-
 	"github.com/bobmcallan/vire-portal/internal/config"
 	"github.com/bobmcallan/vire-portal/internal/interfaces"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 // Manager implements the StorageManager interface for Badger.
 type Manager struct {
 	db     *BadgerDB
 	kv     interfaces.KeyValueStorage
-	logger *slog.Logger
+	logger *common.Logger
 }
 
 // NewManager creates a new Badger storage manager.
-func NewManager(logger *slog.Logger, cfg *config.BadgerConfig) (interfaces.StorageManager, error) {
+func NewManager(logger *common.Logger, cfg *config.BadgerConfig) (interfaces.StorageManager, error) {
 	db, err := NewBadgerDB(logger, cfg)
 	if err != nil {
 		return nil, err
@@ -27,7 +26,7 @@ func NewManager(logger *slog.Logger, cfg *config.BadgerConfig) (interfaces.Stora
 		logger: logger,
 	}
 
-	logger.Debug("Badger storage manager initialized")
+	logger.Debug().Msg("Badger storage manager initialized")
 
 	return manager, nil
 }

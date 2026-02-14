@@ -1,19 +1,19 @@
 package handlers
 
 import (
-	"log/slog"
 	"net/http"
 
 	"github.com/bobmcallan/vire-portal/internal/config"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 // VersionHandler handles version information requests.
 type VersionHandler struct {
-	logger *slog.Logger
+	logger *common.Logger
 }
 
 // NewVersionHandler creates a new version handler.
-func NewVersionHandler(logger *slog.Logger) *VersionHandler {
+func NewVersionHandler(logger *common.Logger) *VersionHandler {
 	return &VersionHandler{logger: logger}
 }
 

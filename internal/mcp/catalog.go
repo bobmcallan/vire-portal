@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"strings"
 
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -80,16 +80,16 @@ func ValidateCatalogTool(ct CatalogTool) error {
 }
 
 // ValidateCatalog filters and validates catalog entries, logging warnings for invalid or duplicate tools.
-func ValidateCatalog(catalog []CatalogTool, logger *slog.Logger) []CatalogTool {
+func ValidateCatalog(catalog []CatalogTool, logger *common.Logger) []CatalogTool {
 	seen := make(map[string]bool, len(catalog))
 	valid := make([]CatalogTool, 0, len(catalog))
 	for _, ct := range catalog {
 		if err := ValidateCatalogTool(ct); err != nil {
-			logger.Warn("skipping invalid catalog tool", "error", err)
+			logger.Warn().Str("error", err.Error()).Msg("skipping invalid catalog tool")
 			continue
 		}
 		if seen[ct.Name] {
-			logger.Warn("skipping duplicate catalog tool", "name", ct.Name)
+			logger.Warn().Str("name", ct.Name).Msg("skipping duplicate catalog tool")
 			continue
 		}
 		seen[ct.Name] = true

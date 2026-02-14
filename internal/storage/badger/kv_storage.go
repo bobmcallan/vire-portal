@@ -3,8 +3,8 @@ package badger
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 	"github.com/timshannon/badgerhold/v4"
 )
 
@@ -17,11 +17,11 @@ type KVEntry struct {
 // KVStorage implements interfaces.KeyValueStorage using BadgerDB.
 type KVStorage struct {
 	db     *BadgerDB
-	logger *slog.Logger
+	logger *common.Logger
 }
 
 // NewKVStorage creates a new key-value storage backed by BadgerDB.
-func NewKVStorage(db *BadgerDB, logger *slog.Logger) *KVStorage {
+func NewKVStorage(db *BadgerDB, logger *common.Logger) *KVStorage {
 	return &KVStorage{
 		db:     db,
 		logger: logger,

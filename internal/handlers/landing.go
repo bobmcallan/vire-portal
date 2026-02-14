@@ -2,21 +2,23 @@ package handlers
 
 import (
 	"html/template"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 // PageHandler serves HTML pages rendered with Go templates.
 type PageHandler struct {
-	logger    *slog.Logger
+	logger    *common.Logger
 	templates *template.Template
+	devMode   bool
 }
 
 // NewPageHandler creates a new page handler that loads templates from the pages directory.
-func NewPageHandler(logger *slog.Logger) *PageHandler {
-	pagesDir := findPagesDir()
+func NewPageHandler(logger *common.Logger, devMode bool) *PageHandler {
+	pagesDir := FindPagesDir()
 
 	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
 	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
@@ -24,11 +26,12 @@ func NewPageHandler(logger *slog.Logger) *PageHandler {
 	return &PageHandler{
 		logger:    logger,
 		templates: templates,
+		devMode:   devMode,
 	}
 }
 
-// findPagesDir locates the pages directory.
-func findPagesDir() string {
+// FindPagesDir locates the pages directory.
+func FindPagesDir() string {
 	dirs := []string{
 		"./pages",
 		"../pages",
@@ -50,14 +53,14 @@ func findPagesDir() string {
 func (h *PageHandler) ServePage(templateName string, pageName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		data := map[string]interface{}{
-			"Page": pageName,
+			"Page":    pageName,
+			"DevMode": h.devMode,
 		}
 
 		if err := h.templates.ExecuteTemplate(w, templateName, data); err != nil {
-			h.logger.Error("failed to render page",
-				"template", templateName,
-				"error", err,
-			)
+			if h.logger != nil {
+				h.logger.Error().Str("template", templateName).Str("error", err.Error()).Msg("failed to render page")
+			}
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}
@@ -65,7 +68,7 @@ func (h *PageHandler) ServePage(templateName string, pageName string) http.Handl
 
 // StaticFileHandler serves static files (CSS, JS, images).
 func (h *PageHandler) StaticFileHandler(w http.ResponseWriter, r *http.Request) {
-	pagesDir := findPagesDir()
+	pagesDir := FindPagesDir()
 	staticDir := filepath.Join(pagesDir, "static")
 
 	// Remove /static/ prefix from URL path
