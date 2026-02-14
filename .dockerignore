@@ -1,8 +1,38 @@
-node_modules
-dist
+# Git
 .git
-.claude
-.env
-*.md
-docker/
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build artifacts
+bin/
+portal
+
+# Test artifacts
+coverage.out
+*.test
+
+# Data directories
+data/
+*/data/
+
+# Logs
+logs/
+*.log
+
+# Claude
+.claude/
+
+# Docker artifacts (keep portal.toml for COPY)
+docker/.last_build
+docker/docker-compose*.yml
+docker/README.md
 scripts/
+
+# Docs
+*.md
+!README.md

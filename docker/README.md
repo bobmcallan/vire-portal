@@ -4,9 +4,9 @@
 
 | Service | Description | Port | Image |
 |---------|-------------|------|-------|
-| vire-portal | Static SPA (nginx) | 8080 | `vire-portal:latest` |
+| vire-portal | Go server (html/template + Alpine.js) | 8080 | `vire-portal:latest` |
 
-The portal is a single nginx container serving the built static assets with runtime config injection via envsubst.
+The portal is a Go binary serving HTML templates with Alpine.js for interactivity, backed by BadgerDB for embedded storage.
 
 ## Usage
 
@@ -24,14 +24,14 @@ The portal is a single nginx container serving the built static assets with runt
 docker logs -f vire-portal
 
 # Health check
-curl http://localhost:8080/health
+curl http://localhost:8080/api/health
 ```
 
 ## Deploy Modes
 
 | Mode | Description |
 |------|-------------|
-| `local` | Build from source and run. Smart rebuild detects changes in `src/`, `package.json`, `nginx.conf`, `Dockerfile`. Use `--force` to bypass. |
+| `local` | Build from source and run. Smart rebuild detects changes in `*.go`, `go.mod`, `go.sum`, `Dockerfile`, `.version`. Use `--force` to bypass. |
 | `ghcr` | Pull `ghcr.io/bobmcallan/vire-portal:latest` and run with watchtower auto-update. |
 | `down` | Stop all vire-portal containers (both local and GHCR). |
 | `prune` | Remove stopped containers, dangling images, and unused volumes. |
@@ -52,31 +52,32 @@ curl http://localhost:8080/health
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_URL` | `http://localhost:4242` | Gateway REST API base URL |
-| `DOMAIN` | `localhost` | Portal domain name |
-| `PORTAL_PORT` | `8080` | Host port mapping |
-
-Create `docker/.env` for local defaults:
-
-```
-API_URL=http://host.docker.internal:8080
-DOMAIN=localhost
-PORTAL_PORT=8080
-```
+| `VIRE_SERVER_HOST` | `localhost` | Server bind address |
+| `VIRE_SERVER_PORT` | `8080` | Server port |
+| `VIRE_BADGER_PATH` | `./data/vire` | BadgerDB storage path |
+| `VIRE_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
+| `VIRE_LOG_FORMAT` | `text` | Log format (text, json) |
+| `PORTAL_PORT` | `8080` | Host port mapping (docker-compose only) |
 
 ## Versioning
 
 The `.version` file at the project root is the single source of truth:
 
 ```
-version: 0.1.0
-build: 02-14-17-30-00
+version: 0.1.2
+build: 02-14-20-27-29
 ```
 
-- `version:` is the semantic version, synced to `package.json` by build scripts
+- `version:` is the semantic version
 - `build:` is the timestamp of the last build, updated automatically
 - Both `deploy.sh` and `build.sh` inject VERSION, BUILD, and GIT_COMMIT as Docker build args
 - The CI workflow (`release.yml`) uses the same version extraction pattern
+
+## Volumes
+
+| Volume | Mount | Description |
+|--------|-------|-------------|
+| `portal-data` | `/app/data` | BadgerDB persistent storage |
 
 ## GHCR Images
 
@@ -110,4 +111,4 @@ Run the script test suite to verify all docker configs and scripts:
 ./scripts/test-scripts.sh
 ```
 
-This validates file existence, permissions, script behavior, compose syntax, build arg consistency across files, and version sync.
+This validates file existence, permissions, script behavior, compose syntax, build arg consistency across files, Go build/vet, and version handling.

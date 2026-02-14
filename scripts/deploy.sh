@@ -5,14 +5,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_DIR="$PROJECT_DIR/docker"
 
-# Sync .version -> package.json (uses | delimiter to avoid sed injection from version strings)
-sync_version() {
-    local ver="$1"
-    if [ -f "$PROJECT_DIR/package.json" ]; then
-        sed -i "s|\"version\": \"[^\"]*\"|\"version\": \"$ver\"|" "$PROJECT_DIR/package.json"
-    fi
-}
-
 # Parse arguments
 MODE="${1:-local}"
 FORCE=false
@@ -43,15 +35,6 @@ case "$MODE" in
 
     export VERSION BUILD=$BUILD_TS GIT_COMMIT
 
-    # Sync version to package.json
-    sync_version "$VERSION"
-
-    # Load docker/.env if it exists (API_URL, DOMAIN, PORTAL_PORT defaults)
-    # Uses grep+xargs to safely export only VAR=value lines, skipping comments
-    if [ -f "$COMPOSE_DIR/.env" ]; then
-        export $(grep -v '^#' "$COMPOSE_DIR/.env" | grep -v '^\s*$' | xargs) 2>/dev/null || true
-    fi
-
     # Smart rebuild check
     NEEDS_REBUILD=false
     if [ "$FORCE" = true ]; then
@@ -59,13 +42,11 @@ case "$MODE" in
     elif [ ! -f "$COMPOSE_DIR/.last_build" ]; then
         NEEDS_REBUILD=true
     else
-        if find "$PROJECT_DIR/src" -newer "$COMPOSE_DIR/.last_build" 2>/dev/null | grep -q . || \
-           [ "$PROJECT_DIR/package.json" -nt "$COMPOSE_DIR/.last_build" ] || \
-           [ "$PROJECT_DIR/package-lock.json" -nt "$COMPOSE_DIR/.last_build" ] || \
-           [ "$PROJECT_DIR/index.html" -nt "$COMPOSE_DIR/.last_build" ] || \
-           [ "$PROJECT_DIR/vite.config.ts" -nt "$COMPOSE_DIR/.last_build" ] || \
-           [ "$PROJECT_DIR/tsconfig.json" -nt "$COMPOSE_DIR/.last_build" ] || \
-           [ "$PROJECT_DIR/nginx.conf" -nt "$COMPOSE_DIR/.last_build" ] || \
+        if find "$PROJECT_DIR" -name "*.go" -newer "$COMPOSE_DIR/.last_build" 2>/dev/null | grep -q . || \
+           find "$PROJECT_DIR/pages" -newer "$COMPOSE_DIR/.last_build" 2>/dev/null | grep -q . || \
+           [ "$PROJECT_DIR/go.mod" -nt "$COMPOSE_DIR/.last_build" ] || \
+           [ "$PROJECT_DIR/go.sum" -nt "$COMPOSE_DIR/.last_build" ] || \
+           [ "$PROJECT_DIR/docker/portal.toml" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/Dockerfile" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/.version" -nt "$COMPOSE_DIR/.last_build" ]; then
             NEEDS_REBUILD=true
@@ -124,4 +105,4 @@ docker ps --filter "name=vire-portal" --format "table {{.Names}}\t{{.Image}}\t{{
 echo ""
 PORTAL_PORT="${PORTAL_PORT:-8080}"
 echo "Logs: docker logs -f vire-portal"
-echo "Health: curl http://localhost:$PORTAL_PORT/health"
+echo "Health: curl http://localhost:$PORTAL_PORT/api/health"

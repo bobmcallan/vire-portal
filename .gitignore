@@ -1,8 +1,26 @@
-# Dependencies
-node_modules/
+# Go binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/portal
+bin/
 
-# Build output
-dist/
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage
+*.out
+coverage.*
+*.coverprofile
+
+# Go workspace
+go.work
+go.work.sum
+
+# Data directories
+data/
 
 # Environment files
 .env
@@ -13,29 +31,17 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Test coverage
-coverage/
-
-# TypeScript build info
-*.tsbuildinfo
-
 # Editor/IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Debug logs
-npm-debug.log*
+# Debug
+__debug_bin*
+
+# Logs
+*.log
 
 # Docker build sentinel
 docker/.last_build
-
-# Go
-data/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-__debug_bin*

@@ -2,30 +2,74 @@
 
 User-facing web application for the Vire managed service. Sign in, manage API keys, provision your MCP endpoint, and connect Claude to Vire.
 
-The portal is a single-page application served from a Docker container on Cloud Run. It calls the vire-gateway (control plane) REST API for all backend operations. It does **not** call vire-server or vire-mcp directly.
+The portal is a Go server rendering HTML templates with Alpine.js for interactivity, served from a Docker container on Cloud Run. It calls the vire-gateway (control plane) REST API for all backend operations. It does **not** call vire-server or vire-mcp directly.
 
-> **Repository layout:** This repo contains the portal frontend code. Portal infrastructure (Cloud Run deployment) is managed by [vire-infra](https://github.com/bobmcallan/vire-infra) Terraform (`infra/modules/portal/`). The Docker image published here (`ghcr.io/bobmcallan/vire-portal:latest`) is consumed by that Terraform module -- the same pattern as `vire`, which publishes `ghcr.io/bobmcallan/vire-server` and `ghcr.io/bobmcallan/vire-mcp` images consumed by vire-infra.
-
-## Pages
-
-| Route | Page | Auth Required | Purpose |
-|-------|------|---------------|---------|
-| `/` | Landing | No | Product overview, "Sign in with Google" and "Sign in with GitHub" buttons |
-| `/auth/callback` | OAuth Callback | No | Receives OAuth redirect, sends auth code to gateway, stores session |
-| `/dashboard` | Dashboard | Yes | Usage stats (requests this month, quota bar, daily trend, top endpoints), instance status (running/stopped), plan info |
-| `/settings` | Settings | Yes | Profile info, API key management (BYOK), preferences (default portfolio, exchange) |
-| `/connect` | Connect | Yes | MCP config generator with copy-to-clipboard for Claude Code and Claude Desktop, URL regeneration |
-| `/billing` | Billing | Yes | Plan selection (Free/Pro), Stripe checkout, invoice history via Stripe billing portal |
+> **Repository layout:** This repo contains the portal server code. Portal infrastructure (Cloud Run deployment) is managed by [vire-infra](https://github.com/bobmcallan/vire-infra) Terraform (`infra/modules/portal/`). The Docker image published here (`ghcr.io/bobmcallan/vire-portal:latest`) is consumed by that Terraform module -- the same pattern as `vire`, which publishes `ghcr.io/bobmcallan/vire-server` and `ghcr.io/bobmcallan/vire-mcp` images consumed by vire-infra.
 
 ## Tech Stack
 
-- **TypeScript** with **Preact** (lightweight React-compatible framework, ~3KB gzipped)
-- **Vite** for build tooling and dev server
-- **No SSR** -- static SPA served via nginx in a Docker container
+- **Go 1.25+** with standard `net/http` (no framework)
+- **Go `html/template`** for server-side rendering
+- **Alpine.js** (CDN) for client-side interactivity
+- **BadgerDB** via [badgerhold](https://github.com/timshannon/badgerhold) for embedded storage
+- **TOML** configuration with priority: defaults < file < env (VIRE_ prefix) < CLI flags
 - **Port 8080** -- required by Cloud Run
-- **Tailwind CSS** for styling
+- **80s B&W aesthetic** -- IBM Plex Mono, no border-radius, no box-shadow, monochrome only
 - **No Firebase Auth SDK** -- OAuth is handled via direct HTTP redirects and gateway API calls
-- **No heavy frameworks** -- no React, no Next.js, no Angular. The portal is 6 pages with simple forms and display components. Preact + Vite keeps the bundle small and the dependency surface minimal.
+
+## Routes
+
+| Route | Handler | Auth | Description |
+|-------|---------|------|-------------|
+| `GET /` | PageHandler | No | Landing page (server-rendered HTML template) |
+| `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
+| `GET /api/health` | HealthHandler | No | Health check (`{"status":"ok"}`) |
+| `GET /api/version` | VersionHandler | No | Version info (JSON) |
+
+## Prerequisites
+
+- Go 1.25+
+
+## Development
+
+```bash
+# Build the server binary
+go build ./cmd/portal/
+
+# Run the server (auto-discovers docker/portal.toml)
+go run ./cmd/portal/
+
+# Run with custom port
+go run ./cmd/portal/ -p 9090
+
+# Run with custom config
+go run ./cmd/portal/ -c custom.toml
+
+# Run all tests
+go test ./...
+
+# Run tests verbose
+go test -v ./...
+
+# Vet for issues
+go vet ./...
+```
+
+The server runs on `http://localhost:8080` by default.
+
+## Configuration
+
+Configuration priority (highest wins): CLI flags > environment variables > TOML file > defaults.
+
+| Setting | TOML Key | Environment Variable | CLI Flag | Default |
+|---------|----------|---------------------|----------|---------|
+| Server port | `server.port` | `VIRE_SERVER_PORT` | `-port`, `-p` | `8080` |
+| Server host | `server.host` | `VIRE_SERVER_HOST` | `-host` | `localhost` |
+| BadgerDB path | `storage.badger.path` | `VIRE_BADGER_PATH` | -- | `./data/vire` |
+| Log level | `logging.level` | `VIRE_LOG_LEVEL` | -- | `info` |
+| Log format | `logging.format` | `VIRE_LOG_FORMAT` | -- | `text` |
+
+The config file is auto-discovered from `portal.toml` or `docker/portal.toml`. Specify explicitly with `-c path/to/config.toml`.
 
 ## Authentication Flow
 
@@ -33,7 +77,7 @@ The portal uses direct OAuth with Google and GitHub. The gateway handles token e
 
 ### Sign-in Flow
 
-The sign-in buttons are **anchor tags** (`<a>`) pointing directly at the gateway's login endpoint, not `fetch()` calls. This is necessary because the gateway returns a 302 redirect to the OAuth provider, and you cannot follow cross-origin 302 redirects from `fetch()`.
+The sign-in buttons are **anchor tags** (`<a>`) pointing directly at the gateway's login endpoint. This is necessary because the gateway returns a 302 redirect to the OAuth provider, and you cannot follow cross-origin 302 redirects from `fetch()`.
 
 ```
 1. User clicks "Sign in with Google" on /
@@ -88,20 +132,11 @@ The `redirect_uri` is constructed by the gateway from its own domain configurati
 | Google | `accounts.google.com/o/oauth2/v2/auth` | `openid`, `email`, `profile` | email, name, picture |
 | GitHub | `github.com/login/oauth/authorize` | `read:user`, `user:email` | email, login, name, avatar_url |
 
-### Frontend Auth Implementation
-
-- Store JWT in a module-scoped variable (not localStorage, not sessionStorage)
-- On page load, call `POST /api/auth/refresh` to restore session from httpOnly cookie
-- Attach JWT to every API request: `Authorization: Bearer <jwt>`
-- Set `credentials: 'include'` on every `fetch()` call (required for httpOnly cookie to be sent cross-origin)
-- On 401 response, attempt refresh; if refresh fails, redirect to `/`
-- On logout, call `POST /api/auth/logout` (clears httpOnly cookie server-side)
-
 ## API Contract with Gateway
 
 > **Note:** The canonical API design is in the [architecture document](https://github.com/bobmcallan/vire-infra/blob/main/docs/architecture-per-user-deployment.md) (Stage 1). This section derives from it and specifies the portal-facing contract -- request/response shapes the portal must handle. If the gateway API evolves, the architecture doc is authoritative.
 
-The portal communicates exclusively with the vire-gateway (control plane) REST API. Base URL is configured via the `API_URL` environment variable (e.g., `https://api.vire.app`).
+The portal communicates exclusively with the vire-gateway (control plane) REST API.
 
 All protected routes require `Authorization: Bearer <jwt>` header. All request/response bodies are JSON.
 
@@ -129,24 +164,11 @@ All endpoints return errors in a consistent shape:
 | 429 | Rate limited | Show retry message |
 | 500 | Server error | Show generic error with retry option |
 
-### CORS
-
-The portal at `https://vire.app` calls the gateway at `https://api.vire.app` -- a cross-origin request. The gateway handles CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Credentials`). The portal must set `credentials: 'include'` on all `fetch()` requests so that the httpOnly refresh token cookie is sent:
-
-```typescript
-fetch(`${API_URL}/api/profile`, {
-  headers: { 'Authorization': `Bearer ${jwt}` },
-  credentials: 'include',  // Required for httpOnly cookie
-});
-```
-
-Without `credentials: 'include'`, the browser will not send the refresh token cookie, and `POST /api/auth/refresh` will fail.
-
 ### Auth Routes (Unauthenticated)
 
 #### `GET /api/auth/login/:provider`
 
-Redirects the browser to the OAuth provider's consent screen. The portal links to this URL directly via anchor tags (`<a href="...">`), not via `fetch()`. The gateway generates a `state` token for CSRF protection, constructs the `redirect_uri` from its domain config, and returns a 302 redirect.
+Redirects the browser to the OAuth provider's consent screen. The portal links to this URL directly via anchor tags (`<a href="...">`). The gateway generates a `state` token for CSRF protection, constructs the `redirect_uri` from its domain config, and returns a 302 redirect.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -154,11 +176,9 @@ Redirects the browser to the OAuth provider's consent screen. The portal links t
 
 **Response:** 302 redirect to provider OAuth URL with `client_id`, `redirect_uri`, `scope`, `state` params.
 
-**Portal usage:** `<a href="${API_URL}/api/auth/login/google">Sign in with Google</a>` -- full page navigation.
-
 #### `POST /api/auth/callback`
 
-Exchanges an OAuth authorization code for a session. The `state` parameter is generated by the gateway during `GET /api/auth/login/:provider` and passed through the OAuth flow. The portal extracts it from the callback URL query params and sends it back for CSRF validation -- the portal does not generate or verify state itself.
+Exchanges an OAuth authorization code for a session. The `state` parameter is generated by the gateway during `GET /api/auth/login/:provider` and passed through the OAuth flow.
 
 **Request body:**
 ```json
@@ -187,7 +207,7 @@ Exchanges an OAuth authorization code for a session. The `state` parameter is ge
 }
 ```
 
-Also sets `refresh_token` as httpOnly, Secure, SameSite=Lax cookie. (SameSite=Lax is required because the callback is a cross-site redirect from the OAuth provider; SameSite=Strict would block the cookie on the redirect.)
+Also sets `refresh_token` as httpOnly, Secure, SameSite=Lax cookie.
 
 #### `POST /api/auth/refresh`
 
@@ -442,7 +462,7 @@ Creates a Stripe Checkout session for upgrading to Pro.
 }
 ```
 
-Frontend redirects the browser to `checkout_url` via `window.location.href = checkout_url`. Stripe handles payment. On completion, Stripe redirects back to `https://${DOMAIN}/billing?session_id={CHECKOUT_SESSION_ID}` -- the gateway configures this return URL when creating the session (the portal does not pass a return URL). The gateway receives a Stripe webhook to update the user's plan. The billing page should check for a `session_id` query param on load and display a success/pending message.
+Frontend redirects the browser to `checkout_url` via `window.location.href = checkout_url`. Stripe handles payment. On completion, Stripe redirects back to `https://${DOMAIN}/billing?session_id={CHECKOUT_SESSION_ID}` -- the gateway configures this return URL when creating the session. The gateway receives a Stripe webhook to update the user's plan.
 
 #### `POST /api/billing/portal`
 
@@ -475,7 +495,7 @@ The Settings page displays three key fields:
 
 Each key field shows one of (80s B&W design -- no colours, text-only indicators):
 - **Not configured** -- dashed border, "NOT SET" label, empty input with "ADD" button
-- **Configured** -- solid border, `[OK] ••••abcd` showing last 4 characters, "UPDATE" and "DELETE" buttons
+- **Configured** -- solid border, `[OK] ::::abcd` showing last 4 characters, "UPDATE" and "DELETE" buttons
 - **Invalid** -- solid border, `[ERR]` label with error message from validation
 
 ### Security
@@ -486,420 +506,66 @@ Each key field shows one of (80s B&W design -- no colours, text-only indicators)
 - After entry, only the last 4 characters are visible
 - Each key is injected directly into the user's dedicated MCP proxy as a Cloud Run secret reference
 
-## Environment Variables
-
-The portal Docker container receives two environment variables from Terraform:
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `API_URL` | Gateway (control plane) base URL | `https://api.vire.app` |
-| `DOMAIN` | Portal domain name | `vire.app` |
-
-### Runtime Injection
-
-Since the portal is a static SPA, environment variables cannot be read at runtime by client-side JavaScript. Use one of these approaches:
-
-**Option A -- nginx template substitution (recommended):**
-
-Create a template file (`/etc/nginx/templates/default.conf.template`) that nginx's `envsubst` processes at container startup. Serve a `/config.json` endpoint that the SPA fetches on load:
-
-```nginx
-location /config.json {
-    default_type application/json;
-    return 200 '{"apiUrl":"${API_URL}","domain":"${DOMAIN}"}';
-}
-```
-
-The SPA fetches `/config.json` on initialization and uses the values for all API calls. This approach avoids modifying built assets and works with content hashing.
-
 ## Dockerfile
 
-Multi-stage build matching the vire ecosystem pattern. Stage 1 builds the SPA; stage 2 serves it via nginx.
+Multi-stage build matching the vire ecosystem pattern. Stage 1 builds the Go binary; stage 2 runs it on Alpine.
 
 ```dockerfile
 # Build stage
-FROM node:20-alpine AS builder
-
+FROM golang:1.25-alpine AS builder
 WORKDIR /build
-
-# Version build arguments
 ARG VERSION=dev
 ARG BUILD=unknown
 ARG GIT_COMMIT=unknown
-
-# Copy package files first for better caching
-COPY package.json package-lock.json ./
-RUN npm ci
-
-# Copy source code
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
-
-# Inject version info into the build
-ENV VITE_APP_VERSION=${VERSION}
-ENV VITE_APP_BUILD=${BUILD}
-ENV VITE_APP_COMMIT=${GIT_COMMIT}
-
-# Build static assets
-RUN npm run build
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-s -w \
+    -X 'github.com/bobmcallan/vire-portal/internal/config.Version=${VERSION}' \
+    -X 'github.com/bobmcallan/vire-portal/internal/config.Build=${BUILD}' \
+    -X 'github.com/bobmcallan/vire-portal/internal/config.GitCommit=${GIT_COMMIT}'" \
+    -o vire-portal ./cmd/portal
 
 # Runtime stage
-FROM nginx:1.27-alpine
-
+FROM alpine:3.21
 LABEL org.opencontainers.image.source="https://github.com/bobmcallan/vire-portal"
-
-# Copy built assets from builder
-COPY --from=builder /build/dist /usr/share/nginx/html
-
-# Copy nginx config with env substitution template
-COPY nginx.conf /etc/nginx/templates/default.conf.template
-
-# Copy version file
-COPY .version /usr/share/nginx/html/.version
-
-# nginx:alpine uses envsubst on templates in /etc/nginx/templates/
-# and writes output to /etc/nginx/conf.d/ at startup
-
+WORKDIR /app
+RUN apk --no-cache add ca-certificates wget
+COPY --from=builder /build/vire-portal .
+COPY --from=builder /build/pages ./pages
+COPY --from=builder /build/docker/portal.toml .
+COPY .version .
+RUN mkdir -p /app/data
 EXPOSE 8080
-
-# Restrict envsubst to only API_URL and DOMAIN.
-# Without this, envsubst replaces nginx's own $uri, $request_uri, etc. with
-# empty strings, breaking SPA routing and proxy directives.
-ENV NGINX_ENVSUBST_FILTER="API_URL|DOMAIN"
-
-# nginx:alpine default entrypoint handles template substitution
-# No custom entrypoint needed
-```
-
-### nginx.conf
-
-The nginx config is placed at `nginx.conf` in the repo root and copied into the image as an envsubst template. The `NGINX_ENVSUBST_FILTER` env var in the Dockerfile restricts substitution to `API_URL` and `DOMAIN` only -- without this, nginx's own variables (`$uri`, `$request_uri`) would be replaced with empty strings, breaking routing.
-
-```nginx
-server {
-    listen 8080;
-    server_name _;
-    root /usr/share/nginx/html;
-    index index.html;
-
-    # Security headers
-    add_header X-Frame-Options "DENY" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' ${API_URL}; frame-ancestors 'none';" always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-
-    # SPA routing -- serve index.html for all non-file routes
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # Runtime config endpoint (env vars injected by nginx envsubst)
-    location /config.json {
-        default_type application/json;
-        return 200 '{"apiUrl":"${API_URL}","domain":"${DOMAIN}"}';
-    }
-
-    # Cache static assets aggressively
-    location /assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # Health check for Cloud Run
-    location /health {
-        access_log off;
-        return 200 'ok';
-        add_header Content-Type text/plain;
-    }
-}
+HEALTHCHECK NONE
+ENTRYPOINT ["./vire-portal"]
 ```
 
 ## GitHub Actions Workflow
 
-Create `.github/workflows/release.yml` matching the vire repo's pattern:
+`.github/workflows/release.yml` builds and pushes the Docker image to GHCR on push to main or version tags:
 
-```yaml
-name: Release
-
-on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Image tag (e.g. latest, v1.2.3)"
-        required: false
-        default: "latest"
-
-env:
-  REGISTRY: ghcr.io
-
-jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract version metadata
-        id: meta
-        run: |
-          VERSION=$(grep '^version:' .version | awk '{print $2}')
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "build=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
-          echo "commit=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
-
-      - name: Docker metadata
-        id: docker-meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/vire-portal
-          tags: |
-            type=sha,prefix=,format=short
-            type=raw,value=${{ steps.meta.outputs.version }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: ${{ steps.docker-meta.outputs.tags }}
-          labels: ${{ steps.docker-meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.meta.outputs.version }}
-            BUILD=${{ steps.meta.outputs.build }}
-            GIT_COMMIT=${{ steps.meta.outputs.commit }}
-          cache-from: type=gha,scope=vire-portal
-          cache-to: type=gha,mode=max,scope=vire-portal
-```
-
-### Differences from vire's release.yml
-
-| Aspect | vire | vire-portal |
-|--------|------|-------------|
-| Matrix strategy | Yes (2 services: server, mcp) | No (single image) |
-| Dockerfile path | `docker/Dockerfile.server`, `docker/Dockerfile.mcp` | `Dockerfile` (root) |
-| Image name | `vire-server`, `vire-mcp` | `vire-portal` |
-| Cache scope | Per service (`vire-server`, `vire-mcp`) | Single (`vire-portal`) |
-
-Everything else is identical: triggers, GHCR registry, buildx, login, version extraction from `.version`, docker metadata tags (sha, version, latest), build-args (VERSION, BUILD, GIT_COMMIT), GHA caching.
+- Extracts version from `.version` file
+- Passes VERSION, BUILD, GIT_COMMIT as Docker build args
+- Tags: `latest` (on main), semantic version, short SHA
+- Uses GitHub Actions cache for Docker layers
 
 ## .version File
 
-Create `.version` in the repository root:
+The `.version` file at the project root is the single source of truth:
 
 ```
-version: 0.1.0
-build: 02-14-16-01-19
+version: 0.1.2
+build: 02-14-20-27-29
 ```
 
-Format matches vire's `.version` file. The `version` field is the single source of truth -- build scripts (`deploy.sh`, `build.sh`) sync it to `package.json` on each run. The `build` field is updated by build scripts and CI.
+- `version:` is the semantic version
+- `build:` is the timestamp of the last build, updated automatically by build/deploy scripts
+- Both `deploy.sh` and `build.sh` inject VERSION, BUILD, and GIT_COMMIT as Docker build args
+- The CI workflow (`release.yml`) uses the same version extraction pattern
 
-## Project Structure
-
-```
-vire-portal/
-├── .github/
-│   └── workflows/
-│       └── release.yml        # Docker build + GHCR push
-├── docker/
-│   ├── docker-compose.yml     # Local build + run
-│   ├── docker-compose.ghcr.yml # GHCR pull + watchtower auto-update
-│   └── README.md              # Docker usage documentation
-├── scripts/
-│   ├── deploy.sh              # Deploy orchestration (local/ghcr/down/prune)
-│   ├── build.sh               # Standalone Docker image builder
-│   └── test-scripts.sh        # Validation suite for scripts and configs
-├── src/
-│   ├── main.tsx               # Entry point -- app component, routing, auth state
-│   ├── api.ts                 # Gateway API client (fetch wrapper with JWT, 401 retry)
-│   ├── auth.ts                # JWT management, OAuth helpers, token refresh
-│   ├── router.ts              # Route definitions and auth guard helpers
-│   ├── state.ts               # Pub/sub app state (user, jwt, config)
-│   ├── types.ts               # All TypeScript interfaces
-│   ├── vite-env.d.ts          # Vite/ImportMeta type declarations
-│   ├── test-setup.ts          # Test setup (cleanup, mock restore)
-│   ├── __tests__/             # 13 test files, 118 tests
-│   │   ├── state.test.ts
-│   │   ├── auth.test.ts
-│   │   ├── api.test.ts
-│   │   ├── landing.test.tsx
-│   │   ├── callback.test.tsx
-│   │   ├── dashboard.test.tsx
-│   │   ├── settings.test.tsx
-│   │   ├── connect.test.tsx
-│   │   ├── billing.test.tsx
-│   │   ├── layout.test.tsx
-│   │   ├── key-input.test.tsx
-│   │   ├── copy-block.test.tsx
-│   │   └── usage-chart.test.tsx
-│   ├── pages/
-│   │   ├── landing.tsx        # / -- product info + sign-in buttons
-│   │   ├── callback.tsx       # /auth/callback -- OAuth callback handler
-│   │   ├── dashboard.tsx      # /dashboard -- usage stats, instance status
-│   │   ├── settings.tsx       # /settings -- profile, API keys, preferences
-│   │   ├── connect.tsx        # /connect -- MCP config + copy button
-│   │   └── billing.tsx        # /billing -- plan selection, Stripe checkout
-│   ├── components/
-│   │   ├── layout.tsx         # Page shell (nav, skip-to-content, footer)
-│   │   ├── key-input.tsx      # API key input with B&W status indicators
-│   │   ├── usage-chart.tsx    # Quota progressbar and daily trend bars
-│   │   └── copy-block.tsx     # Code block with copy-to-clipboard button
-│   └── styles/
-│       └── main.css           # Tailwind v4 theme, B&W global styles
-├── index.html                 # SPA shell (in repo root, not public/)
-├── nginx.conf                 # nginx config template (envsubst, security headers)
-├── Dockerfile                 # Multi-stage build (node builder + nginx runtime)
-├── .dockerignore              # Excludes node_modules, dist, .git from build context
-├── .version                   # Version metadata (source of truth, synced to package.json)
-├── .env                       # Local dev env vars (VITE_API_URL)
-├── package.json
-├── package-lock.json
-├── tsconfig.json
-├── vite.config.ts             # Vite + Preact + Tailwind v4 config
-├── eslint.config.js           # ESLint 9 flat config with TypeScript
-├── .gitignore
-├── LICENSE
-└── README.md
-```
-
-## Go Server (Scaffold)
-
-The repository now includes a Go-based server scaffold alongside the existing SPA. This is the foundation for migrating to a server-rendered architecture following the [Quaero project](https://github.com/ternarybob/quaero) patterns.
-
-### Go Project Structure
-
-```
-cmd/portal/main.go              # Entry point (flag parsing, config, graceful shutdown)
-internal/
-  app/app.go                    # Dependency container (Config, Logger, StorageManager, Handlers)
-  config/
-    config.go                   # TOML loading with defaults -> file -> env -> CLI priority
-    defaults.go                 # Default configuration values
-    version.go                  # Version info (ldflags + .version file)
-  handlers/
-    landing.go                  # PageHandler (template rendering + static file serving)
-    health.go                   # GET /api/health
-    version.go                  # GET /api/version
-    helpers.go                  # WriteJSON, RequireMethod, WriteError
-  interfaces/storage.go         # StorageManager + KeyValueStorage interfaces
-  models/
-    user.go                     # User model
-    session.go                  # Session model
-  server/
-    server.go                   # HTTP server (net/http, timeouts, graceful shutdown)
-    routes.go                   # Route registration
-    middleware.go               # Correlation ID, logging, CORS, recovery
-    route_helpers.go            # RouteByMethod, RouteResourceCollection
-  storage/
-    factory.go                  # Storage factory (creates BadgerDB manager)
-    badger/
-      connection.go             # BadgerDB connection via badgerhold
-      manager.go                # StorageManager implementation
-      kv_storage.go             # KeyValueStorage implementation
-pages/
-  landing.html                  # Landing page (Go html/template)
-  partials/
-    head.html                   # HTML head (IBM Plex Mono, Alpine.js CDN)
-    nav.html                    # Navigation bar
-    footer.html                 # Footer
-  static/
-    css/portal.css              # 80s B&W aesthetic (no border-radius, no box-shadow)
-    common.js                   # Alpine.js component skeleton
-portal.toml                     # Configuration file
-Dockerfile.portal               # Multi-stage Go build (golang:1.25 -> alpine)
-docker/docker-compose.go.yml    # Docker Compose for Go server
-```
-
-### Go Prerequisites
-
-- Go 1.25+
-
-### Go Development
-
-```bash
-# Build the server binary
-go build ./cmd/portal/
-
-# Run the server (auto-discovers portal.toml)
-go run ./cmd/portal/
-
-# Run with custom port
-go run ./cmd/portal/ -p 9090
-
-# Run with custom config
-go run ./cmd/portal/ -c custom.toml
-
-# Run all tests (52 tests)
-go test ./...
-
-# Run tests verbose
-go test -v ./...
-
-# Vet for issues
-go vet ./...
-```
-
-The Go server runs on `http://localhost:8080` by default.
-
-### Go Routes
-
-| Route | Handler | Description |
-|-------|---------|-------------|
-| `GET /` | PageHandler | Landing page (server-rendered HTML template) |
-| `GET /static/*` | PageHandler | Static files (CSS, JS) |
-| `GET /api/health` | HealthHandler | Health check (`{"status":"ok"}`) |
-| `GET /api/version` | VersionHandler | Version info (JSON) |
-
-### Go Configuration
-
-Configuration priority (highest wins): CLI flags > environment variables > TOML file > defaults.
-
-| Setting | TOML Key | Environment Variable | Default |
-|---------|----------|---------------------|---------|
-| Server port | `server.port` | `VIRE_SERVER_PORT` | `8080` |
-| Server host | `server.host` | `VIRE_SERVER_HOST` | `localhost` |
-| BadgerDB path | `storage.badger.path` | `VIRE_BADGER_PATH` | `./data/vire` |
-| Log level | `logging.level` | `VIRE_LOG_LEVEL` | `info` |
-| Log format | `logging.format` | `VIRE_LOG_FORMAT` | `text` |
-
-### Go Docker
-
-```bash
-# Build Go Docker image
-docker build -f Dockerfile.portal -t vire-portal-go:latest \
-  --build-arg VERSION=$(grep '^version:' .version | awk '{print $2}') \
-  --build-arg GIT_COMMIT=$(git rev-parse --short HEAD) .
-
-# Run Go Docker container
-docker run -p 8080:8080 \
-  -e VIRE_SERVER_HOST=0.0.0.0 \
-  vire-portal-go:latest
-
-# Docker Compose
-docker compose -f docker/docker-compose.go.yml up
-```
-
-### Data Layer (Interface Pattern)
+## Data Layer
 
 The storage layer uses interfaces so BadgerDB can be swapped for a centralised database later:
 
@@ -920,78 +586,81 @@ type KeyValueStorage interface {
 
 To switch from BadgerDB to PostgreSQL or another database, implement these interfaces and update `internal/storage/factory.go`.
 
-### SPA and Go Coexistence
-
-Both the SPA and Go scaffold coexist in this repository:
-- SPA code: `src/`, `index.html`, `vite.config.ts`, `package.json`, `Dockerfile`
-- Go code: `cmd/`, `internal/`, `pages/`, `portal.toml`, `Dockerfile.portal`
-- Both build and test independently (`npm test` and `go test ./...`)
-
-## Development (SPA)
-
-### Prerequisites
-
-- Node.js >= 20
-
-### Setup
-
-```bash
-# Install dependencies
-npm install
-
-# Start dev server (with hot reload)
-npm run dev
-```
-
-The dev server runs on `http://localhost:5173` by default (Vite).
-
-### Local Environment
-
-Create a `.env` file for local development pointing at the gateway:
+## Project Structure
 
 ```
-# Points at a locally running vire-gateway (default port from control plane)
-VITE_API_URL=http://localhost:8080
-VITE_DOMAIN=localhost
+vire-portal/
+├── .github/
+│   └── workflows/
+│       └── release.yml              # Docker build + GHCR push
+├── cmd/
+│   └── portal/
+│       └── main.go                  # Entry point (flag parsing, config, graceful shutdown)
+├── internal/
+│   ├── app/
+│   │   └── app.go                   # Dependency container (Config, Logger, StorageManager, Handlers)
+│   ├── config/
+│   │   ├── config.go                # TOML loading with defaults -> file -> env -> CLI priority
+│   │   ├── config_test.go
+│   │   ├── defaults.go              # Default configuration values
+│   │   ├── version.go               # Version info (ldflags + .version file)
+│   │   └── version_test.go
+│   ├── handlers/
+│   │   ├── handlers_test.go
+│   │   ├── health.go                # GET /api/health
+│   │   ├── helpers.go               # WriteJSON, RequireMethod, WriteError
+│   │   ├── landing.go               # PageHandler (template rendering + static file serving)
+│   │   └── version.go               # GET /api/version
+│   ├── interfaces/
+│   │   └── storage.go               # StorageManager + KeyValueStorage interfaces
+│   ├── server/
+│   │   ├── middleware.go             # Correlation ID, logging, CORS, recovery
+│   │   ├── middleware_test.go
+│   │   ├── route_helpers.go          # RouteByMethod, RouteResourceCollection
+│   │   ├── route_helpers_test.go
+│   │   ├── routes.go                 # Route registration
+│   │   ├── routes_test.go
+│   │   └── server.go                 # HTTP server (net/http, timeouts, graceful shutdown)
+│   └── storage/
+│       ├── factory.go                # Storage factory (creates BadgerDB manager)
+│       └── badger/
+│           ├── connection.go         # BadgerDB connection via badgerhold
+│           ├── kv_storage.go         # KeyValueStorage implementation
+│           ├── kv_storage_test.go
+│           └── manager.go            # StorageManager implementation
+├── pages/
+│   ├── landing.html                  # Landing page (Go html/template)
+│   ├── partials/
+│   │   ├── head.html                 # HTML head (IBM Plex Mono, Alpine.js CDN)
+│   │   ├── nav.html                  # Navigation bar
+│   │   └── footer.html               # Footer
+│   └── static/
+│       ├── css/
+│       │   └── portal.css            # 80s B&W aesthetic (no border-radius, no box-shadow)
+│       └── common.js                 # Alpine.js component skeleton
+├── docker/
+│   ├── docker-compose.yml            # Local build + run
+│   ├── docker-compose.ghcr.yml       # GHCR pull + watchtower auto-update
+│   ├── portal.toml                   # Configuration file
+│   └── README.md                     # Docker usage documentation
+├── docs/
+│   ├── requirements.md               # API contracts and architecture
+│   └── architecture-comparison.md
+├── scripts/
+│   ├── deploy.sh                     # Deploy orchestration (local/ghcr/down/prune)
+│   ├── build.sh                      # Standalone Docker image builder
+│   └── test-scripts.sh               # Validation suite for scripts and configs
+├── Dockerfile                        # Multi-stage build (golang:1.25 -> alpine)
+├── .dockerignore
+├── .version                          # Version metadata (source of truth)
+├── go.mod
+├── go.sum
+├── .gitignore
+├── LICENSE
+└── README.md
 ```
 
-Note: In local dev (Vite), env vars use the `VITE_` prefix so they are exposed to client-side code. In the Docker container, the non-prefixed `API_URL` and `DOMAIN` are injected via nginx envsubst (see [Runtime Injection](#runtime-injection)).
-
-For development against the deployed dev environment:
-
-```
-VITE_API_URL=https://vire-gateway-dev-xxxx.a.run.app
-VITE_DOMAIN=dev.vire.app
-```
-
-### Testing
-
-```bash
-# Run all tests (118 tests across 13 test files)
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-```
-
-### Linting
-
-```bash
-# ESLint with TypeScript rules
-npm run lint
-```
-
-### Build
-
-```bash
-# Production build (TypeScript check + Vite build, outputs to dist/)
-npm run build
-
-# Preview production build locally
-npm run preview
-```
-
-### Docker (local)
+## Docker (local)
 
 The project includes deployment scripts matching the [vire](https://github.com/bobmcallan/vire) project patterns. See `docker/README.md` for full details.
 
@@ -1031,27 +700,12 @@ Or use docker directly:
 # Build the Docker image
 docker build -t vire-portal:latest .
 
-# Run on host port 3000 (portal listens on 8080 inside the container)
-# API_URL points at the gateway on a different port, not the portal itself
-docker run -p 3000:8080 \
-  -e API_URL=http://host.docker.internal:8080 \
-  -e DOMAIN=localhost \
+# Run on host port 8080
+docker run -p 8080:8080 \
+  -e VIRE_SERVER_HOST=0.0.0.0 \
+  -v portal-data:/app/data \
   vire-portal:latest
 ```
-
-The portal is then available at `http://localhost:3000`. `API_URL` must point at the gateway (control plane), not the portal. The example assumes the gateway runs on host port 8080. Use `host.docker.internal` to reach host services from inside the container.
-
-### Environment Defaults
-
-For local Docker deployments, create `docker/.env` with defaults:
-
-```
-API_URL=http://host.docker.internal:8080
-DOMAIN=localhost
-PORTAL_PORT=8080
-```
-
-The `deploy.sh local` mode sources this file automatically.
 
 ## Cloud Run Deployment
 
@@ -1061,8 +715,6 @@ The portal runs on Cloud Run, deployed via vire-infra Terraform. The Terraform m
 
 ```hcl
 # Simplified from vire-infra/infra/modules/portal/main.tf
-# The actual module accepts var.image with a placeholder fallback:
-#   image = var.image != "" ? var.image : "gcr.io/cloudrun/placeholder"
 resource "google_cloud_run_v2_service" "portal" {
   name     = "vire-portal"
   location = var.region
@@ -1076,8 +728,10 @@ resource "google_cloud_run_v2_service" "portal" {
     containers {
       image = "ghcr.io/bobmcallan/vire-portal:latest"
       ports { container_port = 8080 }
-      env { name = "DOMAIN";  value = var.domain }
-      env { name = "API_URL"; value = var.gateway_url }
+      env { name = "VIRE_SERVER_HOST"; value = "0.0.0.0" }
+      env { name = "VIRE_SERVER_PORT"; value = "8080" }
+      env { name = "VIRE_BADGER_PATH"; value = "/app/data/vire" }
+      env { name = "VIRE_LOG_LEVEL";   value = "info" }
       resources {
         limits = { cpu = "1", memory = "256Mi" }
       }
@@ -1087,27 +741,20 @@ resource "google_cloud_run_v2_service" "portal" {
 ```
 
 Key properties:
-- **Image:** `ghcr.io/bobmcallan/vire-portal:latest` (published by this repo's GitHub Actions; the Terraform module accepts `var.image` override)
+- **Image:** `ghcr.io/bobmcallan/vire-portal:latest` (published by this repo's GitHub Actions)
 - **Port:** 8080
 - **Ingress:** All (public website)
 - **Auth:** Unauthenticated (public access via IAM allUsers)
 - **Scaling:** 0-3 instances (scales to zero when idle)
 - **Resources:** 1 CPU, 256Mi memory
 
-### Environment Variables (set by Terraform)
-
-| Variable | Source | Example Value |
-|----------|--------|---------------|
-| `DOMAIN` | `var.domain` | `vire.app` |
-| `API_URL` | `var.gateway_url` | `https://vire-gateway-xxxx.a.run.app` |
-
 ## Releasing
 
 Push a version tag to trigger the GitHub Actions workflow:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 This builds and pushes `ghcr.io/bobmcallan/vire-portal` with the version tag and `:latest` to GHCR.
@@ -1127,8 +774,8 @@ The portal is one component of the Vire multi-user cloud architecture:
          │ browser
          │
     ┌────┴─────────────────────┐
-    │  vire-portal (this repo) │   <- Static SPA on Cloud Run
-    │  vire.app                │
+    │  vire-portal (this repo) │   <- Go server on Cloud Run
+    │  vire.app                │      (html/template + Alpine.js)
     └────┬─────────────────────┘
          │ REST API (JWT auth)
          │

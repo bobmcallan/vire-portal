@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /build
 
@@ -8,44 +8,44 @@ ARG VERSION=dev
 ARG BUILD=unknown
 ARG GIT_COMMIT=unknown
 
-# Copy package files first for better caching
-COPY package.json package-lock.json ./
-RUN npm ci
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
 
 # Copy source code
 COPY . .
 
-# Inject version info into the build
-ENV VITE_APP_VERSION=${VERSION}
-ENV VITE_APP_BUILD=${BUILD}
-ENV VITE_APP_COMMIT=${GIT_COMMIT}
-
-# Build static assets
-RUN npm run build
+# Build portal binary with version injection
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-s -w \
+    -X 'github.com/bobmcallan/vire-portal/internal/config.Version=${VERSION}' \
+    -X 'github.com/bobmcallan/vire-portal/internal/config.Build=${BUILD}' \
+    -X 'github.com/bobmcallan/vire-portal/internal/config.GitCommit=${GIT_COMMIT}'" \
+    -o vire-portal ./cmd/portal
 
 # Runtime stage
-FROM nginx:1.27-alpine
+FROM alpine:3.21
 
 LABEL org.opencontainers.image.source="https://github.com/bobmcallan/vire-portal"
 
-# Copy built assets from builder
-COPY --from=builder /build/dist /usr/share/nginx/html
+WORKDIR /app
 
-# Copy nginx config with env substitution template
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Install ca-certificates for HTTPS requests and wget for healthcheck
+RUN apk --no-cache add ca-certificates wget
 
-# Copy version file
-COPY .version /usr/share/nginx/html/.version
+# Copy binary from builder
+COPY --from=builder /build/vire-portal .
 
-# nginx:alpine uses envsubst on templates in /etc/nginx/templates/
-# and writes output to /etc/nginx/conf.d/ at startup
+# Copy templates, config, and version file
+COPY --from=builder /build/pages ./pages
+COPY --from=builder /build/docker/portal.toml .
+COPY .version .
+
+# Create data directory for BadgerDB
+RUN mkdir -p /app/data
 
 EXPOSE 8080
 
-# Restrict envsubst to only API_URL and DOMAIN.
-# Without this, envsubst replaces nginx's own $uri, $request_uri, etc. with
-# empty strings, breaking SPA routing and proxy directives.
-ENV NGINX_ENVSUBST_FILTER="API_URL|DOMAIN"
+HEALTHCHECK NONE
 
-# nginx:alpine default entrypoint handles template substitution
-# No custom entrypoint needed
+ENTRYPOINT ["./vire-portal"]

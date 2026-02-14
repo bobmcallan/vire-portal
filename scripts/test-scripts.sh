@@ -37,13 +37,50 @@ for f in \
     "scripts/build.sh" \
     "docker/docker-compose.yml" \
     "docker/docker-compose.ghcr.yml" \
+    "docker/portal.toml" \
     "Dockerfile" \
-    "nginx.conf" \
-    ".version"; do
+    ".version" \
+    "go.mod" \
+    "go.sum" \
+    "cmd/portal/main.go"; do
     if [ -f "$PROJECT_DIR/$f" ]; then
         pass "$f exists"
     else
         fail "$f missing"
+    fi
+done
+
+# Check directories exist
+for d in "internal" "pages" "cmd/portal"; do
+    if [ -d "$PROJECT_DIR/$d" ]; then
+        pass "$d/ directory exists"
+    else
+        fail "$d/ directory missing"
+    fi
+done
+
+# Verify SPA files are removed
+for f in \
+    "package.json" \
+    "package-lock.json" \
+    "tsconfig.json" \
+    "vite.config.ts" \
+    "eslint.config.js" \
+    "index.html" \
+    "nginx.conf" \
+    "Dockerfile.portal"; do
+    if [ ! -f "$PROJECT_DIR/$f" ]; then
+        pass "$f removed (SPA artifact)"
+    else
+        fail "$f still exists (should be removed)"
+    fi
+done
+
+for d in "src" "node_modules"; do
+    if [ ! -d "$PROJECT_DIR/$d" ]; then
+        pass "$d/ removed (SPA artifact)"
+    else
+        fail "$d/ still exists (should be removed)"
     fi
 done
 
@@ -194,11 +231,17 @@ if [ -f "$DEPLOY" ]; then
         fail "deploy.sh missing .last_build sentinel"
     fi
 
-    # [Reviewer req] Smart rebuild checks nginx.conf and Dockerfile
-    if grep -q 'nginx.conf' "$DEPLOY"; then
-        pass "deploy.sh checks nginx.conf for changes"
+    # Smart rebuild checks Go files
+    if grep -q '"\*\.go"' "$DEPLOY"; then
+        pass "deploy.sh checks *.go files for changes"
     else
-        fail "deploy.sh missing nginx.conf change detection"
+        fail "deploy.sh missing *.go change detection"
+    fi
+
+    if grep -q 'go\.mod' "$DEPLOY"; then
+        pass "deploy.sh checks go.mod for changes"
+    else
+        fail "deploy.sh missing go.mod change detection"
     fi
 
     if grep -q 'Dockerfile' "$DEPLOY"; then
@@ -207,25 +250,30 @@ if [ -f "$DEPLOY" ]; then
         fail "deploy.sh missing Dockerfile change detection"
     fi
 
-    # [Reviewer req] Footer health URL uses PORTAL_PORT variable
+    # Footer health URL uses PORTAL_PORT variable
     if grep -q 'PORTAL_PORT' "$DEPLOY"; then
         pass "deploy.sh footer uses PORTAL_PORT variable"
     else
         fail "deploy.sh footer missing PORTAL_PORT variable"
     fi
 
-    # [Reviewer req] deploy.sh local supports docker/.env for API_URL/DOMAIN
-    if grep -q '\.env' "$DEPLOY"; then
-        pass "deploy.sh supports docker/.env file"
+    # Verify no SPA references remain
+    if ! grep -q 'package\.json' "$DEPLOY"; then
+        pass "deploy.sh has no package.json references (SPA removed)"
     else
-        fail "deploy.sh missing docker/.env support"
+        fail "deploy.sh still references package.json"
     fi
 
-    # [DA req] deploy.sh syncs version to package.json
-    if grep -q 'package.json' "$DEPLOY"; then
-        pass "deploy.sh syncs version to package.json"
+    if ! grep -q 'nginx' "$DEPLOY"; then
+        pass "deploy.sh has no nginx references (SPA removed)"
     else
-        fail "deploy.sh missing package.json version sync"
+        fail "deploy.sh still references nginx"
+    fi
+
+    if ! grep -q 'sync_version' "$DEPLOY"; then
+        pass "deploy.sh has no sync_version function (SPA removed)"
+    else
+        fail "deploy.sh still has sync_version function"
     fi
 else
     fail "deploy.sh not found, skipping mode checks"
@@ -298,11 +346,17 @@ if [ -f "$BUILD" ]; then
         fail "build.sh missing --clean flag"
     fi
 
-    # [DA req] build.sh syncs version to package.json
-    if grep -q 'package.json' "$BUILD"; then
-        pass "build.sh syncs version to package.json"
+    # Verify no SPA references remain
+    if ! grep -q 'package\.json' "$BUILD"; then
+        pass "build.sh has no package.json references (SPA removed)"
     else
-        fail "build.sh missing package.json version sync"
+        fail "build.sh still references package.json"
+    fi
+
+    if ! grep -q 'sync_version' "$BUILD"; then
+        pass "build.sh has no sync_version function (SPA removed)"
+    else
+        fail "build.sh still has sync_version function"
     fi
 else
     fail "build.sh not found, skipping checks"
@@ -359,7 +413,7 @@ if [ -f "$LOCAL_COMPOSE" ]; then
         fail "docker-compose.yml missing healthcheck"
     fi
 
-    # [DA req] Healthcheck verifies content is servable (not just TCP)
+    # Healthcheck verifies HTTP response
     if grep -qE 'curl.*-f|wget.*-q.*http' "$LOCAL_COMPOSE"; then
         pass "docker-compose.yml healthcheck verifies HTTP response"
     else
@@ -373,17 +427,24 @@ if [ -f "$LOCAL_COMPOSE" ]; then
         fail "docker-compose.yml missing port 8080 mapping"
     fi
 
-    # Check environment vars for nginx envsubst
-    if grep -q 'API_URL' "$LOCAL_COMPOSE"; then
-        pass "docker-compose.yml has API_URL environment var"
+    # Check VIRE_ environment vars
+    if grep -q 'VIRE_SERVER_HOST' "$LOCAL_COMPOSE"; then
+        pass "docker-compose.yml has VIRE_SERVER_HOST environment var"
     else
-        fail "docker-compose.yml missing API_URL environment var"
+        fail "docker-compose.yml missing VIRE_SERVER_HOST environment var"
     fi
 
-    if grep -q 'DOMAIN' "$LOCAL_COMPOSE"; then
-        pass "docker-compose.yml has DOMAIN environment var"
+    if grep -q 'VIRE_BADGER_PATH' "$LOCAL_COMPOSE"; then
+        pass "docker-compose.yml has VIRE_BADGER_PATH environment var"
     else
-        fail "docker-compose.yml missing DOMAIN environment var"
+        fail "docker-compose.yml missing VIRE_BADGER_PATH environment var"
+    fi
+
+    # Check data volume
+    if grep -q 'portal-data' "$LOCAL_COMPOSE"; then
+        pass "docker-compose.yml has portal-data volume"
+    else
+        fail "docker-compose.yml missing portal-data volume"
     fi
 
     # Validate with docker compose config (syntax check)
@@ -456,7 +517,7 @@ if [ -f "$GHCR_COMPOSE" ]; then
         fail "docker-compose.ghcr.yml missing healthcheck"
     fi
 
-    # [DA req] Healthcheck verifies content is servable
+    # Healthcheck verifies HTTP response
     if grep -qE 'curl.*-f|wget.*-q.*http' "$GHCR_COMPOSE"; then
         pass "docker-compose.ghcr.yml healthcheck verifies HTTP response"
     else
@@ -470,11 +531,18 @@ if [ -f "$GHCR_COMPOSE" ]; then
         fail "docker-compose.ghcr.yml should not have build section"
     fi
 
-    # Check environment vars
-    if grep -q 'API_URL' "$GHCR_COMPOSE"; then
-        pass "docker-compose.ghcr.yml has API_URL environment var"
+    # Check VIRE_ environment vars
+    if grep -q 'VIRE_SERVER_HOST' "$GHCR_COMPOSE"; then
+        pass "docker-compose.ghcr.yml has VIRE_SERVER_HOST environment var"
     else
-        fail "docker-compose.ghcr.yml missing API_URL environment var"
+        fail "docker-compose.ghcr.yml missing VIRE_SERVER_HOST environment var"
+    fi
+
+    # Check data volume
+    if grep -q 'portal-data' "$GHCR_COMPOSE"; then
+        pass "docker-compose.ghcr.yml has portal-data volume"
+    else
+        fail "docker-compose.ghcr.yml missing portal-data volume"
     fi
 
     # Validate with docker compose config
@@ -492,7 +560,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 9. Dockerfile build args consumed correctly
+# 9. Dockerfile build args and Go build
 # ---------------------------------------------------------------------------
 section "Dockerfile build args"
 
@@ -506,20 +574,58 @@ if [ -f "$DOCKERFILE" ]; then
         fi
     done
 
-    # Check that args are used in ENV for Vite
-    for env in VITE_APP_VERSION VITE_APP_BUILD VITE_APP_COMMIT; do
-        if grep -q "$env" "$DOCKERFILE"; then
-            pass "Dockerfile sets $env"
-        else
-            fail "Dockerfile missing $env"
-        fi
-    done
+    # Check Go build with ldflags
+    if grep -q 'go build' "$DOCKERFILE"; then
+        pass "Dockerfile runs go build"
+    else
+        fail "Dockerfile missing go build command"
+    fi
+
+    if grep -q 'ldflags' "$DOCKERFILE"; then
+        pass "Dockerfile uses ldflags for version injection"
+    else
+        fail "Dockerfile missing ldflags for version injection"
+    fi
+
+    # Check multi-stage build
+    if grep -q 'FROM golang' "$DOCKERFILE"; then
+        pass "Dockerfile has Go builder stage"
+    else
+        fail "Dockerfile missing Go builder stage"
+    fi
+
+    if grep -q 'FROM alpine' "$DOCKERFILE"; then
+        pass "Dockerfile has alpine runtime stage"
+    else
+        fail "Dockerfile missing alpine runtime stage"
+    fi
+
+    # Check pages are copied
+    if grep -q 'pages' "$DOCKERFILE"; then
+        pass "Dockerfile copies pages directory"
+    else
+        fail "Dockerfile missing pages copy"
+    fi
+
+    # Check portal.toml is copied
+    if grep -q 'portal.toml' "$DOCKERFILE"; then
+        pass "Dockerfile copies portal.toml config"
+    else
+        fail "Dockerfile missing portal.toml copy"
+    fi
+
+    # Verify no SPA references
+    if ! grep -q 'node\|npm\|nginx\|VITE' "$DOCKERFILE"; then
+        pass "Dockerfile has no SPA references (node/npm/nginx/VITE)"
+    else
+        fail "Dockerfile still has SPA references"
+    fi
 else
     fail "Dockerfile not found"
 fi
 
 # ---------------------------------------------------------------------------
-# 10. .gitignore includes docker/.last_build
+# 10. .gitignore includes docker/.last_build and Go patterns
 # ---------------------------------------------------------------------------
 section ".gitignore"
 
@@ -530,6 +636,31 @@ if [ -f "$GITIGNORE" ]; then
     else
         fail ".gitignore missing .last_build entry"
     fi
+
+    if grep -q '/portal' "$GITIGNORE"; then
+        pass ".gitignore includes /portal binary"
+    else
+        fail ".gitignore missing /portal binary entry"
+    fi
+
+    if grep -q 'data/' "$GITIGNORE"; then
+        pass ".gitignore includes data/ directory"
+    else
+        fail ".gitignore missing data/ directory"
+    fi
+
+    # Verify no SPA-only entries
+    if ! grep -q 'node_modules' "$GITIGNORE"; then
+        pass ".gitignore has no node_modules entry (SPA removed)"
+    else
+        fail ".gitignore still has node_modules entry"
+    fi
+
+    if ! grep -q 'npm-debug' "$GITIGNORE"; then
+        pass ".gitignore has no npm-debug entry (SPA removed)"
+    else
+        fail ".gitignore still has npm-debug entry"
+    fi
 else
     fail ".gitignore not found"
 fi
@@ -538,17 +669,6 @@ fi
 # 11. Cross-file consistency
 # ---------------------------------------------------------------------------
 section "Cross-file consistency"
-
-# Check that .version and package.json have the same version
-if [ -f "$VERSION_FILE" ] && [ -f "$PROJECT_DIR/package.json" ]; then
-    V_FILE=$(grep '^version:' "$VERSION_FILE" | sed 's/version:\s*//' | tr -d ' ')
-    V_PKG=$(grep '"version"' "$PROJECT_DIR/package.json" | sed 's/.*"\([0-9][^"]*\)".*/\1/')
-    if [ "$V_FILE" = "$V_PKG" ]; then
-        pass ".version ($V_FILE) matches package.json ($V_PKG)"
-    else
-        fail ".version ($V_FILE) does not match package.json ($V_PKG)"
-    fi
-fi
 
 # Check deploy.sh and build.sh use same timestamp format
 if [ -f "$DEPLOY" ] && [ -f "$BUILD" ]; then
@@ -564,25 +684,7 @@ if [ -f "$DEPLOY" ] && [ -f "$BUILD" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 12. Version sync function in scripts
-# ---------------------------------------------------------------------------
-section "Version sync (.version -> package.json)"
-
-# Both scripts should have a function or logic to sync .version -> package.json
-for script_name in "deploy.sh" "build.sh"; do
-    script_path="$PROJECT_DIR/scripts/$script_name"
-    if [ -f "$script_path" ]; then
-        # Check for npm pkg set or sed on package.json or jq
-        if grep -qE 'npm pkg set|sed.*package\.json|jq.*package\.json' "$script_path"; then
-            pass "$script_name has package.json version sync mechanism"
-        else
-            fail "$script_name missing package.json version sync mechanism"
-        fi
-    fi
-done
-
-# ---------------------------------------------------------------------------
-# 13. Execution tests (run scripts, verify outputs and exit codes)
+# 12. Script execution
 # ---------------------------------------------------------------------------
 section "Script execution"
 
@@ -633,14 +735,11 @@ fi
 
 # Behavioral: version extraction from .version file
 if [ -f "$BUILD" ] && [ -f "$VERSION_FILE" ]; then
-    EXPECTED_VER=$(grep '^version:' "$VERSION_FILE" | sed 's/version:\s*//' | tr -d ' ')
-    # build.sh --help is safe to run; verify it uses the same extraction pattern
     # Test that the grep/sed pipeline in the script matches our expected extraction
     SCRIPT_PATTERN=$(grep -oE "grep.*version.*sed.*tr" "$BUILD" | head -1 || true)
     if [ -n "$SCRIPT_PATTERN" ]; then
         pass "build.sh uses grep/sed/tr pipeline for version extraction"
     else
-        # May use a different valid approach
         if grep -qE 'grep.*version.*\|.*sed' "$BUILD"; then
             pass "build.sh uses grep+sed pipeline for version extraction"
         else
@@ -650,7 +749,7 @@ if [ -f "$BUILD" ] && [ -f "$VERSION_FILE" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 14. Cross-file build arg consistency
+# 13. Cross-file build arg consistency
 # ---------------------------------------------------------------------------
 section "Build arg consistency across files"
 
@@ -704,23 +803,41 @@ if [ -f "$DOCKERFILE" ] && [ -f "$RELEASE_YML" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 15. DA stress-test fixes validation
+# 14. Go-specific validation
 # ---------------------------------------------------------------------------
-section "DA stress-test fixes"
+section "Go build validation"
 
-# Fix #1: sed delimiter safety — sync_version uses | not / (avoids injection from version strings)
-for script_name in "deploy.sh" "build.sh"; do
-    script_path="$PROJECT_DIR/scripts/$script_name"
-    if [ -f "$script_path" ]; then
-        if grep -q 'sed.*s|' "$script_path"; then
-            pass "$script_name sync_version uses | delimiter for sed safety"
-        else
-            fail "$script_name sync_version should use | delimiter (not /) for sed safety"
-        fi
+# Verify Go module is valid
+if [ -f "$PROJECT_DIR/go.mod" ]; then
+    if grep -q 'module github.com/bobmcallan/vire-portal' "$PROJECT_DIR/go.mod"; then
+        pass "go.mod has correct module path"
+    else
+        fail "go.mod has incorrect module path"
     fi
-done
+fi
 
-# Fix #2: Empty version validation — scripts exit with error if version is empty
+# Verify Go compiles
+if command -v go &>/dev/null; then
+    if (cd "$PROJECT_DIR" && go build ./cmd/portal/) 2>/dev/null; then
+        pass "Go project compiles successfully"
+    else
+        fail "Go project fails to compile"
+    fi
+
+    if (cd "$PROJECT_DIR" && go vet ./...) 2>/dev/null; then
+        pass "go vet passes"
+    else
+        fail "go vet reports issues"
+    fi
+else
+    echo "  SKIP: go not available for build validation"
+fi
+
+# ---------------------------------------------------------------------------
+# 15. Empty version validation
+# ---------------------------------------------------------------------------
+section "Empty version validation"
+
 for script_name in "deploy.sh" "build.sh"; do
     script_path="$PROJECT_DIR/scripts/$script_name"
     if [ -f "$script_path" ]; then
@@ -732,9 +849,12 @@ for script_name in "deploy.sh" "build.sh"; do
     fi
 done
 
-# Fix #3: down and prune modes exit before footer
+# ---------------------------------------------------------------------------
+# 16. deploy.sh down and prune exit before footer
+# ---------------------------------------------------------------------------
+section "deploy.sh exit behavior"
+
 if [ -f "$DEPLOY" ]; then
-    # Check that 'down' case has exit 0 before the footer section
     if awk '/^[[:space:]]*down\)/,/;;/' "$DEPLOY" | grep -q 'exit 0'; then
         pass "deploy.sh 'down' mode exits before footer"
     else
@@ -748,7 +868,11 @@ if [ -f "$DEPLOY" ]; then
     fi
 fi
 
-# Fix #5: Watchtower image pinned (not implicit :latest)
+# ---------------------------------------------------------------------------
+# 17. Watchtower image pinned
+# ---------------------------------------------------------------------------
+section "Watchtower version pinning"
+
 if [ -f "$GHCR_COMPOSE" ]; then
     if grep -qE 'containrrr/watchtower:[0-9]' "$GHCR_COMPOSE"; then
         pass "docker-compose.ghcr.yml watchtower image is version-pinned"
@@ -757,18 +881,12 @@ if [ -f "$GHCR_COMPOSE" ]; then
     fi
 fi
 
-# Fix #7: Safe env sourcing (grep+xargs, not source)
-if [ -f "$DEPLOY" ]; then
-    if grep -q 'xargs' "$DEPLOY"; then
-        pass "deploy.sh uses grep+xargs for safe .env loading"
-    else
-        fail "deploy.sh should use grep+xargs (not source) for .env loading"
-    fi
-fi
+# ---------------------------------------------------------------------------
+# 18. Build args individually quoted in build.sh
+# ---------------------------------------------------------------------------
+section "Build arg quoting"
 
-# Fix #8: Build args individually quoted in build.sh
 if [ -f "$BUILD" ]; then
-    # Count individually quoted --build-arg lines
     QUOTED_ARGS=$(grep -cE '\-\-build-arg "' "$BUILD" || true)
     if [ "$QUOTED_ARGS" -ge 3 ]; then
         pass "build.sh passes build args individually with quotes ($QUOTED_ARGS args)"
@@ -777,7 +895,11 @@ if [ -f "$BUILD" ]; then
     fi
 fi
 
-# Fix #9: Smart rebuild includes .version in change detection
+# ---------------------------------------------------------------------------
+# 19. Smart rebuild includes .version in change detection
+# ---------------------------------------------------------------------------
+section "Smart rebuild .version detection"
+
 if [ -f "$DEPLOY" ]; then
     if grep -q '\.version.*last_build\|last_build.*\.version' "$DEPLOY" || \
        awk '/NEEDS_REBUILD/,/fi/' "$DEPLOY" | grep -q '\.version'; then
@@ -788,11 +910,10 @@ if [ -f "$DEPLOY" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 16. .version edge case handling
+# 20. .version edge case handling
 # ---------------------------------------------------------------------------
 section ".version edge case handling"
 
-# Test that build.sh has fallback for missing .version
 if [ -f "$BUILD" ]; then
     if grep -qE 'VERSION="dev"|VERSION=.dev.' "$BUILD"; then
         pass "build.sh has fallback VERSION=dev for missing .version"
@@ -831,7 +952,7 @@ if [ ${#ERRORS[@]} -gt 0 ]; then
     done
 fi
 
-# Fix: exit code wrapping at 256
+# Exit with error if any failures
 if [ "$FAILED" -gt 0 ]; then
     exit 1
 else

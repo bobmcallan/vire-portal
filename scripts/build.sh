@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Docker image builder for vire-portal
-# Builds a self-contained nginx image with the static SPA
+# Builds a Go binary in a multi-stage Docker image
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -28,14 +28,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "$PROJECT_ROOT"
-
-# Sync .version -> package.json (uses | delimiter to avoid sed injection from version strings)
-sync_version() {
-    local ver="$1"
-    if [ -f "$PROJECT_ROOT/package.json" ]; then
-        sed -i "s|\"version\": \"[^\"]*\"|\"version\": \"$ver\"|" "$PROJECT_ROOT/package.json"
-    fi
-}
 
 # Clean if requested
 if [[ "$CLEAN" == "true" ]]; then
@@ -67,9 +59,6 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-# Sync version to package.json
-sync_version "$VERSION"
-
 echo "Building vire-portal v$VERSION (commit: $GIT_COMMIT)..."
 
 # Build Docker image (args passed individually to avoid word-splitting issues)
@@ -97,4 +86,4 @@ echo "Built Docker image:"
 echo "  vire-portal:latest ($IMAGE_SIZE)"
 echo "  vire-portal:$VERSION"
 echo ""
-echo "Run: docker run -p 8080:8080 -e API_URL=http://localhost:4242 vire-portal:latest"
+echo "Run: docker run -p 8080:8080 vire-portal:latest"
