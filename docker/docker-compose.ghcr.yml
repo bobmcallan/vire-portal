@@ -1,0 +1,34 @@
+name: vire-portal
+
+services:
+  vire-portal:
+    image: ghcr.io/bobmcallan/vire-portal:latest
+    pull_policy: always
+    container_name: vire-portal
+    ports:
+      - "${PORTAL_PORT:-8080}:8080"
+    environment:
+      - API_URL=${API_URL:-http://localhost:4242}
+      - DOMAIN=${DOMAIN:-localhost}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.scope=vire-portal"
+
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: vire-portal-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DOCKER_API_VERSION=1.44
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=120
+      - WATCHTOWER_SCOPE=vire-portal
+    labels:
+      - "com.centurylinklabs.watchtower.scope=vire-portal"
+    restart: unless-stopped

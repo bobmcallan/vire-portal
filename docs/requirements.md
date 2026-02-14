@@ -712,7 +712,7 @@ version: 0.1.0
 build: 02-14-16-01-19
 ```
 
-Format matches vire's `.version` file. The `version` field is the single source of truth -- build scripts (`deploy.sh`, `build.sh`) sync it to `package.json` on each run. The `build` field is updated by build scripts and CI.
+Format matches vire's `.version` file. The `version` field is read by the GitHub Actions workflow during Docker builds. The `build` field is updated by CI.
 
 ## Project Structure
 
@@ -721,14 +721,6 @@ vire-portal/
 ├── .github/
 │   └── workflows/
 │       └── release.yml        # Docker build + GHCR push
-├── docker/
-│   ├── docker-compose.yml     # Local build + run
-│   ├── docker-compose.ghcr.yml # GHCR pull + watchtower auto-update
-│   └── README.md              # Docker usage documentation
-├── scripts/
-│   ├── deploy.sh              # Deploy orchestration (local/ghcr/down/prune)
-│   ├── build.sh               # Standalone Docker image builder
-│   └── test-scripts.sh        # Validation suite for scripts and configs
 ├── src/
 │   ├── main.tsx               # Entry point -- app component, routing, auth state
 │   ├── api.ts                 # Gateway API client (fetch wrapper with JWT, 401 retry)
@@ -738,20 +730,7 @@ vire-portal/
 │   ├── types.ts               # All TypeScript interfaces
 │   ├── vite-env.d.ts          # Vite/ImportMeta type declarations
 │   ├── test-setup.ts          # Test setup (cleanup, mock restore)
-│   ├── __tests__/             # 13 test files, 118 tests
-│   │   ├── state.test.ts
-│   │   ├── auth.test.ts
-│   │   ├── api.test.ts
-│   │   ├── landing.test.tsx
-│   │   ├── callback.test.tsx
-│   │   ├── dashboard.test.tsx
-│   │   ├── settings.test.tsx
-│   │   ├── connect.test.tsx
-│   │   ├── billing.test.tsx
-│   │   ├── layout.test.tsx
-│   │   ├── key-input.test.tsx
-│   │   ├── copy-block.test.tsx
-│   │   └── usage-chart.test.tsx
+│   ├── __tests__/             # 13 test files, 116 tests
 │   ├── pages/
 │   │   ├── landing.tsx        # / -- product info + sign-in buttons
 │   │   ├── callback.tsx       # /auth/callback -- OAuth callback handler
@@ -770,7 +749,7 @@ vire-portal/
 ├── nginx.conf                 # nginx config template (envsubst, security headers)
 ├── Dockerfile                 # Multi-stage build (node builder + nginx runtime)
 ├── .dockerignore              # Excludes node_modules, dist, .git from build context
-├── .version                   # Version metadata (source of truth, synced to package.json)
+├── .version                   # Version metadata
 ├── .env                       # Local dev env vars (VITE_API_URL)
 ├── package.json
 ├── package-lock.json
@@ -822,7 +801,7 @@ VITE_DOMAIN=dev.vire.app
 ### Testing
 
 ```bash
-# Run all tests (118 tests across 13 test files)
+# Run all tests (116 tests across 13 test files)
 npm test
 
 # Run tests in watch mode
@@ -848,40 +827,6 @@ npm run preview
 
 ### Docker (local)
 
-The project includes deployment scripts matching the [vire](https://github.com/bobmcallan/vire) project patterns. See `docker/README.md` for full details.
-
-```bash
-# Build and run locally (smart rebuild, version injection)
-./scripts/deploy.sh local
-
-# Build and run with forced rebuild (no cache)
-./scripts/deploy.sh local --force
-
-# Deploy from GHCR with watchtower auto-update
-./scripts/deploy.sh ghcr
-
-# Stop all containers
-./scripts/deploy.sh down
-
-# Prune stopped containers and dangling images
-./scripts/deploy.sh prune
-```
-
-Alternatively, build a standalone image without docker-compose:
-
-```bash
-# Build Docker image with version injection
-./scripts/build.sh
-
-# Build with verbose output
-./scripts/build.sh --verbose
-
-# Clean existing images and rebuild
-./scripts/build.sh --clean
-```
-
-Or use docker directly:
-
 ```bash
 # Build the Docker image
 docker build -t vire-portal:latest .
@@ -895,18 +840,6 @@ docker run -p 3000:8080 \
 ```
 
 The portal is then available at `http://localhost:3000`. `API_URL` must point at the gateway (control plane), not the portal. The example assumes the gateway runs on host port 8080. Use `host.docker.internal` to reach host services from inside the container.
-
-### Environment Defaults
-
-For local Docker deployments, create `docker/.env` with defaults:
-
-```
-API_URL=http://host.docker.internal:8080
-DOMAIN=localhost
-PORTAL_PORT=8080
-```
-
-The `deploy.sh local` mode sources this file automatically.
 
 ## Cloud Run Deployment
 
