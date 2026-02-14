@@ -46,3 +46,6 @@ __debug_bin*
 
 # Docker build sentinel
 docker/.last_build
+
+# Docker TOML config (use .toml.example as template)
+docker/*.toml

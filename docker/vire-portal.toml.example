@@ -1,0 +1,25 @@
+# VIRE Portal Configuration
+# Priority: defaults < this file < environment variables (VIRE_*) < CLI flags
+
+[server]
+port = 4241
+host = "localhost"
+
+[api]
+url = "http://localhost:4242"
+
+[user]
+# portfolios = ["SMSF", "Personal"]
+# display_currency = "AUD"
+
+[keys]
+# eodhd = ""
+# navexa = ""
+# gemini = ""
+
+[storage.badger]
+path = "./data/vire"
+
+[logging]
+level = "info"    # debug, info, warn, error
+format = "text"   # text, json
