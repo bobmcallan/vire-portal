@@ -111,29 +111,33 @@ func NewAuthHandler(logger *common.Logger, devMode bool, apiURL string, callback
 	}
 }
 
-// HandleDevLogin handles the dev-mode login shortcut.
-// In dev mode, it calls vire-server POST /api/auth/oauth with provider:"dev",
+// HandleLogin handles email/password login.
+// It forwards credentials to vire-server POST /api/auth/login,
 // sets the returned JWT as a session cookie, and redirects to /dashboard.
-// In prod mode, it returns 404.
-func (h *AuthHandler) HandleDevLogin(w http.ResponseWriter, r *http.Request) {
-	if !h.devMode {
-		http.Error(w, "404 page not found", http.StatusNotFound)
+func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, "/?error=bad_request", http.StatusFound)
 		return
 	}
 
-	// POST to vire-server /api/auth/oauth
+	username := strings.TrimSpace(r.FormValue("username"))
+	password := r.FormValue("password")
+	if username == "" || password == "" {
+		http.Redirect(w, r, "/?error=missing_credentials", http.StatusFound)
+		return
+	}
+
 	body := map[string]string{
-		"provider": "dev",
-		"code":     "dev",
-		"state":    "dev",
+		"username": username,
+		"password": password,
 	}
 	bodyJSON, _ := json.Marshal(body)
 
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post(h.apiURL+"/api/auth/oauth", "application/json", bytes.NewReader(bodyJSON))
+	resp, err := client.Post(h.apiURL+"/api/auth/login", "application/json", bytes.NewReader(bodyJSON))
 	if err != nil {
 		if h.logger != nil {
-			h.logger.Error().Str("error", err.Error()).Msg("failed to reach vire-server for dev login")
+			h.logger.Error().Str("error", err.Error()).Msg("failed to reach vire-server for login")
 		}
 		http.Redirect(w, r, "/?error=auth_failed", http.StatusFound)
 		return
@@ -151,9 +155,9 @@ func (h *AuthHandler) HandleDevLogin(w http.ResponseWriter, r *http.Request) {
 
 	if resp.StatusCode != http.StatusOK {
 		if h.logger != nil {
-			h.logger.Error().Int("status", resp.StatusCode).Str("body", string(respBody)).Msg("vire-server dev login failed")
+			h.logger.Error().Int("status", resp.StatusCode).Str("body", string(respBody)).Msg("vire-server login failed")
 		}
-		http.Redirect(w, r, "/?error=auth_failed", http.StatusFound)
+		http.Redirect(w, r, "/?error=invalid_credentials", http.StatusFound)
 		return
 	}
 

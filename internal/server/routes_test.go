@@ -284,14 +284,15 @@ func TestRoutes_DevAuthEndpoint_DevMode(t *testing.T) {
 	application := newTestAppWithConfig(t, cfg)
 	srv := New(application)
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
 
-	// In dev mode, should redirect (302) with session cookie
+	// Should redirect (302) with session cookie
 	if w.Code != http.StatusFound {
-		t.Errorf("expected status 302 for dev login in dev mode, got %d", w.Code)
+		t.Errorf("expected status 302 for login, got %d", w.Code)
 	}
 
 	// Should set a vire_session cookie
@@ -306,28 +307,11 @@ func TestRoutes_DevAuthEndpoint_DevMode(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error("expected vire_session cookie from dev login endpoint")
+		t.Error("expected vire_session cookie from login endpoint")
 	}
 }
 
-func TestRoutes_DevAuthEndpoint_ProdMode(t *testing.T) {
-	cfg := config.NewDefaultConfig()
-	// Default is "prod"
-	application := newTestAppWithConfig(t, cfg)
-	srv := New(application)
-
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
-	w := httptest.NewRecorder()
-
-	srv.Handler().ServeHTTP(w, req)
-
-	// In prod mode, should return 404
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected status 404 for dev login in prod mode, got %d", w.Code)
-	}
-}
-
-func TestRoutes_DevAuthEndpoint_NotBlockedByCSRF(t *testing.T) {
+func TestRoutes_LoginEndpoint_NotBlockedByCSRF(t *testing.T) {
 	// Mock vire-server so the handler completes
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -341,14 +325,15 @@ func TestRoutes_DevAuthEndpoint_NotBlockedByCSRF(t *testing.T) {
 	application := newTestAppWithConfig(t, cfg)
 	srv := New(application)
 
-	// POST /api/auth/dev without CSRF token should NOT be rejected with 403
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	// POST /api/auth/login without CSRF token should NOT be rejected with 403
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
 
 	if w.Code == http.StatusForbidden {
-		t.Error("POST /api/auth/dev blocked by CSRF middleware — should be exempt")
+		t.Error("POST /api/auth/login blocked by CSRF middleware — should be exempt")
 	}
 }
 
@@ -373,8 +358,8 @@ func TestRoutes_LandingPage_DevMode(t *testing.T) {
 	if !containsString(body, "DEV LOGIN") {
 		t.Error("expected landing page to contain DEV LOGIN button in dev mode")
 	}
-	if !containsString(body, "/api/auth/dev") {
-		t.Error("expected landing page to contain /api/auth/dev action in dev mode")
+	if !containsString(body, "/api/auth/login") {
+		t.Error("expected landing page to contain /api/auth/login action in dev mode")
 	}
 }
 
@@ -396,9 +381,6 @@ func TestRoutes_LandingPage_ProdMode(t *testing.T) {
 	body := w.Body.String()
 	if containsString(body, "DEV LOGIN") {
 		t.Error("expected landing page to NOT contain DEV LOGIN button in prod mode")
-	}
-	if containsString(body, "/api/auth/dev") {
-		t.Error("expected landing page to NOT contain /api/auth/dev URL in prod mode")
 	}
 }
 

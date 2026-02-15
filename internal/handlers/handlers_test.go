@@ -167,7 +167,7 @@ func TestWriteError(t *testing.T) {
 
 // --- Auth Handler Tests ---
 
-func TestDevLoginHandler_DevMode(t *testing.T) {
+func TestLoginHandler_ValidCredentials(t *testing.T) {
 	// Mock vire-server that returns a signed JWT
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := buildTestJWT("dev_user")
@@ -187,14 +187,15 @@ func TestDevLoginHandler_DevMode(t *testing.T) {
 
 	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte{})
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
-	// In dev mode, POST /api/auth/dev should redirect (302) and set a session cookie
+	// POST /api/auth/login should redirect (302) and set a session cookie
 	if w.Code != http.StatusFound {
-		t.Errorf("expected status 302 in dev mode, got %d", w.Code)
+		t.Errorf("expected status 302, got %d", w.Code)
 	}
 
 	// Should set a vire_session cookie
@@ -207,7 +208,7 @@ func TestDevLoginHandler_DevMode(t *testing.T) {
 		}
 	}
 	if sessionCookie == nil {
-		t.Fatal("expected vire_session cookie to be set in dev mode")
+		t.Fatal("expected vire_session cookie to be set")
 	}
 	if !sessionCookie.HttpOnly {
 		t.Error("expected vire_session cookie to be httpOnly")
@@ -229,40 +230,35 @@ func TestDevLoginHandler_DevMode(t *testing.T) {
 	}
 }
 
-func TestDevLoginHandler_ProdMode(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "", "", []byte{})
+func TestLoginHandler_MissingCredentials(t *testing.T) {
+	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
-	// In prod mode, POST /api/auth/dev should return 404
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected status 404 in prod mode, got %d", w.Code)
+	// Should redirect with error
+	if w.Code != http.StatusFound {
+		t.Errorf("expected status 302, got %d", w.Code)
 	}
-
-	// Verify 404 response body contains proper content
-	body := w.Body.String()
-	if body == "" {
-		t.Error("expected non-empty 404 response body")
-	}
-	if !strings.Contains(body, "404") && !strings.Contains(strings.ToLower(body), "not found") {
-		t.Errorf("expected 404 body to contain '404' or 'not found', got: %s", body)
+	location := w.Header().Get("Location")
+	if !strings.Contains(location, "error") {
+		t.Errorf("expected redirect with error param, got %s", location)
 	}
 
 	// Should NOT set a vire_session cookie
 	cookies := w.Result().Cookies()
 	for _, c := range cookies {
 		if c.Name == "vire_session" {
-			t.Error("expected no vire_session cookie in prod mode")
+			t.Error("expected no vire_session cookie when credentials missing")
 		}
 	}
 }
 
-// Note: Method filtering for POST /api/auth/dev is handled by Go 1.22+
-// pattern routing ("POST /api/auth/dev"), not by the handler itself.
-// The route-level test TestRoutes_DevAuthEndpoint_DevMode validates this.
+// Note: Method filtering for POST /api/auth/login is handled by Go 1.22+
+// pattern routing ("POST /api/auth/login"), not by the handler itself.
 
 // --- Dashboard Handler Tests ---
 
@@ -418,11 +414,11 @@ func TestDashboardHandler_ToolCount(t *testing.T) {
 	}
 }
 
-// --- Dev Login Stress Tests ---
+// --- Login Handler Stress Tests ---
 
-func TestDevLoginHandler_RedirectIsHardcoded(t *testing.T) {
+func TestLoginHandler_RedirectIsHardcoded(t *testing.T) {
 	// Verify the redirect target cannot be influenced by request parameters.
-	// An open redirect would allow phishing: POST /api/auth/dev?redirect=https://evil.com
+	// An open redirect would allow phishing: POST /api/auth/login?redirect=https://evil.com
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := buildTestJWT("dev_user")
 		w.Header().Set("Content-Type", "application/json")
@@ -437,16 +433,17 @@ func TestDevLoginHandler_RedirectIsHardcoded(t *testing.T) {
 
 	// Try various hostile redirect parameters
 	paths := []string{
-		"/api/auth/dev?redirect=https://evil.com",
-		"/api/auth/dev?next=https://evil.com",
-		"/api/auth/dev?return_to=//evil.com",
-		"/api/auth/dev?redirect_uri=https://evil.com/steal",
+		"/api/auth/login?redirect=https://evil.com",
+		"/api/auth/login?next=https://evil.com",
+		"/api/auth/login?return_to=//evil.com",
+		"/api/auth/login?redirect_uri=https://evil.com/steal",
 	}
 
 	for _, path := range paths {
-		req := httptest.NewRequest("POST", path, nil)
+		req := httptest.NewRequest("POST", path, strings.NewReader("username=dev_user&password=dev123"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
-		handler.HandleDevLogin(w, req)
+		handler.HandleLogin(w, req)
 
 		location := w.Header().Get("Location")
 		if location != "/dashboard" {
@@ -455,7 +452,7 @@ func TestDevLoginHandler_RedirectIsHardcoded(t *testing.T) {
 	}
 }
 
-func TestDevLoginHandler_CookieAttributes(t *testing.T) {
+func TestLoginHandler_CookieAttributes(t *testing.T) {
 	// Verify session cookie has secure attributes to prevent theft.
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := buildTestJWT("dev_user")
@@ -469,9 +466,10 @@ func TestDevLoginHandler_CookieAttributes(t *testing.T) {
 
 	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte{})
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
 	cookies := w.Result().Cookies()
 	var sessionCookie *http.Cookie
@@ -501,7 +499,7 @@ func TestDevLoginHandler_CookieAttributes(t *testing.T) {
 	}
 }
 
-func TestDevLoginHandler_TokenFromVireServer(t *testing.T) {
+func TestLoginHandler_TokenFromVireServer(t *testing.T) {
 	// Verify the cookie contains exactly the token returned by vire-server.
 	expectedToken := buildTestJWT("dev_user")
 
@@ -516,9 +514,10 @@ func TestDevLoginHandler_TokenFromVireServer(t *testing.T) {
 
 	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte{})
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
 	cookies := w.Result().Cookies()
 	var sessionCookie *http.Cookie
@@ -535,34 +534,6 @@ func TestDevLoginHandler_TokenFromVireServer(t *testing.T) {
 	// The cookie value should be exactly the token from vire-server
 	if sessionCookie.Value != expectedToken {
 		t.Errorf("expected cookie to contain token from vire-server")
-	}
-}
-
-func TestDevLoginHandler_ProdModeBlocksCompletely(t *testing.T) {
-	// Verify prod mode returns no cookies, no redirect, and correct error.
-	handler := NewAuthHandler(nil, false, "", "", []byte{})
-
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
-	w := httptest.NewRecorder()
-	handler.HandleDevLogin(w, req)
-
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404 in prod mode, got %d", w.Code)
-	}
-
-	// Must not set any cookies at all
-	cookies := w.Result().Cookies()
-	if len(cookies) > 0 {
-		names := make([]string, len(cookies))
-		for i, c := range cookies {
-			names[i] = c.Name
-		}
-		t.Errorf("expected no cookies in prod mode, got: %v", names)
-	}
-
-	// Must not include a Location header (no redirect)
-	if location := w.Header().Get("Location"); location != "" {
-		t.Errorf("expected no redirect in prod mode, got Location: %s", location)
 	}
 }
 
@@ -663,8 +634,8 @@ func TestServePage_LoggedIn_WithoutCookie(t *testing.T) {
 	}
 }
 
-func TestDevLoginHandler_ConcurrentRequests(t *testing.T) {
-	// Verify concurrent dev logins don't cause race conditions.
+func TestLoginHandler_ConcurrentRequests(t *testing.T) {
+	// Verify concurrent logins don't cause race conditions.
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := buildTestJWT("dev_user")
 		w.Header().Set("Content-Type", "application/json")
@@ -677,9 +648,10 @@ func TestDevLoginHandler_ConcurrentRequests(t *testing.T) {
 	done := make(chan bool, 50)
 	for i := 0; i < 50; i++ {
 		go func() {
-			req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+			req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			w := httptest.NewRecorder()
-			handler.HandleDevLogin(w, req)
+			handler.HandleLogin(w, req)
 
 			if w.Code != http.StatusFound {
 				t.Errorf("concurrent request got status %d", w.Code)

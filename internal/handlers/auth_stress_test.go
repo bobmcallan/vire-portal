@@ -432,9 +432,15 @@ func TestOAuthLogin_StressCallbackURLNotEncoded(t *testing.T) {
 	t.Logf("Redirect URL with complex callback: %s", location)
 }
 
-// --- Dev Login Server Interaction ---
+// --- Login Server Interaction ---
 
-func TestDevLogin_StressServerReturnsInvalidJSON(t *testing.T) {
+func newLoginRequest(username, password string) *http.Request {
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username="+username+"&password="+password))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req
+}
+
+func TestLogin_StressServerReturnsInvalidJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`not json at all`))
@@ -443,10 +449,10 @@ func TestDevLogin_StressServerReturnsInvalidJSON(t *testing.T) {
 
 	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := newLoginRequest("dev_user", "dev123")
 	w := httptest.NewRecorder()
 
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
 	location := w.Header().Get("Location")
 	if !strings.Contains(location, "error=auth_failed") {
@@ -460,7 +466,7 @@ func TestDevLogin_StressServerReturnsInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestDevLogin_StressServerReturnsEmptyToken(t *testing.T) {
+func TestLogin_StressServerReturnsEmptyToken(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -472,10 +478,10 @@ func TestDevLogin_StressServerReturnsEmptyToken(t *testing.T) {
 
 	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := newLoginRequest("dev_user", "dev123")
 	w := httptest.NewRecorder()
 
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
 	location := w.Header().Get("Location")
 	if !strings.Contains(location, "error=auth_failed") {
@@ -483,34 +489,13 @@ func TestDevLogin_StressServerReturnsEmptyToken(t *testing.T) {
 	}
 }
 
-func TestDevLogin_StressProdMode_NoCookies(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
-
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
-	w := httptest.NewRecorder()
-
-	handler.HandleDevLogin(w, req)
-
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404 in prod mode, got %d", w.Code)
-	}
-	for _, c := range w.Result().Cookies() {
-		if c.Name == "vire_session" {
-			t.Error("SECURITY: session cookie set in prod mode dev login")
-		}
-	}
-	if location := w.Header().Get("Location"); location != "" {
-		t.Errorf("expected no redirect in prod mode, got Location: %s", location)
-	}
-}
-
-func TestDevLogin_StressServerUnreachable(t *testing.T) {
+func TestLogin_StressServerUnreachable(t *testing.T) {
 	handler := NewAuthHandler(nil, true, "http://127.0.0.1:1", "http://localhost:4241/auth/callback", []byte{})
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := newLoginRequest("dev_user", "dev123")
 	w := httptest.NewRecorder()
 
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
 	location := w.Header().Get("Location")
 	if !strings.Contains(location, "error=auth_failed") {
@@ -518,7 +503,7 @@ func TestDevLogin_StressServerUnreachable(t *testing.T) {
 	}
 }
 
-func TestDevLogin_StressServerLargeResponse(t *testing.T) {
+func TestLogin_StressServerLargeResponse(t *testing.T) {
 	// Vire-server returns a very large response body.
 	// The handler uses io.LimitReader(1<<20) to cap at 1MB.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -531,11 +516,11 @@ func TestDevLogin_StressServerLargeResponse(t *testing.T) {
 
 	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := newLoginRequest("dev_user", "dev123")
 	w := httptest.NewRecorder()
 
 	// Must not panic or OOM
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
 	// Should fail to parse (truncated response) or succeed with truncated token
 	if w.Code != http.StatusFound {
@@ -564,22 +549,27 @@ func TestAllAuthCookies_StressHttpOnlyFlag(t *testing.T) {
 		method string
 		path   string
 	}{
-		{"dev login", "POST", "/api/auth/dev"},
+		{"login", "POST", "/api/auth/login"},
 		{"oauth callback", "GET", "/auth/callback?token=" + token},
 		{"logout", "POST", "/api/auth/logout"},
 	}
 
 	for _, sc := range scenarios {
 		t.Run(sc.name, func(t *testing.T) {
-			req := httptest.NewRequest(sc.method, sc.path, nil)
+			var req *http.Request
+			if sc.name == "login" {
+				req = newLoginRequest("dev_user", "dev123")
+			} else {
+				req = httptest.NewRequest(sc.method, sc.path, nil)
+			}
 			if sc.name == "logout" {
 				req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 			}
 			w := httptest.NewRecorder()
 
 			switch sc.name {
-			case "dev login":
-				handler.HandleDevLogin(w, req)
+			case "login":
+				handler.HandleLogin(w, req)
 			case "oauth callback":
 				handler.HandleOAuthCallback(w, req)
 			case "logout":
@@ -609,10 +599,10 @@ func TestAllAuthCookies_StressSameSiteAttribute(t *testing.T) {
 
 	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
 
-	// Dev login
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	// Login
+	req := newLoginRequest("dev_user", "dev123")
 	w := httptest.NewRecorder()
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
 	for _, c := range w.Result().Cookies() {
 		if c.Name == "vire_session" {

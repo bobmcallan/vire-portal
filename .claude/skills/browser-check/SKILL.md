@@ -29,7 +29,7 @@ go run ./tests/browser-check -url <URL> [flags]
 | Flag | Description | Example |
 |---|---|---|
 | `-url` | URL to test (required) | `http://localhost:${PORTAL_PORT:-4241}/dashboard` |
-| `-login` | Authenticate via `/api/auth/dev` before checks | `-login` |
+| `-login` | Authenticate via `/api/auth/login` (dev_user) before checks | `-login` |
 | `-check` | `selector\|state` assertion (repeatable) | `-check '.nav-links\|visible'` |
 | `-click` | Click selector before checks (repeatable, ordered) | `-click '.nav-hamburger'` |
 | `-eval` | JS expression, must return truthy (repeatable) | `-eval 'typeof Alpine !== "undefined"'` |

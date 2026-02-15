@@ -59,7 +59,7 @@ func main() {
 	flag.StringVar(&viewport, "viewport", "", "Viewport as WxH, e.g. 375x812")
 	flag.StringVar(&screenshot, "screenshot", "", "Save screenshot to path")
 	flag.IntVar(&waitMs, "wait", 1000, "Wait ms after load for Alpine/JS init")
-	flag.BoolVar(&login, "login", false, "Authenticate via /api/auth/dev before testing")
+	flag.BoolVar(&login, "login", false, "Authenticate via /api/auth/login (dev_user) before testing")
 	flag.Var(&checks, "check", "selector|state  (state: visible, hidden, text=X, count>N)")
 	flag.Var(&clicks, "click", "CSS selector to click (in order, before -check)")
 	flag.Var(&evals, "eval", "JS expression that must return truthy")
@@ -158,7 +158,13 @@ func main() {
 		err := chromedp.Run(ctx,
 			chromedp.Evaluate(`
 				(async () => {
-					const r = await fetch('/api/auth/dev', { method: 'POST', credentials: 'same-origin' });
+					const body = new URLSearchParams({ username: 'dev_user', password: 'dev123' });
+					const r = await fetch('/api/auth/login', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+						credentials: 'same-origin',
+						body: body,
+					});
 					return r.status;
 				})()
 			`, nil),

@@ -560,8 +560,8 @@ func TestCSP_AllowsSelfScripts(t *testing.T) {
 
 // --- Stress Tests: CSRF Bypass for API Routes ---
 
-func TestCSRFMiddleware_SkipsDevAuthRoute(t *testing.T) {
-	// POST /api/auth/dev is under /api/ so CSRF is skipped.
+func TestCSRFMiddleware_SkipsLoginRoute(t *testing.T) {
+	// POST /api/auth/login is under /api/ so CSRF is skipped.
 	// This is by design since /api/ routes use Bearer tokens.
 	// Verify this works correctly.
 	s := newTestServer()
@@ -570,13 +570,13 @@ func TestCSRFMiddleware_SkipsDevAuthRoute(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := httptest.NewRequest("POST", "/api/auth/login", nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
 
 	if w.Code == http.StatusForbidden {
-		t.Error("POST /api/auth/dev should not be blocked by CSRF — it's under /api/")
+		t.Error("POST /api/auth/login should not be blocked by CSRF — it's under /api/")
 	}
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
@@ -684,7 +684,7 @@ func TestMaxBodySizeMiddleware_NonMCPRejectsLargeBody(t *testing.T) {
 
 	// 2KB body to non-MCP route should fail (limit is 1KB)
 	largeBody := strings.Repeat("x", 2048)
-	req := httptest.NewRequest("POST", "/api/auth/dev", strings.NewReader(largeBody))
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(largeBody))
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)

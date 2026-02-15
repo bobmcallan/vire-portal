@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
@@ -62,6 +63,20 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 			data["NavexaKeySet"] = user.NavexaKeySet
 			data["NavexaKeyPreview"] = user.NavexaKeyPreview
 		}
+	}
+
+	if h.devMode && loggedIn && claims != nil {
+		if cookie, err := r.Cookie("vire_session"); err == nil {
+			data["JWTToken"] = cookie.Value
+		}
+		data["JWTSub"] = claims.Sub
+		data["JWTEmail"] = claims.Email
+		data["JWTName"] = claims.Name
+		data["JWTProvider"] = claims.Provider
+		data["JWTIssuer"] = claims.Iss
+		data["JWTIssuedAt"] = time.Unix(claims.Iat, 0).UTC().Format(time.RFC3339)
+		data["JWTExpires"] = time.Unix(claims.Exp, 0).UTC().Format(time.RFC3339)
+		data["JWTExpired"] = claims.Exp < time.Now().Unix()
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "settings.html", data); err != nil {

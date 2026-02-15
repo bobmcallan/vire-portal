@@ -26,7 +26,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.HandleFunc("POST /settings", s.app.SettingsHandler.HandleSaveSettings)
 
 	// Auth routes
-	mux.HandleFunc("POST /api/auth/dev", s.app.AuthHandler.HandleDevLogin)
+	mux.HandleFunc("POST /api/auth/login", s.app.AuthHandler.HandleLogin)
 	mux.HandleFunc("POST /api/auth/logout", s.app.AuthHandler.HandleLogout)
 	mux.HandleFunc("GET /api/auth/login/google", s.app.AuthHandler.HandleGoogleLogin)
 	mux.HandleFunc("GET /api/auth/login/github", s.app.AuthHandler.HandleGitHubLogin)

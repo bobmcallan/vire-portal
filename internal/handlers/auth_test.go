@@ -292,13 +292,13 @@ func TestIsLoggedIn_EmptySecret(t *testing.T) {
 	}
 }
 
-// --- HandleDevLogin Tests (calls vire-server) ---
+// --- HandleLogin Tests (calls vire-server POST /api/auth/login) ---
 
-func TestHandleDevLogin_DevMode_CallsVireServer(t *testing.T) {
+func TestHandleLogin_CallsVireServer(t *testing.T) {
 	// Mock vire-server
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/auth/oauth" {
-			t.Errorf("expected request to /api/auth/oauth, got %s", r.URL.Path)
+		if r.URL.Path != "/api/auth/login" {
+			t.Errorf("expected request to /api/auth/login, got %s", r.URL.Path)
 		}
 		if r.Method != "POST" {
 			t.Errorf("expected POST, got %s", r.Method)
@@ -308,23 +308,21 @@ func TestHandleDevLogin_DevMode_CallsVireServer(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("failed to decode request body: %v", err)
 		}
-		if body["provider"] != "dev" {
-			t.Errorf("expected provider dev, got %s", body["provider"])
+		if body["username"] != "dev_user" {
+			t.Errorf("expected username dev_user, got %s", body["username"])
 		}
-		if body["code"] != "dev" {
-			t.Errorf("expected code dev, got %s", body["code"])
-		}
-		if body["state"] != "dev" {
-			t.Errorf("expected state dev, got %s", body["state"])
+		if body["password"] != "dev123" {
+			t.Errorf("expected password dev123, got %s", body["password"])
 		}
 
 		// Return a signed JWT
 		secret := []byte("")
 		token := buildSignedJWT(map[string]interface{}{
-			"sub":   "dev_user",
-			"email": "bobmcallan@gmail.com",
-			"iss":   "vire-server",
-			"exp":   time.Now().Add(24 * time.Hour).Unix(),
+			"sub":      "dev_user",
+			"email":    "bobmcallan@gmail.com",
+			"provider": "email",
+			"iss":      "vire-server",
+			"exp":      time.Now().Add(24 * time.Hour).Unix(),
 		}, secret)
 
 		w.Header().Set("Content-Type", "application/json")
@@ -343,10 +341,11 @@ func TestHandleDevLogin_DevMode_CallsVireServer(t *testing.T) {
 
 	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte(""))
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
 	if w.Code != http.StatusFound {
 		t.Errorf("expected status 302, got %d", w.Code)
@@ -379,32 +378,52 @@ func TestHandleDevLogin_DevMode_CallsVireServer(t *testing.T) {
 	}
 }
 
-func TestHandleDevLogin_ProdMode_Returns404(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte("secret"))
+func TestHandleLogin_MissingCredentials(t *testing.T) {
+	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte("secret"))
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
-	w := httptest.NewRecorder()
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"empty body", ""},
+		{"missing password", "username=dev_user"},
+		{"missing username", "password=dev123"},
+		{"blank username", "username=&password=dev123"},
+	}
 
-	handler.HandleDevLogin(w, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected status 404, got %d", w.Code)
+			handler.HandleLogin(w, req)
+
+			if w.Code != http.StatusFound {
+				t.Errorf("expected status 302, got %d", w.Code)
+			}
+			location := w.Header().Get("Location")
+			if !strings.Contains(location, "error") {
+				t.Errorf("expected redirect with error param, got %s", location)
+			}
+		})
 	}
 }
 
-func TestHandleDevLogin_VireServerError(t *testing.T) {
+func TestHandleLogin_VireServerError(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"status":"error","message":"internal error"}`))
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"status":"error","message":"invalid credentials"}`))
 	}))
 	defer mockServer.Close()
 
 	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte(""))
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=wrong"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
 	// Should redirect to / with error on failure
 	if w.Code != http.StatusFound {
@@ -416,13 +435,14 @@ func TestHandleDevLogin_VireServerError(t *testing.T) {
 	}
 }
 
-func TestHandleDevLogin_VireServerUnreachable(t *testing.T) {
+func TestHandleLogin_VireServerUnreachable(t *testing.T) {
 	handler := NewAuthHandler(nil, true, "http://127.0.0.1:19999", "http://localhost:4241/auth/callback", []byte(""))
 
-	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
-	handler.HandleDevLogin(w, req)
+	handler.HandleLogin(w, req)
 
 	if w.Code != http.StatusFound {
 		t.Errorf("expected status 302, got %d", w.Code)
@@ -546,9 +566,9 @@ func TestHandleGitHubLogin_RedirectsToVireServer(t *testing.T) {
 	}
 }
 
-// --- VireClient ExchangeOAuth Tests ---
+// --- Redirect Hardcoding Tests ---
 
-func TestHandleDevLogin_RedirectIsHardcoded(t *testing.T) {
+func TestHandleLogin_RedirectIsHardcoded(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := buildSignedJWT(map[string]interface{}{
 			"sub": "dev_user",
@@ -566,15 +586,16 @@ func TestHandleDevLogin_RedirectIsHardcoded(t *testing.T) {
 
 	// Try hostile redirect parameters
 	paths := []string{
-		"/api/auth/dev?redirect=https://evil.com",
-		"/api/auth/dev?next=https://evil.com",
-		"/api/auth/dev?return_to=//evil.com",
+		"/api/auth/login?redirect=https://evil.com",
+		"/api/auth/login?next=https://evil.com",
+		"/api/auth/login?return_to=//evil.com",
 	}
 
 	for _, path := range paths {
-		req := httptest.NewRequest("POST", path, nil)
+		req := httptest.NewRequest("POST", path, strings.NewReader("username=dev_user&password=dev123"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
-		handler.HandleDevLogin(w, req)
+		handler.HandleLogin(w, req)
 
 		location := w.Header().Get("Location")
 		if location != "/dashboard" {
@@ -654,9 +675,9 @@ func TestLogoutHandler_WorksWithNewConstructor(t *testing.T) {
 	}
 }
 
-// --- Concurrent DevLogin with mock server ---
+// --- Concurrent Login with mock server ---
 
-func TestHandleDevLogin_ConcurrentRequests(t *testing.T) {
+func TestHandleLogin_ConcurrentRequests(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := buildSignedJWT(map[string]interface{}{
 			"sub": "dev_user",
@@ -672,9 +693,10 @@ func TestHandleDevLogin_ConcurrentRequests(t *testing.T) {
 	done := make(chan bool, 50)
 	for i := 0; i < 50; i++ {
 		go func() {
-			req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+			req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			w := httptest.NewRecorder()
-			handler.HandleDevLogin(w, req)
+			handler.HandleLogin(w, req)
 			if w.Code != http.StatusFound {
 				t.Errorf("concurrent request got status %d", w.Code)
 			}

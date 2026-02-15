@@ -28,7 +28,9 @@
                     SIGN IN WITH GITHUB
                 </a>
                 {{if .DevMode}}
-                <form method="POST" action="/api/auth/dev" class="landing-dev-login">
+                <form method="POST" action="/api/auth/login" class="landing-dev-login">
+                    <input type="hidden" name="username" value="dev_user">
+                    <input type="hidden" name="password" value="dev123">
                     <button type="submit" class="btn btn-dev">DEV LOGIN</button>
                 </form>
                 {{end}}

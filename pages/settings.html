@@ -30,6 +30,69 @@
                     <button type="submit" class="btn btn-primary">SAVE</button>
                 </form>
             </section>
+            {{if .DevMode}}
+            <section class="dashboard-section">
+                <h2 class="section-title">AUTH DEBUG</h2>
+
+                <div class="dashboard-field">
+                    <span class="dashboard-label">STATUS</span>
+                    {{if .JWTExpired}}
+                    <span style="color:#a33;font-weight:700">EXPIRED</span>
+                    {{else}}
+                    <span style="font-weight:700">VALID</span>
+                    {{end}}
+                </div>
+
+                <div class="dashboard-field">
+                    <span class="dashboard-label">SUB</span>
+                    <code>{{.JWTSub}}</code>
+                </div>
+
+                <div class="dashboard-field">
+                    <span class="dashboard-label">EMAIL</span>
+                    <code>{{.JWTEmail}}</code>
+                </div>
+
+                <div class="dashboard-field">
+                    <span class="dashboard-label">NAME</span>
+                    <code>{{.JWTName}}</code>
+                </div>
+
+                <div class="dashboard-field">
+                    <span class="dashboard-label">PROVIDER</span>
+                    <code>{{.JWTProvider}}</code>
+                </div>
+
+                <div class="dashboard-field">
+                    <span class="dashboard-label">ISSUER</span>
+                    <code>{{.JWTIssuer}}</code>
+                </div>
+
+                <div class="dashboard-field">
+                    <span class="dashboard-label">ISSUED AT</span>
+                    <code>{{.JWTIssuedAt}}</code>
+                </div>
+
+                <div class="dashboard-field">
+                    <span class="dashboard-label">EXPIRES</span>
+                    <code>{{.JWTExpires}}</code>
+                </div>
+
+                <div class="dashboard-field">
+                    <span class="dashboard-label">JWT TOKEN</span>
+                    <div class="code-block" style="word-break:break-all;white-space:pre-wrap;max-height:6rem;overflow-y:auto;font-size:0.75rem">{{.JWTToken}}</div>
+                </div>
+
+                <div style="margin-top:1.5rem">
+                    <form method="POST" action="/api/auth/login">
+                        <input type="hidden" name="username" value="dev_user">
+                        <input type="hidden" name="password" value="dev123">
+                        <button type="submit" class="btn btn-secondary">REAUTHENTICATE</button>
+                    </form>
+                </div>
+            </section>
+            {{end}}
+
             {{else}}
             <section class="dashboard-section">
                 <p>Please <a href="/">sign in</a> to manage your settings.</p>

@@ -117,10 +117,16 @@ func loginAndNavigate(ctx context.Context, targetURL string) error {
 		// Navigate to any page first so we have the right origin for fetch
 		chromedp.Navigate(base+"/"),
 		chromedp.WaitVisible("body", chromedp.ByQuery),
-		// POST to dev auth to set the session cookie
+		// POST to login endpoint to set the session cookie
 		chromedp.Evaluate(fmt.Sprintf(`
 			(async () => {
-				const r = await fetch('%s/api/auth/dev', { method: 'POST', credentials: 'same-origin' });
+				const body = new URLSearchParams({ username: 'dev_user', password: 'dev123' });
+				const r = await fetch('%s/api/auth/login', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+					credentials: 'same-origin',
+					body: body,
+				});
 				return r.status;
 			})()
 		`, base), nil),
