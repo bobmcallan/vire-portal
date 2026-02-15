@@ -1,0 +1,46 @@
+{{define "nav.html"}}
+<div x-data="mobileMenu()">
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">VIRE</a>
+            <span class="nav-title">{{.PageTitle}}</span>
+
+            <ul class="nav-links">
+                <li><a href="/dashboard" {{if eq .PageID "dashboard"}}class="active"{{end}}>Dashboard</a></li>
+                <li><a href="/config" {{if eq .PageID "config"}}class="active"{{end}}>Config</a></li>
+                <li>
+                    <div x-data="dropdown()" class="dropdown">
+                        <button @click="toggle()" class="dropdown-trigger">
+                            Menu <span class="dropdown-arrow" :class="open && 'open'">▼</span>
+                        </button>
+                        <div x-show="open" @click.outside="close()" x-transition.opacity class="dropdown-menu">
+                            <a href="/settings">Settings</a>
+                            <a href="/portfolios">Portfolios</a>
+                            <a href="/api/auth/logout">Logout</a>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+
+            <button @click="open()" class="nav-hamburger">
+                <span class="nav-hamburger-icon"></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Mobile slide-out -->
+    <template x-if="visible">
+        <div>
+            <div class="mobile-overlay" @click="close()"></div>
+            <div class="mobile-menu">
+                <button @click="close()" class="mobile-menu-close">✕</button>
+                <a href="/dashboard">Dashboard</a>
+                <a href="/config">Config</a>
+                <a href="/settings">Settings</a>
+                <a href="/portfolios">Portfolios</a>
+                <a href="/api/auth/logout">Logout</a>
+            </div>
+        </div>
+    </template>
+</div>
+{{end}}

@@ -8,12 +8,19 @@
 
 <body>
 
-    {{template "nav.html" .}}
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
 
     <main class="dashboard">
         <div class="dashboard-inner">
 
             <h1 class="dashboard-title">DASHBOARD</h1>
+
+            {{if .NavexaKeyMissing}}
+            <div class="warning-banner">
+                <strong>WARNING:</strong> Navexa API key not configured.
+                <a href="/settings">Set your API key in Settings</a> to enable portfolio sync.
+            </div>
+            {{end}}
 
             <section class="dashboard-section">
                 <h2 class="section-title">MCP CONNECTION</h2>
@@ -41,14 +48,27 @@
             <section class="dashboard-section">
                 <h2 class="section-title">TOOLS [{{.ToolStatus}}]</h2>
                 {{if .Tools}}
-                <div class="tool-list">
-                    {{range .Tools}}
-                    <div class="tool-card">
-                        <div class="tool-name">{{.Name}}</div>
-                        <div class="tool-desc">{{.Description}}</div>
-                        <div class="tool-meta">{{.Method}} {{.Path}}</div>
-                    </div>
-                    {{end}}
+                <div class="table-wrap">
+                    <table class="tool-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>Method</th>
+                                <th>Path</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .Tools}}
+                            <tr>
+                                <td class="tool-name">{{.Name}}</td>
+                                <td class="tool-desc">{{.Description}}</td>
+                                <td class="tool-method">{{.Method}}</td>
+                                <td class="tool-path">{{.Path}}</td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
                 </div>
                 {{else}}
                 <p class="no-tools">NO TOOLS available. Ensure vire-server is running.</p>

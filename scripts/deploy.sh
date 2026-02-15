@@ -17,6 +17,8 @@ done
 
 case "$MODE" in
   local)
+    COMPOSE_FILES="-f $COMPOSE_DIR/docker-compose.yml -f $COMPOSE_DIR/docker-compose.dev.yml"
+
     # Extract version info
     VERSION="dev"
     # Note: local builds use MM-DD-HH-MM-SS format; CI uses YYYYMMDDHHmmss (intentional difference)
@@ -48,6 +50,7 @@ case "$MODE" in
            [ "$PROJECT_DIR/go.sum" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/vire-portal.toml" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/vire-mcp.toml" -nt "$COMPOSE_DIR/.last_build" ] || \
+           [ "$PROJECT_DIR/docker/docker-compose.dev.yml" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/Dockerfile" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/Dockerfile.mcp" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/.version" -nt "$COMPOSE_DIR/.last_build" ]; then
@@ -62,9 +65,9 @@ case "$MODE" in
         # Build new images while old containers keep running
         if [ "$FORCE" = true ]; then
             docker image rm vire-portal:latest vire-mcp:latest 2>/dev/null || true
-            docker compose -f "$COMPOSE_DIR/docker-compose.yml" build --no-cache
+            docker compose $COMPOSE_FILES build --no-cache
         else
-            docker compose -f "$COMPOSE_DIR/docker-compose.yml" build
+            docker compose $COMPOSE_FILES build
         fi
         touch "$COMPOSE_DIR/.last_build"
         echo " Images built "
@@ -73,7 +76,7 @@ case "$MODE" in
     fi
 
     # Start or recreate containers with latest images
-    docker compose -f "$COMPOSE_DIR/docker-compose.yml" up -d --force-recreate --remove-orphans
+    docker compose $COMPOSE_FILES up -d --force-recreate --remove-orphans
     ;;
   ghcr)
     echo "Deploying ghcr images with auto-update..."
@@ -84,7 +87,7 @@ case "$MODE" in
     ;;
   down)
     echo "Stopping all vire containers..."
-    docker compose -f "$COMPOSE_DIR/docker-compose.yml" down --remove-orphans 2>/dev/null || true
+    docker compose -f "$COMPOSE_DIR/docker-compose.yml" -f "$COMPOSE_DIR/docker-compose.dev.yml" down --remove-orphans 2>/dev/null || true
     docker compose -f "$COMPOSE_DIR/docker-compose.ghcr.yml" down --remove-orphans 2>/dev/null || true
     exit 0
     ;;

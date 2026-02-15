@@ -56,11 +56,28 @@ func (p *MCPProxy) ServerURL() string {
 	return p.serverURL
 }
 
+// sanitizeHeaderValue strips carriage returns and newlines from a string
+// to prevent HTTP header injection (CRLF injection) when user-controlled
+// values are set as header values.
+func sanitizeHeaderValue(s string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
+}
+
 // applyUserHeaders copies user context headers onto an outgoing request.
+// Static headers come from config; per-request headers come from UserContext in the request context.
 func (p *MCPProxy) applyUserHeaders(req *http.Request) {
 	for key, vals := range p.userHeaders {
 		for _, v := range vals {
 			req.Header.Set(key, v)
+		}
+	}
+	// Per-request user context headers
+	if uc, ok := GetUserContext(req.Context()); ok {
+		if uc.UserID != "" {
+			req.Header.Set("X-Vire-User-ID", sanitizeHeaderValue(uc.UserID))
+		}
+		if uc.NavexaKey != "" {
+			req.Header.Set("X-Vire-Navexa-Key", sanitizeHeaderValue(uc.NavexaKey))
 		}
 	}
 }

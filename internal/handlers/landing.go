@@ -52,9 +52,13 @@ func FindPagesDir() string {
 // ServePage creates a handler function for serving a specific page template.
 func (h *PageHandler) ServePage(templateName string, pageName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		_, cookieErr := r.Cookie("vire_session")
+
 		data := map[string]interface{}{
-			"Page":    pageName,
-			"DevMode": h.devMode,
+			"Page":      pageName,
+			"PageTitle": "",
+			"DevMode":   h.devMode,
+			"LoggedIn":  cookieErr == nil,
 		}
 
 		if err := h.templates.ExecuteTemplate(w, templateName, data); err != nil {

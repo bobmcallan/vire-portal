@@ -537,6 +537,102 @@ func TestRoutes_DashboardHasMiddleware(t *testing.T) {
 	}
 }
 
+// --- Logout Route Tests ---
+
+func TestRoutes_LogoutEndpoint(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Environment = "dev"
+	application := newTestAppWithConfig(t, cfg)
+	srv := New(application)
+
+	req := httptest.NewRequest("POST", "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "some-token"})
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected status 302 for logout, got %d", w.Code)
+	}
+
+	location := w.Header().Get("Location")
+	if location != "/" {
+		t.Errorf("expected redirect to /, got %s", location)
+	}
+}
+
+func TestRoutes_LogoutNotBlockedByCSRF(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Environment = "dev"
+	application := newTestAppWithConfig(t, cfg)
+	srv := New(application)
+
+	req := httptest.NewRequest("POST", "/api/auth/logout", nil)
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code == http.StatusForbidden {
+		t.Error("POST /api/auth/logout blocked by CSRF middleware — should be exempt")
+	}
+}
+
+// --- Settings Route Tests ---
+
+func TestRoutes_SettingsPage(t *testing.T) {
+	application := newTestApp(t)
+	srv := New(application)
+
+	req := httptest.NewRequest("GET", "/settings", nil)
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !containsString(body, "SETTINGS") {
+		t.Error("expected settings page to contain SETTINGS")
+	}
+}
+
+func TestRoutes_SettingsPostRoute(t *testing.T) {
+	application := newTestApp(t)
+	srv := New(application)
+
+	// POST /settings with CSRF token but no session cookie should reach handler and return 401
+	csrfToken := "test-csrf-token"
+	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=test&_csrf="+csrfToken))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "_csrf", Value: csrfToken})
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	// Without a valid session cookie, POST /settings should return 401
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401 for POST /settings without session, got %d", w.Code)
+	}
+}
+
+func TestRoutes_SettingsPostBlockedByCSRF(t *testing.T) {
+	application := newTestApp(t)
+	srv := New(application)
+
+	// POST /settings without CSRF token should be blocked with 403
+	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=test"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected status 403 for POST /settings without CSRF token, got %d", w.Code)
+	}
+}
+
 // --- README Port Verification Tests ---
 
 func TestREADME_PortConventions(t *testing.T) {

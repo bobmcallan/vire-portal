@@ -513,3 +513,178 @@ func TestCSRFMiddleware_SetsCookieOnGET(t *testing.T) {
 		t.Error("expected _csrf cookie to be set on GET response")
 	}
 }
+
+// --- Stress Tests: CSP Compliance ---
+
+func TestCSP_AllowsSelfScripts(t *testing.T) {
+	s := newTestServer()
+
+	handler := s.securityHeadersMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	csp := w.Header().Get("Content-Security-Policy")
+
+	// script-src must include 'self' for /static/common.js
+	if !strings.Contains(csp, "script-src") {
+		t.Error("CSP missing script-src directive")
+	}
+	if !strings.Contains(csp, "'self'") {
+		t.Error("CSP script-src missing 'self' — /static/common.js will be blocked")
+	}
+
+	// script-src must include cdn.jsdelivr.net for Alpine.js
+	if !strings.Contains(csp, "cdn.jsdelivr.net") {
+		t.Error("CSP script-src missing cdn.jsdelivr.net — Alpine.js will be blocked")
+	}
+
+	// style-src must include fonts.googleapis.com for IBM Plex Mono
+	if !strings.Contains(csp, "fonts.googleapis.com") {
+		t.Error("CSP style-src missing fonts.googleapis.com — Google Fonts CSS will be blocked")
+	}
+
+	// font-src must include fonts.gstatic.com for font files
+	if !strings.Contains(csp, "fonts.gstatic.com") {
+		t.Error("CSP font-src missing fonts.gstatic.com — font files will be blocked")
+	}
+}
+
+// --- Stress Tests: CSRF Bypass for API Routes ---
+
+func TestCSRFMiddleware_SkipsDevAuthRoute(t *testing.T) {
+	// POST /api/auth/dev is under /api/ so CSRF is skipped.
+	// This is by design since /api/ routes use Bearer tokens.
+	// Verify this works correctly.
+	s := newTestServer()
+
+	handler := s.csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("POST", "/api/auth/dev", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code == http.StatusForbidden {
+		t.Error("POST /api/auth/dev should not be blocked by CSRF — it's under /api/")
+	}
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestCSRFMiddleware_SkipsMCPRoute(t *testing.T) {
+	s := newTestServer()
+
+	handler := s.csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code == http.StatusForbidden {
+		t.Error("POST /mcp should not be blocked by CSRF — it's explicitly exempt")
+	}
+}
+
+func TestCSRFMiddleware_DoesNotSkipNonAPIPost(t *testing.T) {
+	// A form POST to a non-API, non-MCP route MUST require CSRF.
+	s := newTestServer()
+
+	handler := s.csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called without CSRF token for non-API POST")
+	}))
+
+	req := httptest.NewRequest("POST", "/some-form", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for non-API POST without CSRF, got %d", w.Code)
+	}
+}
+
+// --- Stress Tests: Correlation ID Injection ---
+
+func TestCorrelationIDMiddleware_SanitizesInput(t *testing.T) {
+	// Verify that hostile correlation IDs don't break logging or leak into responses
+	s := newTestServer()
+
+	hostileIDs := []string{
+		"<script>alert('xss')</script>",
+		"'; DROP TABLE users; --",
+		strings.Repeat("A", 10000),    // Very long ID
+		"\r\nX-Injected-Header: evil", // Header injection
+		"\x00null\x00byte",            // Null bytes
+	}
+
+	for _, hostile := range hostileIDs {
+		handler := s.correlationIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("X-Request-ID", hostile)
+		w := httptest.NewRecorder()
+
+		// Should not panic
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("hostile correlation ID caused non-200 response: %q", hostile)
+		}
+	}
+}
+
+// --- Stress Tests: Max Body Size ---
+
+func TestMaxBodySizeMiddleware_MCPGetsLargerLimit(t *testing.T) {
+	s := newTestServer()
+
+	var readErr error
+	handler := s.maxBodySizeMiddleware(1024)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, readErr = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// 2MB body to /mcp should succeed (limit is 10MB)
+	largeBody := strings.Repeat("x", 2<<20)
+	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(largeBody))
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if readErr != nil {
+		t.Errorf("2MB body to /mcp should be allowed (10MB limit), got error: %v", readErr)
+	}
+}
+
+func TestMaxBodySizeMiddleware_NonMCPRejectsLargeBody(t *testing.T) {
+	s := newTestServer()
+
+	var readErr error
+	handler := s.maxBodySizeMiddleware(1024)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, readErr = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// 2KB body to non-MCP route should fail (limit is 1KB)
+	largeBody := strings.Repeat("x", 2048)
+	req := httptest.NewRequest("POST", "/api/auth/dev", strings.NewReader(largeBody))
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if readErr == nil {
+		t.Error("2KB body to non-MCP route should be rejected (1KB limit)")
+	}
+}

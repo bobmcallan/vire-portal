@@ -4,7 +4,7 @@ Web application and MCP server for the Vire investment platform. Hosts a landing
 
 The portal is a Go server that renders HTML templates with Alpine.js for interactivity and provides an MCP (Model Context Protocol) endpoint for Claude and other MCP clients. It proxies tool calls to vire-server, injecting X-Vire-* headers for user context. Served from a Docker container alongside vire-server.
 
-> **Repository layout:** This repo contains the portal server code. The Docker image (`ghcr.io/bobmcallan/vire-portal:latest`) runs alongside `ghcr.io/bobmcallan/vire-server:latest` in a two-service Docker Compose stack. Portal infrastructure (Cloud Run deployment) is managed by [vire-infra](https://github.com/bobmcallan/vire-infra) Terraform (`infra/modules/portal/`).
+> **Repository layout:** This repo contains the portal server and MCP server code. The Docker images (`ghcr.io/bobmcallan/vire-portal:latest` and `ghcr.io/bobmcallan/vire-mcp:latest`) run alongside `ghcr.io/bobmcallan/vire-server:latest` in a three-service Docker Compose stack. Portal infrastructure (Cloud Run deployment) is managed by [vire-infra](https://github.com/bobmcallan/vire-infra) Terraform (`infra/modules/portal/`).
 
 ## Routes (Implemented)
 
@@ -16,7 +16,10 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP, dynamic tools from vire-server catalog) |
 | `GET /api/health` | HealthHandler | No | Health check (`{"status":"ok"}`) |
 | `GET /api/version` | VersionHandler | No | Version info (JSON) |
-| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (creates session, redirects to `/`; 404 in prod) |
+| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (creates session, redirects to `/dashboard`; 404 in prod) |
+| `POST /api/auth/logout` | AuthHandler | No | Clears session cookie, redirects to `/` |
+| `GET /settings` | SettingsHandler | No | Settings page (Navexa API key management) |
+| `POST /settings` | SettingsHandler | No | Save settings (requires session cookie) |
 
 ## Pages (Future)
 
@@ -494,7 +497,7 @@ Configuration is handled via TOML file and environment variables with the `VIRE_
 |----------|---------|-------------|
 | `VIRE_SERVER_HOST` | `localhost` | Server bind address |
 | `VIRE_SERVER_PORT` | `8080` | Server port |
-| `VIRE_API_URL` | `http://localhost:4242` | vire-server URL for MCP proxy |
+| `VIRE_API_URL` | `http://localhost:8080` | vire-server URL for MCP proxy |
 | `VIRE_DEFAULT_PORTFOLIO` | `""` | Default portfolio name |
 | `VIRE_DISPLAY_CURRENCY` | `""` | Display currency (e.g., AUD, USD) |
 | `VIRE_BADGER_PATH` | `./data/vire` | BadgerDB storage path |
@@ -534,7 +537,7 @@ COPY --from=builder /build/docker/vire-portal.toml .
 COPY --from=builder /build/data ./seed
 COPY .version .
 RUN mkdir -p /app/data /app/logs
-EXPOSE 4241
+EXPOSE 8080
 HEALTHCHECK NONE
 ENTRYPOINT ["./vire-portal"]
 ```
@@ -617,16 +620,16 @@ jobs:
           cache-to: type=gha,mode=max,scope=vire-portal
 ```
 
-### Differences from vire's release.yml
+### Matrix strategy
 
-| Aspect | vire | vire-portal |
-|--------|------|-------------|
-| Matrix strategy | Yes (2 services: server, mcp) | No (single image) |
-| Dockerfile path | `docker/Dockerfile.server`, `docker/Dockerfile.mcp` | `docker/Dockerfile` |
-| Image name | `vire-server`, `vire-mcp` | `vire-portal` |
-| Cache scope | Per service (`vire-server`, `vire-mcp`) | Single (`vire-portal`) |
+The release workflow uses a matrix strategy to build both images in parallel:
 
-Everything else is identical: triggers, GHCR registry, buildx, login, version extraction from `.version`, docker metadata tags (sha, version, latest), build-args (VERSION, BUILD, GIT_COMMIT), GHA caching.
+| Image | Dockerfile |
+|-------|-----------|
+| `vire-portal` | `docker/Dockerfile` |
+| `vire-mcp` | `docker/Dockerfile.mcp` |
+
+Both use the same triggers, GHCR registry, buildx, login, version extraction from `.version`, docker metadata tags (sha, version, latest), build-args (VERSION, BUILD, GIT_COMMIT), and GHA caching (scoped per image).
 
 ## .version File
 
@@ -648,10 +651,16 @@ build: 02-14-20-27-29
 vire-portal/
 ├── .github/
 │   └── workflows/
-│       └── release.yml              # Docker build + GHCR push
+│       └── release.yml              # Docker build + GHCR push (matrix: portal + mcp)
 ├── cmd/
-│   └── portal/
-│       └── main.go                  # Entry point (flag parsing, config, graceful shutdown)
+│   ├── vire-portal/
+│   │   └── main.go                  # Portal entry point (flag parsing, config, graceful shutdown)
+│   └── vire-mcp/
+│       ├── main.go                  # MCP server entry point (stdio + HTTP transport)
+│       ├── proxy.go                 # HTTP proxy to vire-server REST API
+│       ├── handlers.go              # MCP tool handler implementations
+│       ├── formatters.go            # Response formatters (markdown, JSON)
+│       └── tools.go                 # MCP tool definitions (25+ tools)
 ├── internal/
 │   ├── app/
 │   │   └── app.go                   # Dependency container (Config, Logger, StorageManager, Handlers)
@@ -662,12 +671,13 @@ vire-portal/
 │   │   ├── version.go               # Version info (ldflags + .version file)
 │   │   └── version_test.go
 │   ├── handlers/
-│   │   ├── auth.go                  # POST /api/auth/dev (dev-only login)
+│   │   ├── auth.go                  # POST /api/auth/dev (dev-only login), POST /api/auth/logout
 │   │   ├── dashboard.go             # GET /dashboard (MCP config, tools, config status)
 │   │   ├── handlers_test.go
 │   │   ├── health.go                # GET /api/health
 │   │   ├── helpers.go               # WriteJSON, RequireMethod, WriteError
 │   │   ├── landing.go               # PageHandler (template rendering + static file serving)
+│   │   ├── settings.go              # GET/POST /settings (Navexa API key management)
 │   │   └── version.go               # GET /api/version
 │   ├── importer/
 │   │   ├── users.go                 # ImportUsers (JSON -> BadgerDB, bcrypt password hashing)
@@ -675,9 +685,10 @@ vire-portal/
 │   ├── interfaces/
 │   │   └── storage.go               # StorageManager + KeyValueStorage interfaces
 │   ├── models/
-│   │   └── user.go                  # User model (username, email, password, role)
+│   │   └── user.go                  # User model (username, email, password, role, navexa_key)
 │   ├── mcp/
 │   │   ├── catalog.go               # Dynamic tool catalog (fetch, validate, build, generic handler)
+│   │   ├── context.go               # UserContext (per-request user identity for proxy headers)
 │   │   ├── handler.go               # MCP HTTP handler (StreamableHTTP, catalog startup)
 │   │   ├── handlers.go              # Shared helpers (errorResult, resolvePortfolio)
 │   │   ├── mcp_test.go              # MCP test suite (catalog, tools, handlers, proxy)
@@ -691,16 +702,21 @@ vire-portal/
 │   │   ├── routes.go                 # Route registration
 │   │   ├── routes_test.go
 │   │   └── server.go                 # HTTP server (net/http, timeouts, graceful shutdown)
-│   └── storage/
-│       ├── factory.go                # Storage factory (creates BadgerDB manager)
-│       └── badger/
-│           ├── connection.go         # BadgerDB connection via badgerhold
-│           ├── kv_storage.go         # KeyValueStorage implementation
-│           ├── kv_storage_test.go
-│           └── manager.go            # StorageManager implementation
+│   ├── storage/
+│   │   ├── factory.go                # Storage factory (creates BadgerDB manager)
+│   │   └── badger/
+│   │       ├── connection.go         # BadgerDB connection via badgerhold
+│   │       ├── kv_storage.go         # KeyValueStorage implementation
+│   │       ├── kv_storage_test.go
+│   │       └── manager.go            # StorageManager implementation
+│   └── vire/                         # Shared packages (migrated from vire repo)
+│       ├── common/                   # Version, logging, config, formatting helpers
+│       ├── interfaces/               # Service and storage interface contracts
+│       └── models/                   # Data structures (portfolio, market, strategy, etc.)
 ├── pages/
 │   ├── dashboard.html                # Dashboard page (MCP config, tools, config status)
 │   ├── landing.html                  # Landing page (Go html/template)
+│   ├── settings.html                 # Settings page (Navexa API key management)
 │   ├── partials/
 │   │   ├── head.html                 # HTML head (IBM Plex Mono, Alpine.js CDN)
 │   │   ├── nav.html                  # Navigation bar
@@ -708,12 +724,16 @@ vire-portal/
 │   └── static/
 │       ├── css/
 │       │   └── portal.css            # 80s B&W aesthetic (no border-radius, no box-shadow)
-│       └── common.js                 # Alpine.js component skeleton
+│       └── common.js                 # Client logging (debugLog, debugError) + Alpine.js init
 ├── docker/
-│   ├── Dockerfile                    # Multi-stage build (golang:1.25 -> alpine)
-│   ├── docker-compose.yml            # Local build + run
+│   ├── Dockerfile                    # Portal multi-stage build (golang:1.25 -> alpine)
+│   ├── Dockerfile.mcp               # MCP multi-stage build (golang:1.25 -> alpine)
+│   ├── docker-compose.yml            # 3-service stack: portal + mcp + vire-server
+│   ├── docker-compose.dev.yml        # Dev overlay (VIRE_ENV=dev, used by deploy.sh local)
 │   ├── docker-compose.ghcr.yml       # GHCR pull + watchtower auto-update
-│   ├── vire-portal.toml              # Configuration file
+│   ├── vire-portal.toml              # Portal configuration
+│   ├── vire-mcp.toml                 # MCP configuration (local)
+│   ├── vire-mcp.toml.docker          # MCP configuration (Docker/CI)
 │   └── README.md                     # Docker usage documentation
 ├── docs/
 │   ├── requirements.md               # API contracts and architecture (this file)
@@ -753,7 +773,7 @@ go run ./cmd/vire-portal/ -p 9090
 go run ./cmd/vire-portal/ -c custom.toml
 ```
 
-The server runs on `http://localhost:4241` by default.
+The server runs on `http://localhost:8080` by default (Docker local dev overrides to 4241 via `docker/vire-portal.toml`).
 
 ### Testing
 
@@ -775,7 +795,7 @@ go vet ./...
 docker build -f docker/Dockerfile -t vire-portal:latest .
 
 # Run on host port 4241
-docker run -p 4241:4241 \
+docker run -p 4241:8080 \
   -e VIRE_SERVER_HOST=0.0.0.0 \
   -v portal-data:/app/data \
   vire-portal:latest

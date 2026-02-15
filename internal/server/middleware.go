@@ -184,8 +184,12 @@ func (s *Server) csrfMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		headerToken := r.Header.Get("X-CSRF-Token")
-		if headerToken == "" || headerToken != cookie.Value {
+		// Accept CSRF token from header (AJAX) or form field (HTML forms)
+		token := r.Header.Get("X-CSRF-Token")
+		if token == "" {
+			token = r.FormValue("_csrf")
+		}
+		if token == "" || token != cookie.Value {
 			http.Error(w, "Forbidden: invalid CSRF token", http.StatusForbidden)
 			return
 		}

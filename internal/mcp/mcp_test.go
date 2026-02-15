@@ -2,7 +2,9 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1583,7 +1585,7 @@ func TestNewHandler_CatalogUnavailable(t *testing.T) {
 	cfg := testConfig()
 	cfg.API.URL = "http://127.0.0.1:1"
 
-	handler := NewHandler(cfg, testLogger())
+	handler := NewHandler(cfg, testLogger(), nil)
 
 	// Handler should still be created (non-fatal)
 	if handler == nil {
@@ -1614,7 +1616,7 @@ func TestNewHandler_CatalogRetry_SucceedsOnSecondAttempt(t *testing.T) {
 	cfg := testConfig()
 	cfg.API.URL = mockServer.URL
 
-	handler := NewHandler(cfg, testLogger())
+	handler := NewHandler(cfg, testLogger(), nil)
 
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
@@ -1643,7 +1645,7 @@ func TestNewHandler_CatalogValidation_FiltersInvalid(t *testing.T) {
 	cfg := testConfig()
 	cfg.API.URL = mockServer.URL
 
-	handler := NewHandler(cfg, testLogger())
+	handler := NewHandler(cfg, testLogger(), nil)
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
 	}
@@ -1663,11 +1665,477 @@ func TestNewHandler_CatalogAvailable(t *testing.T) {
 	cfg := testConfig()
 	cfg.API.URL = mockServer.URL
 
-	handler := NewHandler(cfg, testLogger())
+	handler := NewHandler(cfg, testLogger(), nil)
 
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
 	}
+}
+
+// --- UserContext and Header Injection Tests ---
+
+func TestUserContext_RoundTrip(t *testing.T) {
+	ctx := context.Background()
+	uc := UserContext{UserID: "alice", NavexaKey: "key123"}
+
+	ctx = WithUserContext(ctx, uc)
+	got, ok := GetUserContext(ctx)
+	if !ok {
+		t.Fatal("expected UserContext in context")
+	}
+	if got.UserID != "alice" {
+		t.Errorf("expected UserID 'alice', got %q", got.UserID)
+	}
+	if got.NavexaKey != "key123" {
+		t.Errorf("expected NavexaKey 'key123', got %q", got.NavexaKey)
+	}
+}
+
+func TestUserContext_Missing(t *testing.T) {
+	ctx := context.Background()
+	_, ok := GetUserContext(ctx)
+	if ok {
+		t.Error("expected no UserContext in empty context")
+	}
+}
+
+func TestExtractJWTSub_Valid(t *testing.T) {
+	// Build a valid dev JWT with sub=test_user
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"test_user","iss":"vire-dev"}`))
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
+	token := header + "." + payload + "."
+
+	sub := extractJWTSub(token)
+	if sub != "test_user" {
+		t.Errorf("expected sub 'test_user', got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_InvalidToken(t *testing.T) {
+	sub := extractJWTSub("not-a-jwt")
+	if sub != "" {
+		t.Errorf("expected empty sub for invalid token, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_EmptyToken(t *testing.T) {
+	sub := extractJWTSub("")
+	if sub != "" {
+		t.Errorf("expected empty sub for empty token, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_InvalidBase64(t *testing.T) {
+	sub := extractJWTSub("header.!!!invalid!!!.sig")
+	if sub != "" {
+		t.Errorf("expected empty sub for invalid base64, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_NoSubClaim(t *testing.T) {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"vire-dev"}`))
+	token := "header." + payload + "."
+	sub := extractJWTSub(token)
+	if sub != "" {
+		t.Errorf("expected empty sub when claim missing, got %q", sub)
+	}
+}
+
+func TestProxy_ForwardsUserContextHeaders(t *testing.T) {
+	var receivedHeaders http.Header
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer mockServer.Close()
+
+	cfg := testConfig()
+	p := NewMCPProxy(mockServer.URL, testLogger(), cfg)
+
+	// Create a context with UserContext
+	ctx := WithUserContext(t.Context(), UserContext{UserID: "alice", NavexaKey: "navexa-key-123"})
+
+	body, err := p.get(ctx, "/api/version")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if string(body) != `{"status":"ok"}` {
+		t.Errorf("unexpected body: %s", string(body))
+	}
+
+	if receivedHeaders.Get("X-Vire-User-ID") != "alice" {
+		t.Errorf("expected X-Vire-User-ID 'alice', got %q", receivedHeaders.Get("X-Vire-User-ID"))
+	}
+	if receivedHeaders.Get("X-Vire-Navexa-Key") != "navexa-key-123" {
+		t.Errorf("expected X-Vire-Navexa-Key 'navexa-key-123', got %q", receivedHeaders.Get("X-Vire-Navexa-Key"))
+	}
+	// Static headers should also be present
+	if receivedHeaders.Get("X-Vire-Portfolios") != "SMSF,Personal" {
+		t.Errorf("expected X-Vire-Portfolios forwarded, got %q", receivedHeaders.Get("X-Vire-Portfolios"))
+	}
+}
+
+func TestProxy_NoUserContextHeaders_WhenMissing(t *testing.T) {
+	var receivedHeaders http.Header
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer mockServer.Close()
+
+	cfg := testConfig()
+	p := NewMCPProxy(mockServer.URL, testLogger(), cfg)
+
+	// No UserContext in context
+	_, err := p.get(t.Context(), "/api/version")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+
+	if receivedHeaders.Get("X-Vire-User-ID") != "" {
+		t.Errorf("expected no X-Vire-User-ID header, got %q", receivedHeaders.Get("X-Vire-User-ID"))
+	}
+	if receivedHeaders.Get("X-Vire-Navexa-Key") != "" {
+		t.Errorf("expected no X-Vire-Navexa-Key header, got %q", receivedHeaders.Get("X-Vire-Navexa-Key"))
+	}
+}
+
+func TestHandler_WithUserContext_NoCookie(t *testing.T) {
+	lookupCalled := false
+	lookupFn := func(userID string) (*UserContext, error) {
+		lookupCalled = true
+		return &UserContext{UserID: userID}, nil
+	}
+
+	h := &Handler{userLookupFn: lookupFn}
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	result := h.withUserContext(req)
+
+	if lookupCalled {
+		t.Error("expected lookup NOT to be called when no cookie")
+	}
+	if _, ok := GetUserContext(result.Context()); ok {
+		t.Error("expected no UserContext when no cookie")
+	}
+}
+
+func TestHandler_WithUserContext_ValidCookie(t *testing.T) {
+	lookupFn := func(userID string) (*UserContext, error) {
+		return &UserContext{UserID: userID, NavexaKey: "key-abc"}, nil
+	}
+
+	h := &Handler{userLookupFn: lookupFn}
+
+	// Build a dev JWT cookie
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"dev_user"}`))
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
+	token := header + "." + payload + "."
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+
+	result := h.withUserContext(req)
+
+	uc, ok := GetUserContext(result.Context())
+	if !ok {
+		t.Fatal("expected UserContext in context")
+	}
+	if uc.UserID != "dev_user" {
+		t.Errorf("expected UserID 'dev_user', got %q", uc.UserID)
+	}
+	if uc.NavexaKey != "key-abc" {
+		t.Errorf("expected NavexaKey 'key-abc', got %q", uc.NavexaKey)
+	}
+}
+
+func TestHandler_WithUserContext_NilLookupFn(t *testing.T) {
+	h := &Handler{userLookupFn: nil}
+
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"dev_user"}`))
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
+	token := header + "." + payload + "."
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+
+	result := h.withUserContext(req)
+
+	if _, ok := GetUserContext(result.Context()); ok {
+		t.Error("expected no UserContext when lookupFn is nil")
+	}
+}
+
+// --- Stress Tests: JWT Parsing & Hostile Inputs ---
+
+func TestExtractJWTSub_ExtraDots(t *testing.T) {
+	// A token with more than 3 segments should still parse (SplitN limits to 3)
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"user"}`))
+	token := "hdr." + payload + ".sig.extra.parts"
+	sub := extractJWTSub(token)
+	if sub != "user" {
+		t.Errorf("expected 'user' with extra dots, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_OnlyOneDot(t *testing.T) {
+	// Only one dot -> SplitN yields 2 parts, but parts[1] is not valid base64 JSON
+	sub := extractJWTSub("header.notbase64")
+	if sub != "" {
+		t.Errorf("expected empty sub for single-dot token, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_NoDots(t *testing.T) {
+	sub := extractJWTSub("nodotsatall")
+	if sub != "" {
+		t.Errorf("expected empty sub for dotless token, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_SubWithSpecialChars(t *testing.T) {
+	// Hostile sub values: SQL injection, path traversal, shell injection
+	hostile := []string{
+		"'; DROP TABLE users; --",
+		"../../etc/passwd",
+		"$(whoami)",
+		"user\nX-Evil: injected",
+		"<script>alert(1)</script>",
+		strings.Repeat("A", 10000), // very long sub
+	}
+	for _, sub := range hostile {
+		claims := map[string]string{"sub": sub}
+		claimsJSON, _ := json.Marshal(claims)
+		payload := base64.RawURLEncoding.EncodeToString(claimsJSON)
+		header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
+		token := header + "." + payload + "."
+
+		result := extractJWTSub(token)
+		if result != sub {
+			t.Errorf("expected sub %q to be extracted as-is, got %q", sub, result)
+		}
+	}
+}
+
+func TestExtractJWTSub_EmptySubClaim(t *testing.T) {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":""}`))
+	token := "hdr." + payload + "."
+	sub := extractJWTSub(token)
+	if sub != "" {
+		t.Errorf("expected empty sub for empty sub claim, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_SubIsNumber(t *testing.T) {
+	// sub is a number instead of string -- json.Unmarshal into string field yields ""
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":12345}`))
+	token := "hdr." + payload + "."
+	sub := extractJWTSub(token)
+	if sub != "" {
+		t.Errorf("expected empty sub for numeric sub claim, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_SubIsObject(t *testing.T) {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":{"evil":"data"}}`))
+	token := "hdr." + payload + "."
+	sub := extractJWTSub(token)
+	if sub != "" {
+		t.Errorf("expected empty sub for object sub claim, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_SubIsNull(t *testing.T) {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":null}`))
+	token := "hdr." + payload + "."
+	sub := extractJWTSub(token)
+	if sub != "" {
+		t.Errorf("expected empty sub for null sub claim, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_MalformedJSON(t *testing.T) {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{not json`))
+	token := "hdr." + payload + "."
+	sub := extractJWTSub(token)
+	if sub != "" {
+		t.Errorf("expected empty sub for malformed JSON, got %q", sub)
+	}
+}
+
+func TestExtractJWTSub_LargePayload(t *testing.T) {
+	// 100KB payload should not panic or OOM
+	large := `{"sub":"user","data":"` + strings.Repeat("x", 100000) + `"}`
+	payload := base64.RawURLEncoding.EncodeToString([]byte(large))
+	token := "hdr." + payload + "."
+	sub := extractJWTSub(token)
+	if sub != "user" {
+		t.Errorf("expected 'user' from large payload, got %q", sub)
+	}
+}
+
+func TestProxy_HeaderInjection_NewlinesInUserID(t *testing.T) {
+	// CRLF characters in header values are sanitized (stripped) before setting,
+	// preventing header injection while still allowing the request to succeed.
+	var receivedHeaders http.Header
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer mockServer.Close()
+
+	cfg := testConfig()
+	p := NewMCPProxy(mockServer.URL, testLogger(), cfg)
+
+	// UserID with CRLF injection attempt
+	ctx := WithUserContext(t.Context(), UserContext{
+		UserID:    "alice\r\nX-Injected: evil",
+		NavexaKey: "key\r\nX-Injected2: evil2",
+	})
+
+	_, err := p.get(ctx, "/api/version")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+
+	// Verify the injected headers are NOT present
+	if receivedHeaders.Get("X-Injected") != "" {
+		t.Error("CRLF injection succeeded: X-Injected header present on server")
+	}
+	if receivedHeaders.Get("X-Injected2") != "" {
+		t.Error("CRLF injection succeeded: X-Injected2 header present on server")
+	}
+
+	// The sanitized value should be present (newlines stripped)
+	if receivedHeaders.Get("X-Vire-User-ID") != "aliceX-Injected: evil" {
+		t.Errorf("expected sanitized X-Vire-User-ID, got %q", receivedHeaders.Get("X-Vire-User-ID"))
+	}
+}
+
+func TestSanitizeHeaderValue(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"normal", "normal"},
+		{"with\nnewline", "withnewline"},
+		{"with\r\ncrlf", "withcrlf"},
+		{"with\rcarriage", "withcarriage"},
+		{"multi\r\nline\r\nvalue", "multilinevalue"},
+		{"", ""},
+		{"no-special-chars", "no-special-chars"},
+	}
+	for _, tc := range tests {
+		got := sanitizeHeaderValue(tc.input)
+		if got != tc.expected {
+			t.Errorf("sanitizeHeaderValue(%q) = %q, want %q", tc.input, got, tc.expected)
+		}
+	}
+}
+
+func TestProxy_EmptyUserID_NoHeader(t *testing.T) {
+	var receivedHeaders http.Header
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer mockServer.Close()
+
+	cfg := testConfig()
+	p := NewMCPProxy(mockServer.URL, testLogger(), cfg)
+
+	// UserContext with empty values should NOT set headers
+	ctx := WithUserContext(t.Context(), UserContext{UserID: "", NavexaKey: ""})
+
+	_, err := p.get(ctx, "/api/version")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+
+	if receivedHeaders.Get("X-Vire-User-ID") != "" {
+		t.Error("expected no X-Vire-User-ID header for empty UserID")
+	}
+	if receivedHeaders.Get("X-Vire-Navexa-Key") != "" {
+		t.Error("expected no X-Vire-Navexa-Key header for empty NavexaKey")
+	}
+}
+
+func TestHandler_WithUserContext_LookupError(t *testing.T) {
+	lookupFn := func(userID string) (*UserContext, error) {
+		return nil, fmt.Errorf("database connection failed")
+	}
+
+	h := &Handler{userLookupFn: lookupFn}
+
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"dev_user"}`))
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
+	token := header + "." + payload + "."
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+
+	result := h.withUserContext(req)
+
+	// Should gracefully handle lookup error -- no user context, no panic
+	if _, ok := GetUserContext(result.Context()); ok {
+		t.Error("expected no UserContext when lookup returns error")
+	}
+}
+
+func TestHandler_WithUserContext_EmptyCookieValue(t *testing.T) {
+	lookupCalled := false
+	lookupFn := func(userID string) (*UserContext, error) {
+		lookupCalled = true
+		return &UserContext{UserID: userID}, nil
+	}
+
+	h := &Handler{userLookupFn: lookupFn}
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: ""})
+
+	h.withUserContext(req)
+
+	if lookupCalled {
+		t.Error("expected lookup NOT to be called for empty cookie value")
+	}
+}
+
+func TestHandler_WithUserContext_ConcurrentRequests(t *testing.T) {
+	lookupFn := func(userID string) (*UserContext, error) {
+		return &UserContext{UserID: userID, NavexaKey: "key-" + userID}, nil
+	}
+
+	h := &Handler{userLookupFn: lookupFn}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			sub := fmt.Sprintf("user_%d", n)
+			claims, _ := json.Marshal(map[string]string{"sub": sub})
+			payload := base64.RawURLEncoding.EncodeToString(claims)
+			header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
+			token := header + "." + payload + "."
+
+			req := httptest.NewRequest("POST", "/mcp", nil)
+			req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+
+			result := h.withUserContext(req)
+			uc, ok := GetUserContext(result.Context())
+			if !ok {
+				t.Errorf("expected UserContext for %s", sub)
+				return
+			}
+			if uc.UserID != sub {
+				t.Errorf("context corruption: expected %s, got %s", sub, uc.UserID)
+			}
+		}(i)
+	}
+	wg.Wait()
 }
 
 // --- Proxy Tests (unchanged from original) ---
@@ -2096,7 +2564,7 @@ func TestIntegration_CatalogToToolCall(t *testing.T) {
 	cfg.API.URL = mockServer.URL
 
 	// Create handler (fetches catalog, registers tools)
-	handler := NewHandler(cfg, testLogger())
+	handler := NewHandler(cfg, testLogger(), nil)
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
 	}

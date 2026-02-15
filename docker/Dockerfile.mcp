@@ -37,7 +37,7 @@ RUN apk --no-cache add ca-certificates wget
 COPY --from=builder /build/vire-mcp .
 
 # Copy config and version file
-COPY docker/vire-mcp.toml .
+COPY docker/vire-mcp.toml.docker ./vire-mcp.toml
 COPY .version .
 
 # Expose MCP HTTP port

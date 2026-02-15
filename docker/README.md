@@ -4,30 +4,33 @@
 
 | Service | Description | Port | Image |
 |---------|-------------|------|-------|
-| vire-portal | Go server (landing page + MCP endpoint) | 8080 | `vire-portal:latest` |
+| vire-portal | Go server (landing page + MCP endpoint) | 4241 | `vire-portal:latest` |
+| vire-mcp | Standalone MCP server (25+ tools) | 4243 | `vire-mcp:latest` |
 | vire-server | Backend API (portfolios, market data, reports) | 4242 | `ghcr.io/bobmcallan/vire-server:latest` |
 
-The portal serves the landing page and MCP endpoint at `/mcp`. All MCP tool calls are proxied to vire-server with X-Vire-* headers for user context.
+The portal serves the landing page and MCP endpoint at `/mcp`. vire-mcp is a standalone MCP server with built-in tool definitions. Both proxy tool calls to vire-server.
 
 ## Usage
 
-### Two-Service Stack (recommended)
+### Three-Service Stack (recommended)
 
 ```bash
-# Build portal and start both services (portal + vire-server)
-docker compose -f docker/docker-compose.yml up --build
+# Build and start all services in dev mode (recommended)
+./scripts/deploy.sh local
 
-# Start in background
-docker compose -f docker/docker-compose.yml up --build -d
+# Force rebuild (no cache)
+./scripts/deploy.sh local --force
 
 # View logs
-docker compose -f docker/docker-compose.yml logs -f
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml logs -f
 
-# Stop both services
-docker compose -f docker/docker-compose.yml down
+# Stop all services
+./scripts/deploy.sh down
 ```
 
-This starts vire-portal on port 8080 and vire-server on port 4242. Claude connects to `http://localhost:8080/mcp`.
+Local deploys use `docker-compose.dev.yml` as a compose overlay, which sets `VIRE_ENV=dev` to enable dev mode (dev login, etc.). The base `docker-compose.yml` is unchanged for prod-like builds.
+
+This starts vire-portal on port 4241, vire-mcp on port 4243, and vire-server on port 4242. Claude connects to `http://localhost:4241/mcp` (portal) or `http://localhost:4243/mcp` (standalone mcp).
 
 ### Portal Only
 
@@ -45,14 +48,14 @@ This starts vire-portal on port 8080 and vire-server on port 4242. Claude connec
 docker logs -f vire-portal
 
 # Health check
-curl http://localhost:8080/api/health
+curl http://localhost:4241/api/health
 ```
 
 ## Deploy Modes
 
 | Mode | Description |
 |------|-------------|
-| `local` | Build from source and run. Smart rebuild detects changes in `*.go`, `go.mod`, `go.sum`, `docker/Dockerfile`, `docker/vire-portal.toml`, `.version`. Use `--force` to bypass. |
+| `local` | Build from source and run with dev overlay (`VIRE_ENV=dev`). Smart rebuild detects changes in `*.go`, `go.mod`, `go.sum`, `docker/Dockerfile`, `docker/Dockerfile.mcp`, `docker/docker-compose.dev.yml`, `docker/vire-portal.toml`, `docker/vire-mcp.toml`, `.version`. Use `--force` to bypass. |
 | `ghcr` | Pull `ghcr.io/bobmcallan/vire-portal:latest` and run with watchtower auto-update. |
 | `down` | Stop all vire-portal containers (both local and GHCR). |
 | `prune` | Remove stopped containers, dangling images, and unused volumes. |
@@ -60,8 +63,12 @@ curl http://localhost:8080/api/health
 ## Build Script
 
 ```bash
-# Build Docker image with version injection
+# Build both Docker images with version injection
 ./scripts/build.sh
+
+# Build only one image
+./scripts/build.sh --portal    # Build only vire-portal
+./scripts/build.sh --mcp       # Build only vire-mcp
 
 # Options
 ./scripts/build.sh --verbose   # Show build output
@@ -75,7 +82,7 @@ curl http://localhost:8080/api/health
 |----------|---------|-------------|
 | `VIRE_SERVER_HOST` | `localhost` | Server bind address |
 | `VIRE_SERVER_PORT` | `8080` | Server port |
-| `VIRE_API_URL` | `http://localhost:4242` | vire-server URL for MCP proxy |
+| `VIRE_API_URL` | `http://localhost:8080` | vire-server URL for MCP proxy |
 | `VIRE_DEFAULT_PORTFOLIO` | `""` | Default portfolio name |
 | `VIRE_DISPLAY_CURRENCY` | `""` | Display currency (e.g., AUD, USD) |
 | `EODHD_API_KEY` | `""` | EODHD market data API key |
@@ -84,7 +91,8 @@ curl http://localhost:8080/api/health
 | `VIRE_BADGER_PATH` | `./data/vire` | BadgerDB storage path |
 | `VIRE_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 | `VIRE_LOG_FORMAT` | `text` | Log format (text, json) |
-| `PORTAL_PORT` | `8080` | Host port mapping (docker-compose only) |
+| `PORTAL_PORT` | `4241` | Host port mapping for portal (docker-compose only) |
+| `MCP_PORT` | `4243` | Host port mapping for MCP server (docker-compose only) |
 
 ## Versioning
 
@@ -109,11 +117,10 @@ build: 02-14-20-27-29
 
 ## GHCR Images
 
-The CI workflow publishes to GHCR:
+The CI workflow publishes both images to GHCR (matrix strategy):
 
-- `ghcr.io/bobmcallan/vire-portal:latest`
-- `ghcr.io/bobmcallan/vire-portal:<version>`
-- `ghcr.io/bobmcallan/vire-portal:<short-sha>`
+- `ghcr.io/bobmcallan/vire-portal:latest` / `:<version>` / `:<short-sha>`
+- `ghcr.io/bobmcallan/vire-mcp:latest` / `:<version>` / `:<short-sha>`
 
 Deploy from GHCR:
 

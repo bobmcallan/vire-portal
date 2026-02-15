@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VIRE — Component Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/css/portal.css">
+    <script src="static/common.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+
+<div class="page" x-data="mobileMenu()">
+
+    <!-- NAV -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="#" class="nav-brand">VIRE</a>
+            <span class="nav-title">COMPONENT PREVIEW</span>
+            <ul class="nav-links">
+                <li><a href="#" class="active">Dashboard</a></li>
+                <li><a href="#">Config</a></li>
+                <li>
+                    <div x-data="dropdown()" class="dropdown">
+                        <button @click="toggle()" class="dropdown-trigger">
+                            Menu <span class="dropdown-arrow" :class="open && 'open'">▼</span>
+                        </button>
+                        <div x-show="open" @click.outside="close()" x-transition.opacity class="dropdown-menu">
+                            <a href="#">Settings</a>
+                            <a href="#">Portfolios</a>
+                            <button>Logout</button>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+            <button @click="open()" class="nav-hamburger">
+                <span class="nav-hamburger-icon"></span>
+            </button>
+        </div>
+    </nav>
+
+    <template x-if="visible">
+        <div>
+            <div class="mobile-overlay" @click="close()"></div>
+            <div class="mobile-menu">
+                <button @click="close()" class="mobile-menu-close">✕</button>
+                <a href="#">Dashboard</a>
+                <a href="#">Config</a>
+                <a href="#">Settings</a>
+                <a href="#">Portfolios</a>
+                <a href="#">Logout</a>
+            </div>
+        </div>
+    </template>
+
+    <main class="page-body">
+
+        <h1 class="page-title">COMPONENTS</h1>
+
+        <!-- PANELS -->
+        <p class="label">PANELS</p>
+
+        <div class="panel">
+            <h2 class="section-title">BASIC PANEL</h2>
+            <p>Use <code>.panel</code></p>
+        </div>
+
+        <div class="panel-headed">
+            <div class="panel-header">HEADED PANEL</div>
+            <div class="panel-content">
+                <p><code>.panel-headed</code> &gt; <code>.panel-header</code> + <code>.panel-content</code></p>
+            </div>
+        </div>
+
+        <div x-data="collapse()" class="panel-collapse">
+            <button @click="toggle()" class="panel-collapse-trigger">
+                COLLAPSIBLE PANEL <span :style="arrow()">▼</span>
+            </button>
+            <div x-show="open" x-transition class="panel-collapse-body">
+                <p class="mt"><code>x-data="collapse()"</code> — pass <code>true</code> for start-open.</p>
+            </div>
+        </div>
+
+        <!-- GRIDS -->
+        <p class="label mt">GRIDS</p>
+
+        <div class="grid-3">
+            <div class="panel mb0">
+                <p class="label">PORTFOLIOS</p>
+                <p style="font-size:1.5rem;font-weight:700;">3</p>
+            </div>
+            <div class="panel mb0">
+                <p class="label">POSITIONS</p>
+                <p style="font-size:1.5rem;font-weight:700;">12</p>
+            </div>
+            <div class="panel mb0">
+                <p class="label">ALERTS</p>
+                <p style="font-size:1.5rem;font-weight:700;">0</p>
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <p class="label mt">TABS</p>
+
+        <div x-data="tabs('one')">
+            <div class="tabs">
+                <button class="tab" :class="isActive('one')"   @click="select('one')">Overview</button>
+                <button class="tab" :class="isActive('two')"   @click="select('two')">Positions</button>
+                <button class="tab" :class="isActive('three')" @click="select('three')">History</button>
+            </div>
+            <div x-show="current === 'one'"><div class="panel">Overview content.</div></div>
+            <div x-show="current === 'two'"><div class="panel">Positions table.</div></div>
+            <div x-show="current === 'three'"><div class="panel">Trade history.</div></div>
+        </div>
+
+        <!-- TABLE -->
+        <p class="label">TABLE</p>
+
+        <div class="panel">
+            <div class="table-wrap">
+                <table class="tool-table">
+                    <thead>
+                        <tr><th>Name</th><th>Description</th><th>Method</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="tool-name">get_portfolio</td>
+                            <td>Returns portfolio positions</td>
+                            <td class="tool-method">GET</td>
+                            <td><span class="badge badge-filled">ACTIVE</span></td>
+                        </tr>
+                        <tr>
+                            <td class="tool-name">get_price</td>
+                            <td>Current stock price</td>
+                            <td class="tool-method">GET</td>
+                            <td><span class="badge badge-filled">ACTIVE</span></td>
+                        </tr>
+                        <tr>
+                            <td class="tool-name">set_alert</td>
+                            <td>Create price alert</td>
+                            <td class="tool-method">POST</td>
+                            <td><span class="badge badge-muted">PENDING</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- FORMS -->
+        <p class="label">FORMS</p>
+
+        <div class="panel">
+            <div class="form-group">
+                <label class="form-label">API Endpoint</label>
+                <input class="form-input" type="text" value="http://localhost:4241/mcp">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Provider</label>
+                    <select class="form-select">
+                        <option>EODHD</option>
+                        <option>Yahoo Finance</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Interval</label>
+                    <select class="form-select">
+                        <option>5s</option>
+                        <option>15s</option>
+                        <option>30s</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-textarea" placeholder="Optional..."></textarea>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" @click="$dispatch('toast', { msg: 'Saved!' })">SAVE</button>
+                <button class="btn btn-secondary">CANCEL</button>
+            </div>
+        </div>
+
+        <!-- BUTTONS & BADGES -->
+        <p class="label">BUTTONS &amp; BADGES</p>
+
+        <div class="panel">
+            <div class="flex mb">
+                <button class="btn btn-primary">PRIMARY</button>
+                <button class="btn btn-secondary">SECONDARY</button>
+                <button class="btn btn-primary btn-sm">SMALL</button>
+                <button class="btn btn-secondary btn-sm">SMALL</button>
+            </div>
+            <div class="flex">
+                <span class="badge badge-filled">ACTIVE</span>
+                <span class="badge">DEFAULT</span>
+                <span class="badge badge-muted">INACTIVE</span>
+            </div>
+        </div>
+
+        <!-- CODE -->
+        <p class="label">CODE BLOCK</p>
+
+        <div class="code-block">{
+  "mcpServers": {
+    "vire": {
+      "type": "streamable-http",
+      "url": "http://localhost:4241/mcp"
+    }
+  }
+}</div>
+
+        <!-- SIDEBAR LAYOUT -->
+        <p class="label mt">SIDEBAR LAYOUT</p>
+
+        <div class="layout-sidebar">
+            <aside>
+                <nav class="sidebar-nav">
+                    <div class="sidebar-heading">General</div>
+                    <a href="#" class="active">Dashboard</a>
+                    <a href="#">Portfolios</a>
+                    <a href="#">Watchlists</a>
+                    <div class="sidebar-heading">System</div>
+                    <a href="#">MCP Config</a>
+                    <a href="#">Settings</a>
+                </nav>
+            </aside>
+            <div class="panel mb0">
+                <p>Main content next to sidebar. Use <code>.layout-sidebar</code></p>
+            </div>
+        </div>
+
+        <!-- TOASTS -->
+        <p class="label mt">TOAST NOTIFICATIONS</p>
+
+        <div class="flex">
+            <button class="btn btn-primary" @click="$dispatch('toast', { msg: 'Settings saved.' })">LIGHT TOAST</button>
+            <button class="btn btn-secondary" @click="$dispatch('toast', { msg: 'Connection lost.', dark: true })">DARK TOAST</button>
+        </div>
+
+    </main>
+
+    <!-- FOOTER + TOASTS -->
+    <div x-data="toasts()" @toast.window="add($event.detail)" class="toast-container">
+        <template x-for="t in list" :key="t.id">
+            <div class="toast" :class="t.dark && 'toast-dark'" x-text="t.msg"></div>
+        </template>
+    </div>
+
+    <footer class="footer">
+        <div class="footer-inner">
+            <span class="footer-text">VIRE</span>
+            <span class="footer-text"><a href="#">GitHub</a></span>
+        </div>
+    </footer>
+
+</div>
+
+</body>
+</html>

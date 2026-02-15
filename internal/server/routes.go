@@ -18,8 +18,13 @@ func (s *Server) setupRoutes() *http.ServeMux {
 		mux.Handle("/mcp", s.app.MCPHandler)
 	}
 
+	// Settings page
+	mux.HandleFunc("GET /settings", s.app.SettingsHandler.HandleSettings)
+	mux.HandleFunc("POST /settings", s.app.SettingsHandler.HandleSaveSettings)
+
 	// Auth routes
 	mux.HandleFunc("POST /api/auth/dev", s.app.AuthHandler.HandleDevLogin)
+	mux.HandleFunc("POST /api/auth/logout", s.app.AuthHandler.HandleLogout)
 
 	// API routes
 	mux.HandleFunc("/api/health", s.app.HealthHandler.ServeHTTP)

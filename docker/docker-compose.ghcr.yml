@@ -1,4 +1,4 @@
-name: vire-portal
+name: vire
 
 services:
   vire-portal:
@@ -6,11 +6,10 @@ services:
     pull_policy: always
     container_name: vire-portal
     ports:
-      - "${PORTAL_PORT:-4241}:4241"
+      - "${PORTAL_PORT:-4241}:8080"
     environment:
       - VIRE_SERVER_HOST=0.0.0.0
-      - VIRE_SERVER_PORT=4241
-      - VIRE_API_URL=${VIRE_API_URL:-http://vire-server:4242}
+      - VIRE_API_URL=${VIRE_API_URL:-http://vire-server:8080}
       - VIRE_BADGER_PATH=/app/data/vire
       - VIRE_LOG_LEVEL=info
     volumes:
@@ -19,7 +18,7 @@ services:
       vire-server:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4241/api/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -32,16 +31,16 @@ services:
     pull_policy: always
     container_name: vire-mcp
     ports:
-      - "${MCP_PORT:-4243}:4243"
+      - "${MCP_PORT:-4243}:8080"
     environment:
-      - VIRE_SERVER_URL=http://vire-server:4242
-      - VIRE_MCP_PORT=4243
+      - VIRE_SERVER_URL=http://vire-server:8080
+      - VIRE_MCP_PORT=8080
       - VIRE_LOG_LEVEL=info
     depends_on:
       vire-server:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget --timeout=2 --method=POST -qO /dev/null http://localhost:4243/mcp 2>&1 || [ $? -eq 8 ]"]
+      test: ["CMD-SHELL", "wget --timeout=2 --method=POST -qO /dev/null http://localhost:8080/mcp 2>&1 || [ $? -eq 8 ]"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -54,11 +53,11 @@ services:
     pull_policy: always
     container_name: vire-server
     ports:
-      - "4242:4242"
+      - "4242:8080"
     volumes:
       - vire-data:/app/data
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4242/api/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -25,7 +25,7 @@ func NewAuthHandler(logger *common.Logger, devMode bool) *AuthHandler {
 }
 
 // HandleDevLogin handles the dev-mode login shortcut.
-// In dev mode, it sets a session cookie with a dev JWT and redirects to /.
+// In dev mode, it sets a session cookie with a dev JWT and redirects to /dashboard.
 // In prod mode, it returns 404.
 func (h *AuthHandler) HandleDevLogin(w http.ResponseWriter, r *http.Request) {
 	if !h.devMode {
@@ -43,6 +43,18 @@ func (h *AuthHandler) HandleDevLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
+	http.Redirect(w, r, "/dashboard", http.StatusFound)
+}
+
+// HandleLogout clears the session cookie and redirects to the landing page.
+func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "vire_session",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 

@@ -52,6 +52,7 @@ if [[ -f "$VERSION_FILE" ]]; then
     VERSION=$(grep "^version:" "$VERSION_FILE" | sed 's/version:\s*//' | tr -d ' ')
     # Note: local builds use MM-DD-HH-MM-SS format; CI uses YYYYMMDDHHmmss (intentional difference)
     BUILD_TS=$(date +"%m-%d-%H-%M-%S")
+    sed -i "s/^build:.*/build: $BUILD_TS/" "$VERSION_FILE"
 fi
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 CONTRIBUTOR=$(git config user.email 2>/dev/null || echo "unknown")

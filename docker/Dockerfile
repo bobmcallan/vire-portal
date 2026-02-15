@@ -48,7 +48,7 @@ RUN mkdir -p /app/data /app/logs
 # Default to prod mode — prevents accidental dev mode in containers
 ENV VIRE_ENV=prod
 
-EXPOSE 4241
+EXPOSE 8080
 
 HEALTHCHECK NONE
 

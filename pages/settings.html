@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{template "head.html" .}}
+    <title>VIRE SETTINGS</title>
+</head>
+<body>
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+    <main class="dashboard">
+        <div class="dashboard-inner">
+            <h1 class="dashboard-title">SETTINGS</h1>
+
+            {{if .Saved}}
+            <div class="success-banner">Settings saved successfully.</div>
+            {{end}}
+
+            {{if .LoggedIn}}
+            <section class="dashboard-section">
+                <h2 class="section-title">NAVEXA API KEY</h2>
+                {{if .NavexaKeySet}}
+                <p class="settings-key-status">Current key: <code>****{{.NavexaKeyPreview}}</code></p>
+                {{else}}
+                <p class="settings-key-status settings-key-missing">No API key configured.</p>
+                {{end}}
+                <form method="POST" action="/settings">
+                    <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+                    <div class="form-group">
+                        <label for="navexa_key" class="form-label">{{if .NavexaKeySet}}NEW KEY{{else}}API KEY{{end}}</label>
+                        <input type="password" id="navexa_key" name="navexa_key" class="form-input"
+                               placeholder="Enter your Navexa API key">
+                    </div>
+                    <button type="submit" class="btn btn-primary">SAVE</button>
+                </form>
+            </section>
+            {{else}}
+            <section class="dashboard-section">
+                <p>Please <a href="/">sign in</a> to manage your settings.</p>
+            </section>
+            {{end}}
+        </div>
+    </main>
+    {{template "footer.html" .}}
+</body>
+</html>

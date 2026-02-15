@@ -36,6 +36,7 @@ for f in \
     "scripts/deploy.sh" \
     "scripts/build.sh" \
     "docker/docker-compose.yml" \
+    "docker/docker-compose.dev.yml" \
     "docker/docker-compose.ghcr.yml" \
     "docker/vire-portal.toml" \
     "docker/vire-mcp.toml" \
@@ -235,11 +236,24 @@ if [ -f "$DEPLOY" ]; then
         fail "deploy.sh missing docker-compose.ghcr.yml reference"
     fi
 
+    if grep -q 'docker-compose.dev.yml' "$DEPLOY"; then
+        pass "deploy.sh references docker-compose.dev.yml"
+    else
+        fail "deploy.sh missing docker-compose.dev.yml reference"
+    fi
+
     # Check smart rebuild sentinel
     if grep -q '\.last_build' "$DEPLOY"; then
         pass "deploy.sh uses .last_build sentinel"
     else
         fail "deploy.sh missing .last_build sentinel"
+    fi
+
+    # Smart rebuild checks docker-compose.dev.yml
+    if awk '/Smart rebuild/,/Images built/' "$DEPLOY" | grep -q 'docker-compose.dev.yml'; then
+        pass "deploy.sh smart rebuild checks docker-compose.dev.yml for changes"
+    else
+        fail "deploy.sh smart rebuild should include docker-compose.dev.yml in change detection"
     fi
 
     # Smart rebuild checks Go files
@@ -593,6 +607,48 @@ if [ -f "$GHCR_COMPOSE" ]; then
     fi
 else
     fail "docker/docker-compose.ghcr.yml not found"
+fi
+
+# ---------------------------------------------------------------------------
+# 8b. docker-compose.dev.yml validation
+# ---------------------------------------------------------------------------
+section "docker-compose.dev.yml"
+
+DEV_COMPOSE="$PROJECT_DIR/docker/docker-compose.dev.yml"
+if [ -f "$DEV_COMPOSE" ]; then
+    # Check VIRE_ENV=dev override
+    if grep -q 'VIRE_ENV=dev' "$DEV_COMPOSE"; then
+        pass "docker-compose.dev.yml sets VIRE_ENV=dev"
+    else
+        fail "docker-compose.dev.yml missing VIRE_ENV=dev"
+    fi
+
+    # Check vire-portal service
+    if grep -q 'vire-portal:' "$DEV_COMPOSE"; then
+        pass "docker-compose.dev.yml has vire-portal service"
+    else
+        fail "docker-compose.dev.yml missing vire-portal service"
+    fi
+
+    # Validate with docker compose config
+    if command -v docker &>/dev/null; then
+        if docker compose -f "$LOCAL_COMPOSE" -f "$DEV_COMPOSE" config --quiet 2>/dev/null; then
+            pass "docker-compose.dev.yml passes merged config validation"
+        else
+            fail "docker-compose.dev.yml fails merged config validation"
+        fi
+
+        # Verify merged output includes VIRE_ENV: dev (YAML format in config output)
+        if docker compose -f "$LOCAL_COMPOSE" -f "$DEV_COMPOSE" config 2>/dev/null | grep -qE 'VIRE_ENV.*dev'; then
+            pass "Merged compose config includes VIRE_ENV=dev"
+        else
+            fail "Merged compose config missing VIRE_ENV=dev"
+        fi
+    else
+        echo "  SKIP: docker not available for compose config validation"
+    fi
+else
+    fail "docker/docker-compose.dev.yml not found"
 fi
 
 # ---------------------------------------------------------------------------

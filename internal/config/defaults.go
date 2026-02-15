@@ -9,7 +9,7 @@ func NewDefaultConfig() *Config {
 			Host: "localhost",
 		},
 		API: APIConfig{
-			URL: "http://localhost:4242",
+			URL: "http://localhost:8080",
 		},
 		User: UserConfig{
 			Portfolios:      []string{},

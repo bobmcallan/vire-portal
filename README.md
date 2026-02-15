@@ -4,7 +4,7 @@ Web application and MCP server for the Vire investment platform. Hosts a landing
 
 The portal is a Go server that renders HTML templates with Alpine.js for interactivity and provides an MCP (Model Context Protocol) endpoint for Claude and other MCP clients. It proxies tool calls to vire-server, injecting X-Vire-* headers for user context. Served from a Docker container alongside vire-server.
 
-> **Repository layout:** This repo contains the portal server code. The Docker image (`ghcr.io/bobmcallan/vire-portal:latest`) runs alongside `ghcr.io/bobmcallan/vire-server:latest` in a two-service Docker Compose stack. Portal infrastructure (Cloud Run deployment) is managed by [vire-infra](https://github.com/bobmcallan/vire-infra) Terraform (`infra/modules/portal/`).
+> **Repository layout:** This repo contains the portal server and MCP server code. The Docker images (`ghcr.io/bobmcallan/vire-portal:latest` and `ghcr.io/bobmcallan/vire-mcp:latest`) run alongside `ghcr.io/bobmcallan/vire-server:latest` in a three-service Docker Compose stack. Portal infrastructure (Cloud Run deployment) is managed by [vire-infra](https://github.com/bobmcallan/vire-infra) Terraform (`infra/modules/portal/`).
 
 ## Tech Stack
 
@@ -27,7 +27,10 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP transport, dynamic tools) |
 | `GET /api/health` | HealthHandler | No | Health check (`{"status":"ok"}`) |
 | `GET /api/version` | VersionHandler | No | Version info (JSON) |
-| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (creates session, redirects to `/`; 404 in prod) |
+| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (creates session, redirects to `/dashboard`; 404 in prod) |
+| `POST /api/auth/logout` | AuthHandler | No | Clears session cookie, redirects to `/` |
+| `GET /settings` | SettingsHandler | No | Settings page (Navexa API key management) |
+| `POST /settings` | SettingsHandler | No | Save settings (requires session cookie) |
 
 ## Prerequisites
 
@@ -58,14 +61,14 @@ go test -v ./...
 go vet ./...
 ```
 
-The server runs on `http://localhost:4241` by default.
+The server runs on `http://localhost:8080` by default (Docker local dev overrides to 4241 via `docker/vire-portal.toml`).
 
 ## Dev Mode
 
 Set `environment = "dev"` in the TOML config or `VIRE_ENV=dev` as an environment variable to enable dev mode. This adds:
 
 - A "DEV LOGIN" button on the landing page that bypasses OAuth
-- `POST /api/auth/dev` endpoint that creates a minimal HS256 JWT session for `bobmcallan@gmail.com` and sets an httpOnly `vire_session` cookie
+- `POST /api/auth/dev` endpoint that creates a minimal unsigned JWT session for `bobmcallan@gmail.com` and sets an httpOnly `vire_session` cookie
 - All other functionality remains identical to prod
 
 Dev mode is disabled by default (`environment = "prod"`). The `POST /api/auth/dev` route returns 404 when not in dev mode.
@@ -100,7 +103,7 @@ Configuration priority (highest wins): CLI flags > environment variables > TOML 
 |---------|----------|---------------------|----------|---------|
 | Server port | `server.port` | `VIRE_SERVER_PORT` | `-port`, `-p` | `8080` |
 | Server host | `server.host` | `VIRE_SERVER_HOST` | `-host` | `localhost` |
-| API URL | `api.url` | `VIRE_API_URL` | -- | `http://localhost:4242` |
+| API URL | `api.url` | `VIRE_API_URL` | -- | `http://localhost:8080` |
 | Portfolios | `user.portfolios` | `VIRE_DEFAULT_PORTFOLIO` | -- | `[]` |
 | Display currency | `user.display_currency` | `VIRE_DISPLAY_CURRENCY` | -- | `""` |
 | Import users | `import.users` | -- | -- | `false` |
@@ -129,13 +132,13 @@ Claude / MCP Client
   |
   | POST /mcp (Streamable HTTP)
   v
-vire-portal (:4241)
+vire-portal (:8080)
   |  internal/mcp/ package
   |  - Dynamic tool catalog from GET /api/mcp/tools
   |  - Generic proxy handler (path/query/body params)
   |  - X-Vire-* header injection from config
   v
-vire-server (:4242)
+vire-server (:8080)
 ```
 
 At startup, the portal fetches the tool catalog from vire-server's `GET /api/mcp/tools` endpoint with retry (3 attempts, 2s backoff). Each catalog entry defines the tool name, description, HTTP method, URL path template, and parameters. The portal validates each entry (non-empty name/method/path, method whitelist, `/api/` path prefix, no path traversal) and skips duplicates. Valid tools are dynamically registered as MCP tools and routed to the appropriate REST endpoints. If vire-server is unreachable after all retries, the portal starts with 0 tools (non-fatal).
@@ -163,12 +166,16 @@ Tools are registered dynamically from vire-server's `GET /api/mcp/tools` catalog
 
 ### X-Vire-* Headers
 
-The proxy injects these headers on every request to vire-server, built from config:
+The proxy injects these headers on every request to vire-server:
 
-| Header | Config Source | Description |
-|--------|-------------|-------------|
-| `X-Vire-Portfolios` | `user.portfolios` | Comma-separated portfolio names |
-| `X-Vire-Display-Currency` | `user.display_currency` | Currency for display values |
+| Header | Source | Description |
+|--------|--------|-------------|
+| `X-Vire-Portfolios` | Config (`user.portfolios`) | Comma-separated portfolio names |
+| `X-Vire-Display-Currency` | Config (`user.display_currency`) | Currency for display values |
+| `X-Vire-User-ID` | Session cookie (per-request) | Username from JWT sub claim |
+| `X-Vire-Navexa-Key` | User record (per-request) | Navexa API key for the user |
+
+Static headers are set from config on every request. Per-request headers are set when a `vire_session` cookie is present -- the handler decodes the JWT sub claim, looks up the user in BadgerDB, and injects their identity and API key.
 
 ## Authentication Flow
 
@@ -637,14 +644,14 @@ COPY --from=builder /build/docker/vire-portal.toml .
 COPY --from=builder /build/data ./seed
 COPY .version .
 RUN mkdir -p /app/data /app/logs
-EXPOSE 4241
+EXPOSE 8080
 HEALTHCHECK NONE
 ENTRYPOINT ["./vire-portal"]
 ```
 
 ## GitHub Actions Workflow
 
-`.github/workflows/release.yml` builds and pushes the Docker image to GHCR on push to main or version tags:
+`.github/workflows/release.yml` builds and pushes Docker images for both vire-portal and vire-mcp to GHCR on push to main or version tags (matrix strategy):
 
 - Extracts version from `.version` file
 - Passes VERSION, BUILD, GIT_COMMIT as Docker build args
@@ -712,15 +719,17 @@ vire-portal/
 │   │   ├── version.go               # Version info (ldflags + .version file)
 │   │   └── version_test.go
 │   ├── handlers/
-│   │   ├── auth.go                  # POST /api/auth/dev (dev-only login)
+│   │   ├── auth.go                  # POST /api/auth/dev (dev-only login), POST /api/auth/logout
 │   │   ├── dashboard.go             # GET /dashboard (MCP config, tools, config status)
 │   │   ├── handlers_test.go
 │   │   ├── health.go                # GET /api/health
 │   │   ├── helpers.go               # WriteJSON, RequireMethod, WriteError
 │   │   ├── landing.go               # PageHandler (template rendering + static file serving)
+│   │   ├── settings.go              # GET/POST /settings (Navexa API key management)
 │   │   └── version.go               # GET /api/version
 │   ├── mcp/
 │   │   ├── catalog.go               # Dynamic tool catalog types, FetchCatalog, BuildMCPTool, GenericToolHandler
+│   │   ├── context.go               # UserContext (per-request user identity for proxy headers)
 │   │   ├── handler.go               # MCP HTTP handler (mcp-go StreamableHTTPServer, catalog fetch at startup)
 │   │   ├── handlers.go              # errorResult helper, resolvePortfolio
 │   │   ├── mcp_test.go              # 81 tests: catalog, validation, tools, handlers, proxy, integration
@@ -732,7 +741,7 @@ vire-portal/
 │   ├── interfaces/
 │   │   └── storage.go               # StorageManager + KeyValueStorage interfaces
 │   ├── models/
-│   │   └── user.go                  # User model (username, email, password, role)
+│   │   └── user.go                  # User model (username, email, password, role, navexa_key)
 │   ├── server/
 │   │   ├── middleware.go             # Correlation ID, logging, CORS, recovery
 │   │   ├── middleware_test.go
@@ -755,6 +764,7 @@ vire-portal/
 ├── pages/
 │   ├── dashboard.html                # Dashboard page (MCP config, tools, config status)
 │   ├── landing.html                  # Landing page (Go html/template)
+│   ├── settings.html                 # Settings page (Navexa API key management)
 │   ├── partials/
 │   │   ├── head.html                 # HTML head (IBM Plex Mono, Alpine.js CDN)
 │   │   ├── nav.html                  # Navigation bar
@@ -762,13 +772,14 @@ vire-portal/
 │   └── static/
 │       ├── css/
 │       │   └── portal.css            # 80s B&W aesthetic (no border-radius, no box-shadow)
-│       └── common.js                 # Alpine.js component skeleton
+│       └── common.js                 # Client logging (debugLog, debugError) + Alpine.js init
 ├── data/
 │   └── users.json                   # Seed users for import (dev, admin)
 ├── docker/
 │   ├── Dockerfile                    # Portal multi-stage build (golang:1.25 -> alpine)
 │   ├── Dockerfile.mcp               # MCP multi-stage build (golang:1.25 -> alpine)
 │   ├── docker-compose.yml            # 3-service stack: portal + mcp + vire-server
+│   ├── docker-compose.dev.yml        # Dev overlay (VIRE_ENV=dev, used by deploy.sh local)
 │   ├── docker-compose.ghcr.yml       # GHCR pull + watchtower auto-update
 │   ├── vire-portal.toml              # Portal configuration
 │   ├── vire-mcp.toml                 # MCP configuration (local)
@@ -794,23 +805,23 @@ vire-portal/
 
 The project includes deployment scripts matching the [vire](https://github.com/bobmcallan/vire) project patterns. See `docker/README.md` for full details.
 
-### Two-Service Stack (portal + vire-server)
+### Three-Service Stack (portal + mcp + vire-server)
 
-The recommended deployment runs both services together via docker-compose:
+The recommended deployment runs all three services together via docker-compose:
 
 ```bash
-# Build portal and start both services
-docker compose -f docker/docker-compose.yml up --build
-
-# Or use the deploy script
+# Build portal + mcp and start all services (uses dev compose overlay)
 ./scripts/deploy.sh local
 ```
 
 This starts:
-- **vire-portal** on port 4241 -- landing page + MCP endpoint
+- **vire-portal** on port 4241 -- landing page + MCP endpoint (dev mode)
+- **vire-mcp** on port 4243 -- standalone MCP server (proxies to vire-server)
 - **vire-server** on port 4242 -- backend API (pulled from GHCR)
 
-The portal connects to vire-server via `VIRE_API_URL=http://vire-server:4242` (Docker internal network). Claude connects to `http://localhost:4241/mcp`.
+Local deploys automatically use `docker-compose.dev.yml` as a compose overlay, which sets `VIRE_ENV=dev` to enable dev mode (dev login, etc.). The base `docker-compose.yml` stays unchanged for prod-like builds.
+
+The portal connects to vire-server via `VIRE_API_URL=http://vire-server:8080` (Docker internal network). Claude connects to `http://localhost:4241/mcp` (portal) or `http://localhost:4243/mcp` (standalone mcp).
 
 ### Portal Only
 
@@ -851,9 +862,9 @@ Or use docker directly:
 docker build -f docker/Dockerfile -t vire-portal:latest .
 
 # Run on host port 4241
-docker run -p 4241:4241 \
+docker run -p 4241:8080 \
   -e VIRE_SERVER_HOST=0.0.0.0 \
-  -e VIRE_API_URL=http://host.docker.internal:4242 \
+  -e VIRE_API_URL=http://host.docker.internal:8080 \
   -v portal-data:/app/data \
   vire-portal:latest
 ```
@@ -916,32 +927,32 @@ The vire-infra Terraform references `ghcr.io/bobmcallan/vire-portal:latest`. Aft
 
 ## Architecture Context
 
-The portal runs alongside vire-server in a two-service Docker Compose stack:
+The portal and MCP server run alongside vire-server in a three-service Docker Compose stack:
 
 ```
      ┌───────────────┐    ┌──────────────────┐
      │     User      │    │  Claude / MCP     │
      │   (browser)   │    │     Client        │
-     └───────┬───────┘    └────────┬──────────┘
-             │ GET /               │ POST /mcp
-             │                     │
-    ┌────────┴─────────────────────┴──────────┐
-    │  vire-portal (:4241)   (this repo)      │
-    │  - Landing page (html/template)         │
-    │  - MCP endpoint (mcp-go, dynamic tools) │
-    │  - Proxy with X-Vire-* header injection │
-    └────────────────────┬────────────────────┘
-                         │ REST API proxy
-                         │
-    ┌────────────────────┴────────────────────┐
-    │  vire-server (:4242)                    │
-    │  - Portfolio analysis, market data      │
-    │  - Report generation, stock screening   │
-    │  - Strategy and plan management         │
-    └─────────────────────────────────────────┘
+     └───────┬───────┘    └──┬────────────┬───┘
+             │ GET /         │ POST /mcp  │ POST /mcp
+             │               │            │
+    ┌────────┴───────────────┴──┐    ┌────┴────────────────────────┐
+    │  vire-portal (:4241)      │    │  vire-mcp (:4243)           │
+    │  - Landing page           │    │  - Standalone MCP server    │
+    │  - MCP endpoint (dynamic) │    │  - 25+ tools (stdio + HTTP) │
+    │  - X-Vire-* headers       │    │  - Direct vire-server proxy │
+    └────────────┬──────────────┘    └──────────────┬──────────────┘
+                 │ REST API proxy                   │
+                 │                                  │
+    ┌────────────┴──────────────────────────────────┴──┐
+    │  vire-server (:8080)                               │
+    │  - Portfolio analysis, market data               │
+    │  - Report generation, stock screening            │
+    │  - Strategy and plan management                  │
+    └──────────────────────────────────────────────────┘
 ```
 
-The portal proxies all MCP tool calls to vire-server, injecting X-Vire-* headers for user context (portfolios, display currency). For future multi-user cloud deployment, the portal will also integrate with vire-gateway for OAuth and user management.
+Both the portal and vire-mcp proxy tool calls to vire-server. The portal uses dynamic tool registration from the vire-server catalog and injects X-Vire-* headers for user context. vire-mcp is a standalone MCP server with built-in tool definitions. For future multi-user cloud deployment, the portal will also integrate with vire-gateway for OAuth and user management.
 
 ## License
 

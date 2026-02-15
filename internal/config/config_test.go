@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -236,8 +237,8 @@ func TestApplyFlagOverrides_ZeroPortNoOverride(t *testing.T) {
 func TestNewDefaultConfig_APIDefaults(t *testing.T) {
 	cfg := NewDefaultConfig()
 
-	if cfg.API.URL != "http://localhost:4242" {
-		t.Errorf("expected default API URL http://localhost:4242, got %s", cfg.API.URL)
+	if cfg.API.URL != "http://localhost:8080" {
+		t.Errorf("expected default API URL http://localhost:8080, got %s", cfg.API.URL)
 	}
 }
 
@@ -591,5 +592,157 @@ port = 3000
 	// Env should override file value
 	if cfg.Server.Port != 5555 {
 		t.Errorf("expected env override port 5555, got %d", cfg.Server.Port)
+	}
+}
+
+// --- Port Default Stress Tests ---
+
+func TestNewDefaultConfig_APIDefaultMatchesServerPort(t *testing.T) {
+	// After the port migration, both server and API defaults should be 8080.
+	// This prevents confusion when running locally without Docker.
+	cfg := NewDefaultConfig()
+
+	if cfg.Server.Port != 8080 {
+		t.Errorf("expected default server port 8080, got %d", cfg.Server.Port)
+	}
+	if cfg.API.URL != "http://localhost:8080" {
+		t.Errorf("expected default API URL http://localhost:8080, got %s", cfg.API.URL)
+	}
+}
+
+func TestApplyEnvOverrides_LegacyServerPort4241(t *testing.T) {
+	// Edge case: If VIRE_SERVER_PORT is still set to 4241 (old default),
+	// the server should use it as an override. Verify it works.
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_SERVER_PORT", "4241")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.Server.Port != 4241 {
+		t.Errorf("expected overridden port 4241, got %d", cfg.Server.Port)
+	}
+	// API URL should remain at 8080 unless explicitly overridden
+	if cfg.API.URL != "http://localhost:8080" {
+		t.Errorf("expected API URL unchanged at http://localhost:8080, got %s", cfg.API.URL)
+	}
+}
+
+func TestApplyEnvOverrides_PortBoundaryValues(t *testing.T) {
+	// Verify boundary port values don't crash
+	tests := []struct {
+		envVal   string
+		expected int
+	}{
+		{"0", 0},
+		{"1", 1},
+		{"65535", 65535},
+		{"65536", 65536}, // technically invalid but should still parse
+		{"-1", -1},       // negative, should still parse
+	}
+
+	for _, tc := range tests {
+		t.Run("port_"+tc.envVal, func(t *testing.T) {
+			cfg := NewDefaultConfig()
+			t.Setenv("VIRE_SERVER_PORT", tc.envVal)
+			applyEnvOverrides(cfg)
+			if cfg.Server.Port != tc.expected {
+				t.Errorf("expected port %d for env %q, got %d", tc.expected, tc.envVal, cfg.Server.Port)
+			}
+		})
+	}
+}
+
+func TestApplyEnvOverrides_HostilePortValues(t *testing.T) {
+	// Verify hostile env var values for port are safely ignored.
+	hostileValues := []string{
+		"not-a-number",
+		"",
+		"8080; rm -rf /",
+		"8080\n9090",
+		"99999999999999999999", // overflow
+		"  8080  ",             // whitespace
+	}
+
+	for _, hostile := range hostileValues {
+		t.Run("hostile_port_"+hostile, func(t *testing.T) {
+			cfg := NewDefaultConfig()
+			t.Setenv("VIRE_SERVER_PORT", hostile)
+			applyEnvOverrides(cfg)
+			// Should either keep default or parse the numeric portion
+			// The point is: must not panic
+		})
+	}
+}
+
+func TestDockerComposeProjectName(t *testing.T) {
+	// Verify docker-compose.yml uses "vire-portal" project name, not "vire".
+	// Using "vire" causes --remove-orphans to kill vire-server containers.
+	composePath := filepath.Join("..", "..", "docker", "docker-compose.yml")
+	data, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Skipf("could not read docker-compose.yml: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "name: vire-portal") {
+		t.Error("docker-compose.yml must use 'name: vire-portal' to prevent cross-service interference")
+	}
+	// Should NOT use bare "name: vire" which would conflict
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "name: vire" {
+			t.Error("docker-compose.yml must NOT use 'name: vire' — conflicts with vire-server project")
+		}
+	}
+}
+
+func TestDockerfileExposePort(t *testing.T) {
+	// Verify Dockerfile EXPOSEs 8080, not 4241.
+	dockerfilePath := filepath.Join("..", "..", "docker", "Dockerfile")
+	data, err := os.ReadFile(dockerfilePath)
+	if err != nil {
+		t.Skipf("could not read Dockerfile: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "EXPOSE 8080") {
+		t.Error("Dockerfile should EXPOSE 8080 (internal default port)")
+	}
+	if strings.Contains(content, "EXPOSE 4241") {
+		t.Error("Dockerfile should NOT EXPOSE 4241 — internal port is now 8080")
+	}
+}
+
+func TestDockerComposeHealthcheck(t *testing.T) {
+	// Verify healthcheck URL uses internal port 8080, not external port.
+	composePath := filepath.Join("..", "..", "docker", "docker-compose.yml")
+	data, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Skipf("could not read docker-compose.yml: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "localhost:8080/api/health") {
+		t.Error("docker-compose healthcheck must use internal port 8080")
+	}
+	if strings.Contains(content, "localhost:4241/api/health") {
+		t.Error("docker-compose healthcheck must NOT use old port 4241")
+	}
+}
+
+func TestDockerComposeNoServerPortEnv(t *testing.T) {
+	// Verify docker-compose.yml does NOT set VIRE_SERVER_PORT.
+	// The Go default is already 8080, so setting it is unnecessary and confusing.
+	composePath := filepath.Join("..", "..", "docker", "docker-compose.yml")
+	data, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Skipf("could not read docker-compose.yml: %v", err)
+	}
+	content := string(data)
+
+	if strings.Contains(content, "VIRE_SERVER_PORT") {
+		t.Error("docker-compose.yml should NOT set VIRE_SERVER_PORT — Go default is already 8080")
 	}
 }

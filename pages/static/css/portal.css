@@ -1,8 +1,14 @@
-/* VIRE Portal - 80s B&W Terminal Aesthetic
+/* VIRE Portal - Component Library
  * Font: IBM Plex Mono
  * Colors: #000, #fff, #888 only
  * No border-radius, no box-shadow
  */
+
+[x-cloak] {
+    display: none !important;
+}
+
+/* === RESET === */
 
 * {
     border-radius: 0 !important;
@@ -17,6 +23,7 @@ body {
     background: #fff;
     color: #000;
     line-height: 1.6;
+    font-size: 0.875rem;
 }
 
 ::selection {
@@ -38,16 +45,68 @@ a:hover {
     color: #888;
 }
 
-/* Navigation */
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+
+.page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.page-body {
+    flex: 1;
+    max-width: 64rem;
+    margin: 0 auto;
+    width: 100%;
+    padding: 2rem 1.5rem;
+}
+
+.page-body-fluid {
+    flex: 1;
+    width: 100%;
+    padding: 2rem 1.5rem;
+}
+
+/* Sidebar + main layout */
+.layout-sidebar {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 2rem;
+}
+
+/* Grids */
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+
+@media (max-width: 48rem) {
+    .layout-sidebar { grid-template-columns: 1fr; }
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
+
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
 
 .nav {
     border-bottom: 2px solid #000;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #fff;
 }
 
 .nav-inner {
     max-width: 64rem;
     margin: 0 auto;
-    padding: 1rem 1.5rem;
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .nav-brand {
@@ -57,7 +116,696 @@ a:hover {
     letter-spacing: 0.1em;
 }
 
-/* Landing Page */
+.nav-title {
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    color: #888;
+    text-transform: uppercase;
+}
+
+/* Desktop links */
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    list-style: none;
+}
+
+.nav-links a {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: #000;
+    padding: 0.25rem 0;
+    border-bottom: 2px solid transparent;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+    border-bottom-color: #000;
+    color: #000;
+}
+
+/* Hamburger */
+.nav-hamburger {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+}
+
+.nav-hamburger-icon {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: #000;
+    position: relative;
+}
+
+.nav-hamburger-icon::before,
+.nav-hamburger-icon::after {
+    content: '';
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: #000;
+    position: absolute;
+    left: 0;
+}
+
+.nav-hamburger-icon::before { top: -6px; }
+.nav-hamburger-icon::after  { top:  6px; }
+
+@media (max-width: 48rem) {
+    .nav-hamburger { display: block; }
+    .nav-links     { display: none; }
+    .nav-title     { display: none; }
+}
+
+
+/* ============================================================
+   MOBILE MENU
+   ============================================================ */
+
+.mobile-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.25);
+    z-index: 299;
+}
+
+.mobile-menu {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 260px;
+    height: 100vh;
+    background: #fff;
+    border-left: 2px solid #000;
+    z-index: 300;
+    padding: 1.5rem;
+}
+
+.mobile-menu-close {
+    display: block;
+    background: none;
+    border: none;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 1.25rem;
+    cursor: pointer;
+    margin-bottom: 1.5rem;
+}
+
+.mobile-menu a {
+    display: block;
+    padding: 0.6rem 0;
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: #000;
+    border-bottom: 1px solid #888;
+}
+
+
+/* ============================================================
+   DROPDOWN
+   ============================================================ */
+
+.dropdown {
+    position: relative;
+}
+
+.dropdown-trigger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.dropdown-arrow {
+    font-size: 0.55rem;
+    transition: transform 0.15s;
+}
+
+.dropdown-arrow.open {
+    transform: rotate(180deg);
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    min-width: 160px;
+    background: #fff;
+    border: 2px solid #000;
+    z-index: 200;
+}
+
+.dropdown-menu a,
+.dropdown-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: #000;
+    background: none;
+    border: none;
+    border-bottom: 1px solid #888;
+    cursor: pointer;
+}
+
+.dropdown-menu a:last-child,
+.dropdown-menu button:last-child {
+    border-bottom: none;
+}
+
+.dropdown-menu a:hover,
+.dropdown-menu button:hover {
+    background: #000;
+    color: #fff;
+}
+
+
+/* ============================================================
+   SIDEBAR NAV
+   ============================================================ */
+
+.sidebar-heading {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #888;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.75rem;
+}
+
+.sidebar-heading:first-child {
+    margin-top: 0;
+}
+
+.sidebar-nav a {
+    display: block;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    text-decoration: none;
+    color: #000;
+    border-left: 3px solid transparent;
+}
+
+.sidebar-nav a:hover {
+    background: #000;
+    color: #fff;
+}
+
+.sidebar-nav a.active {
+    border-left-color: #000;
+    font-weight: 700;
+}
+
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+
+.page-title {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    margin-bottom: 2rem;
+}
+
+.section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    margin-bottom: 1.5rem;
+}
+
+.label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #888;
+    margin-bottom: 0.5rem;
+}
+
+.text-muted {
+    color: #888;
+}
+
+.text-sm {
+    font-size: 0.8125rem;
+}
+
+.text-bold {
+    font-weight: 700;
+}
+
+
+/* ============================================================
+   PANELS / SECTIONS
+   ============================================================ */
+
+/* Basic bordered panel */
+.panel {
+    border: 2px solid #000;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Panel with black header bar */
+.panel-headed {
+    border: 2px solid #000;
+    margin-bottom: 1.5rem;
+}
+
+.panel-header {
+    background: #000;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.panel-content {
+    padding: 1.5rem;
+}
+
+/* Collapsible panel */
+.panel-collapse {
+    border: 2px solid #000;
+    margin-bottom: 1.5rem;
+}
+
+.panel-collapse-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: none;
+    border: none;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    text-align: left;
+}
+
+.panel-collapse-trigger:hover {
+    background: #000;
+    color: #fff;
+}
+
+.panel-collapse-body {
+    padding: 0 1rem 1rem;
+    border-top: 1px solid #888;
+}
+
+
+/* ============================================================
+   TABS
+   ============================================================ */
+
+.tabs {
+    display: flex;
+    border-bottom: 2px solid #000;
+    margin-bottom: 1.5rem;
+    overflow-x: auto;
+}
+
+.tab {
+    padding: 0.5rem 1rem;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    color: #888;
+    margin-bottom: -2px;
+    white-space: nowrap;
+}
+
+.tab:hover {
+    color: #000;
+}
+
+.tab.active {
+    color: #000;
+    border-bottom-color: #000;
+}
+
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.tool-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.tool-table th {
+    text-align: left;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 2px solid #000;
+}
+
+.tool-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #000;
+    vertical-align: top;
+}
+
+.tool-table tr:hover td {
+    background: #000;
+    color: #fff;
+}
+
+.tool-name {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.tool-desc {
+    max-width: 24rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tool-method {
+    white-space: nowrap;
+    color: #888;
+}
+
+.tool-path {
+    font-size: 0.75rem;
+    color: #888;
+    white-space: nowrap;
+}
+
+
+/* ============================================================
+   FORMS
+   ============================================================ */
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 0.35rem;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+    border: 2px solid #000;
+    background: #fff;
+    color: #000;
+    outline: none;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    background: #000;
+    color: #fff;
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Inline row */
+.form-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.form-row .form-group {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.btn {
+    display: inline-block;
+    border: 2px solid #000;
+    padding: 0.5rem 1.25rem;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+}
+
+.btn-primary {
+    background: #000;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #fff;
+    color: #000;
+}
+
+.btn-secondary {
+    background: #fff;
+    color: #000;
+}
+
+.btn-secondary:hover {
+    background: #000;
+    color: #fff;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+}
+
+.btn-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+
+.badge {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid #000;
+}
+
+.badge-filled {
+    background: #000;
+    color: #fff;
+}
+
+.badge-muted {
+    border-color: #888;
+    color: #888;
+}
+
+
+/* ============================================================
+   CODE
+   ============================================================ */
+
+code {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+}
+
+.code-block {
+    border: 2px solid #000;
+    padding: 1rem;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre;
+    background: #fff;
+}
+
+
+/* ============================================================
+   CONFIG GRID (existing)
+   ============================================================ */
+
+.config-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+}
+
+@media (min-width: 48rem) {
+    .config-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.config-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 2px solid #000;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+}
+
+.config-label {
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.status-ok {
+    font-weight: 700;
+}
+
+.status-missing {
+    color: #888;
+}
+
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ */
+
+.toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    pointer-events: none;
+}
+
+.toast {
+    padding: 0.6rem 1rem;
+    font-size: 0.8125rem;
+    border: 2px solid #000;
+    background: #fff;
+    color: #000;
+    min-width: 220px;
+    pointer-events: auto;
+    animation: toast-in 0.2s ease;
+}
+
+.toast-dark {
+    background: #000;
+    color: #fff;
+}
+
+@keyframes toast-in {
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+}
+
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+
+.footer {
+    border-top: 2px solid #000;
+    padding: 1rem 1.5rem;
+}
+
+.footer-inner {
+    max-width: 64rem;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.footer-text {
+    font-size: 0.75rem;
+    color: #888;
+    letter-spacing: 0.1em;
+}
+
+.footer a {
+    color: #000;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.footer a:hover {
+    text-decoration: underline;
+}
+
+
+/* ============================================================
+   LANDING PAGE
+   ============================================================ */
 
 .landing {
     min-height: 100vh;
@@ -89,8 +837,6 @@ a:hover {
     color: #000;
 }
 
-/* Buttons */
-
 .landing-actions {
     display: flex;
     flex-direction: column;
@@ -98,40 +844,21 @@ a:hover {
     margin-bottom: 3rem;
 }
 
-.btn {
-    display: block;
-    border: 2px solid #000;
-    padding: 0.75rem 1.5rem;
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 0.875rem;
-    letter-spacing: 0.05em;
-    text-decoration: none;
-    text-align: center;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+.landing-dev-login {
+    width: 100%;
 }
 
-.btn-primary {
-    background: #000;
+.btn-dev {
+    background: #fff;
+    color: #a33;
+    border-color: #a33;
+    width: 100%;
+}
+
+.btn-dev:hover {
+    background: #a33;
     color: #fff;
 }
-
-.btn-primary:hover {
-    background: #fff;
-    color: #000;
-}
-
-.btn-secondary {
-    background: #fff;
-    color: #000;
-}
-
-.btn-secondary:hover {
-    background: #000;
-    color: #fff;
-}
-
-/* Feature Cards */
 
 .landing-features {
     border-top: 2px solid #000;
@@ -159,7 +886,10 @@ a:hover {
     margin-bottom: 0.5rem;
 }
 
-/* Dashboard */
+
+/* ============================================================
+   DASHBOARD (legacy compat)
+   ============================================================ */
 
 .dashboard {
     padding: 2rem 1rem;
@@ -212,113 +942,54 @@ a:hover {
     font-size: 0.875rem;
 }
 
-.code-block {
-    border: 2px solid #000;
-    padding: 1rem;
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 0.8125rem;
-    line-height: 1.5;
-    overflow-x: auto;
-    white-space: pre;
-    background: #fff;
-}
 
-/* Tool Table */
+/* ============================================================
+   WARNING / SUCCESS BANNERS
+   ============================================================ */
 
-.tool-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8125rem;
-}
-
-.tool-table th {
-    text-align: left;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    padding: 0.5rem 0.75rem;
-    border-bottom: 2px solid #000;
-}
-
-.tool-table td {
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid #000;
-    vertical-align: top;
-}
-
-.tool-name {
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.tool-desc {
-    max-width: 24rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.tool-method {
-    white-space: nowrap;
-    color: #888;
-}
-
-.tool-path {
-    font-size: 0.75rem;
-    color: #888;
-    white-space: nowrap;
-}
-
-/* Config Status Grid */
-
-.config-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-}
-
-@media (min-width: 48rem) {
-    .config-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-.config-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border: 2px solid #000;
-    padding: 0.75rem 1rem;
+.warning-banner {
+    border: 2px solid #a33;
+    padding: 1rem 1.5rem;
+    color: #a33;
+    margin-bottom: 2rem;
     font-size: 0.875rem;
 }
 
-.config-label {
-    font-weight: 700;
-    letter-spacing: 0.05em;
-}
-
-.status-ok {
+.warning-banner a {
+    color: #a33;
     font-weight: 700;
 }
 
-.status-missing {
-    color: #888;
-}
-
-/* Footer */
-
-.footer {
-    border-top: 2px solid #000;
+.success-banner {
+    border: 2px solid #000;
     padding: 1rem 1.5rem;
+    margin-bottom: 2rem;
+    font-size: 0.875rem;
+    font-weight: 700;
 }
 
-.footer-inner {
-    max-width: 64rem;
-    margin: 0 auto;
-    text-align: center;
+
+/* ============================================================
+   SETTINGS (legacy compat)
+   ============================================================ */
+
+.settings-key-status {
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
 }
 
-.footer-text {
-    font-size: 0.75rem;
+.settings-key-missing {
     color: #888;
-    letter-spacing: 0.1em;
 }
+
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+
+.mt  { margin-top: 1.5rem; }
+.mb  { margin-bottom: 1.5rem; }
+.mt0 { margin-top: 0; }
+.mb0 { margin-bottom: 0; }
+.flex { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.hidden { display: none; }

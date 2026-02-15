@@ -9,8 +9,10 @@ import (
 	"github.com/bobmcallan/vire-portal/internal/importer"
 	"github.com/bobmcallan/vire-portal/internal/interfaces"
 	"github.com/bobmcallan/vire-portal/internal/mcp"
+	"github.com/bobmcallan/vire-portal/internal/models"
 	"github.com/bobmcallan/vire-portal/internal/storage"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
+	"github.com/timshannon/badgerhold/v4"
 )
 
 // catalogAdapter converts MCP catalog tools to dashboard display tools.
@@ -45,6 +47,7 @@ type App struct {
 	VersionHandler   *handlers.VersionHandler
 	AuthHandler      *handlers.AuthHandler
 	DashboardHandler *handlers.DashboardHandler
+	SettingsHandler  *handlers.SettingsHandler
 	MCPHandler       *mcp.Handler
 }
 
@@ -105,13 +108,48 @@ func (a *App) initHandlers() {
 	a.HealthHandler = handlers.NewHealthHandler(a.Logger)
 	a.VersionHandler = handlers.NewVersionHandler(a.Logger)
 	a.AuthHandler = handlers.NewAuthHandler(a.Logger, a.Config.IsDevMode())
-	a.MCPHandler = mcp.NewHandler(a.Config, a.Logger)
+
+	// User lookup for models.User (used by settings and dashboard)
+	userLookupModels := func(userID string) (*models.User, error) {
+		store, ok := a.StorageManager.DB().(*badgerhold.Store)
+		if !ok {
+			return nil, fmt.Errorf("storage is not badgerhold")
+		}
+		var user models.User
+		err := store.FindOne(&user, badgerhold.Where("Username").Eq(userID))
+		if err != nil {
+			return nil, err
+		}
+		return &user, nil
+	}
+
+	// User save closure for settings
+	userSave := func(user *models.User) error {
+		store, ok := a.StorageManager.DB().(*badgerhold.Store)
+		if !ok {
+			return fmt.Errorf("storage is not badgerhold")
+		}
+		return store.Upsert(user.Username, user)
+	}
+
+	// MCP user lookup (returns MCP-specific UserContext)
+	userLookup := func(userID string) (*mcp.UserContext, error) {
+		user, err := userLookupModels(userID)
+		if err != nil {
+			return nil, err
+		}
+		return &mcp.UserContext{UserID: user.Username, NavexaKey: user.NavexaKey}, nil
+	}
+	a.MCPHandler = mcp.NewHandler(a.Config, a.Logger, userLookup)
+
+	a.SettingsHandler = handlers.NewSettingsHandler(a.Logger, a.Config.IsDevMode(), userLookupModels, userSave)
 
 	a.DashboardHandler = handlers.NewDashboardHandler(
 		a.Logger,
 		a.Config.IsDevMode(),
 		a.Config.Server.Port,
 		catalogAdapter(a.MCPHandler),
+		userLookupModels,
 	)
 	a.DashboardHandler.SetConfigStatus(handlers.DashboardConfigStatus{
 		Portfolios: strings.Join(a.Config.User.Portfolios, ", "),

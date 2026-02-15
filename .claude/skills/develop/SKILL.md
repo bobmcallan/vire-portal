@@ -103,7 +103,7 @@ prompt: |
 
   For implement tasks: write tests first, then implement to pass them.
   For verify tasks: run go test ./..., go vet ./..., then deploy:
-    docker compose -f docker/docker-compose.yml up -d --build vire-portal
+    ./scripts/deploy.sh local --force
     curl -s http://localhost:4241/api/health
   For documentation tasks: update affected files in docs/, README.md, and .claude/skills/.
 
@@ -182,7 +182,7 @@ When all tasks are complete:
    - All new code has tests
    - All tests pass (`go test ./...`)
    - Go vet is clean (`go vet ./...`)
-   - Docker container builds and deploys (`docker compose -f docker/docker-compose.yml up -d --build vire-portal`)
+   - Docker container builds and deploys (`./scripts/deploy.sh local --force`)
    - Health endpoint responds (`curl -s http://localhost:4241/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
    - README.md updated if user-facing behaviour changed
@@ -265,6 +265,9 @@ When all tasks are complete:
 | `GET /api/health` | HealthHandler | No |
 | `GET /api/version` | VersionHandler | No |
 | `POST /api/auth/dev` | AuthHandler | No (dev mode only, 404 in prod) |
+| `POST /api/auth/logout` | AuthHandler | No |
+| `GET /settings` | SettingsHandler | No |
+| `POST /settings` | SettingsHandler | No (requires session cookie) |
 
 ### Configuration
 
@@ -274,7 +277,7 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 |---------|---------|---------|
 | Server port | `VIRE_SERVER_PORT` | `8080` |
 | Server host | `VIRE_SERVER_HOST` | `localhost` |
-| API URL | `VIRE_API_URL` | `http://localhost:4242` |
+| API URL | `VIRE_API_URL` | `http://localhost:8080` |
 | Default portfolio | `VIRE_DEFAULT_PORTFOLIO` | `""` |
 | Display currency | `VIRE_DISPLAY_CURRENCY` | `""` |
 | Import users | -- | `false` (TOML: `import.users`) |
@@ -290,8 +293,9 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 
 MCP tool calls are proxied to vire-server with X-Vire-* header injection:
 - MCP endpoint: `POST /mcp` (mcp-go StreamableHTTPServer, stateless)
-- Proxy: `internal/mcp/proxy.go` forwards to vire-server (default `http://localhost:4242`)
-- Headers: X-Vire-Portfolios, X-Vire-Display-Currency
+- Proxy: `internal/mcp/proxy.go` forwards to vire-server (default `http://localhost:8080`)
+- Static headers: X-Vire-Portfolios, X-Vire-Display-Currency (from config)
+- Per-request headers: X-Vire-User-ID, X-Vire-Navexa-Key (from session cookie + user lookup)
 - Tools: dynamic catalog from `GET /api/mcp/tools` (registered at startup via `internal/mcp/catalog.go`, 3-attempt retry, validated)
 - Response format: raw JSON from vire-server (no markdown formatting)
 - Timeouts: 300s proxy + 300s server WriteTimeout (for slow tools like generate_report)
