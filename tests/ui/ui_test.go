@@ -152,22 +152,50 @@ func TestUINavLinksPresent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Nav should have Dashboard, Settings, and Logout links
+	// Nav should have only Dashboard as a flat link (Settings + Logout moved to dropdown)
 	count, err := elementCount(ctx, ".nav-links li")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count < 3 {
-		t.Errorf("expected at least 3 nav items (Dashboard, Settings, Logout), got %d", count)
+	if count != 1 {
+		t.Errorf("expected exactly 1 flat nav item (Dashboard), got %d", count)
 	}
 
-	// Verify logout button exists
-	logoutCount, err := elementCount(ctx, ".nav-logout")
+	// Click hamburger to open dropdown, then verify Settings + Logout are there
+	err = chromedp.Run(ctx,
+		chromedp.Click(".nav-hamburger", chromedp.ByQuery),
+		chromedp.Sleep(500*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dropdownVisible, err := isVisible(ctx, ".nav-dropdown")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !dropdownVisible {
+		t.Error("expected nav-dropdown to be visible after hamburger click on desktop")
+	}
+
+	// Verify Settings link in dropdown
+	var settingsExists bool
+	err = chromedp.Run(ctx, chromedp.Evaluate(
+		`document.querySelector(".nav-dropdown a[href='/settings']") !== null`, &settingsExists))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !settingsExists {
+		t.Error("expected Settings link in dropdown")
+	}
+
+	// Verify Logout button in dropdown
+	logoutCount, err := elementCount(ctx, ".nav-dropdown-logout")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if logoutCount == 0 {
-		t.Error("expected nav-logout button in nav links")
+		t.Error("expected Logout button in dropdown")
 	}
 }
 

@@ -141,28 +141,6 @@ a:hover {
     color: #000;
 }
 
-.nav-logout-form {
-    margin: 0;
-    padding: 0;
-}
-
-.nav-logout {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #000;
-    padding: 0.25rem 0;
-    border-bottom: 2px solid transparent;
-}
-
-.nav-logout:hover {
-    border-bottom-color: #000;
-}
 
 /* Status indicators */
 .status-indicators {
@@ -190,9 +168,14 @@ a:hover {
 .status-startup { background-color: #d97706; }
 .status-down { background-color: #c53030; }
 
+/* Hamburger wrapper (positions dropdown) */
+.nav-hamburger-wrap {
+    position: relative;
+}
+
 /* Hamburger */
 .nav-hamburger {
-    display: none;
+    display: block;
     background: none;
     border: none;
     cursor: pointer;
@@ -222,8 +205,43 @@ a:hover {
 .nav-hamburger-icon::after  { top:  6px; }
 
 @media (max-width: 48rem) {
-    .nav-hamburger { display: block; }
-    .nav-links     { display: none; }
+    .nav-links { display: none; }
+}
+
+/* Desktop dropdown (hamburger menu) */
+.nav-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: #fff;
+    border: 2px solid #000;
+    min-width: 160px;
+    z-index: 200;
+}
+
+.nav-dropdown a,
+.nav-dropdown-logout {
+    display: block;
+    width: 100%;
+    padding: 0.6rem 1rem;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: #000;
+    border: none;
+    border-bottom: 1px solid #888;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+}
+
+.nav-dropdown a:hover,
+.nav-dropdown-logout:hover {
+    background: #000;
+    color: #fff;
 }
 
 

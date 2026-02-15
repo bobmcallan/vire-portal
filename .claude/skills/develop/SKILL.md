@@ -93,20 +93,20 @@ See `.claude/skills/browser-check/SKILL.md` for full `browser-check` syntax.
   go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard
   go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/
 
-  # If nav changed
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
-    -check '.nav-links|visible' \
-    -check '.nav-logout|exists' \
-    -check '.nav-brand|text=VIRE'
+  # If nav changed (use -login to see authenticated nav)
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
+    -check '.nav-brand|text=VIRE' \
+    -check '.nav-hamburger|visible' \
+    -check '.nav-dropdown|hidden'
 
   # If responsive/mobile changed
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
     -viewport 375x812 -check '.nav-links|hidden'
 
-  # Save screenshots to the work directory
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
+  # Save screenshots to the work directory (with -login for authenticated nav)
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
     -screenshot <workdir>/dashboard.png
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/ \
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/ -login \
     -screenshot <workdir>/landing.png
   ```
   Replace `<workdir>` with the actual work directory path (e.g. `.claude/workdir/20260214-1430-oauth-handler/`).

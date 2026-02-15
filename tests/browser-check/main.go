@@ -5,6 +5,7 @@
 //
 // Usage:
 //   go run ./tests/browser-check -url http://localhost:4241/dashboard
+//   go run ./tests/browser-check -url http://localhost:4241/dashboard -login -screenshot /tmp/dash.png
 //   go run ./tests/browser-check -url http://localhost:4241/dashboard -check '.dropdown-menu|hidden' -check '.nav-brand|visible'
 //   go run ./tests/browser-check -url http://localhost:4241/dashboard -click '.dropdown-trigger' -check '.dropdown-menu|visible'
 //   go run ./tests/browser-check -url http://localhost:4241/dashboard -viewport 375x812 -check '.nav-links|hidden'
@@ -48,6 +49,7 @@ func main() {
 		viewport   string
 		screenshot string
 		waitMs     int
+		login      bool
 		checks     multiFlag
 		clicks     multiFlag
 		evals      multiFlag
@@ -57,6 +59,7 @@ func main() {
 	flag.StringVar(&viewport, "viewport", "", "Viewport as WxH, e.g. 375x812")
 	flag.StringVar(&screenshot, "screenshot", "", "Save screenshot to path")
 	flag.IntVar(&waitMs, "wait", 1000, "Wait ms after load for Alpine/JS init")
+	flag.BoolVar(&login, "login", false, "Authenticate via /api/auth/dev before testing")
 	flag.Var(&checks, "check", "selector|state  (state: visible, hidden, text=X, count>N)")
 	flag.Var(&clicks, "click", "CSS selector to click (in order, before -check)")
 	flag.Var(&evals, "eval", "JS expression that must return truthy")
@@ -148,6 +151,32 @@ func main() {
 	if err := chromedp.Run(ctx, actions...); err != nil {
 		fmt.Fprintf(os.Stderr, "FAIL: navigate %s: %v\n", url, err)
 		os.Exit(1)
+	}
+
+	// ── Login (dev auth) ──────────────────────────────
+	if login {
+		err := chromedp.Run(ctx,
+			chromedp.Evaluate(`
+				(async () => {
+					const r = await fetch('/api/auth/dev', { method: 'POST', credentials: 'same-origin' });
+					return r.status;
+				})()
+			`, nil),
+			chromedp.Sleep(300*time.Millisecond),
+			chromedp.Navigate(url),
+			chromedp.WaitVisible("body", chromedp.ByQuery),
+			chromedp.Sleep(time.Duration(waitMs)*time.Millisecond),
+		)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL: login + reload %s: %v\n", url, err)
+			os.Exit(1)
+		}
+		// Verify login succeeded — nav only renders when logged in
+		var navExists bool
+		_ = chromedp.Run(ctx, chromedp.Evaluate(`document.querySelector('.nav') !== null`, &navExists))
+		if !navExists {
+			fmt.Fprintln(os.Stderr, "WARN: -login flag used but nav not rendered (auth may have failed)")
+		}
 	}
 
 	var results []result

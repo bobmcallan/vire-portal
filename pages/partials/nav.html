@@ -1,17 +1,11 @@
 {{define "nav.html"}}
-<div x-data="mobileMenu()">
+<div x-data="navMenu()">
     <nav class="nav">
         <div class="nav-inner">
             <a href="/" class="nav-brand">VIRE</a>
 
             <ul class="nav-links">
                 <li><a href="/dashboard" {{if eq .Page "dashboard"}}class="active"{{end}}>Dashboard</a></li>
-                <li><a href="/settings" {{if eq .Page "settings"}}class="active"{{end}}>Settings</a></li>
-                <li>
-                    <form method="POST" action="/api/auth/logout" class="nav-logout-form">
-                        <button type="submit" class="nav-logout">Logout</button>
-                    </form>
-                </li>
             </ul>
 
             <div x-data="statusIndicators()" class="status-indicators">
@@ -19,17 +13,25 @@
                 <span class="status-dot" :class="'status-' + server" title="Server">S</span>
             </div>
 
-            <button @click="open()" class="nav-hamburger">
-                <span class="nav-hamburger-icon"></span>
-            </button>
+            <div class="nav-hamburger-wrap" @click.outside="closeDropdown()">
+                <button @click="toggle()" class="nav-hamburger">
+                    <span class="nav-hamburger-icon"></span>
+                </button>
+                <div x-show="dropdownOpen" x-cloak class="nav-dropdown">
+                    <a href="/settings">Settings</a>
+                    <form method="POST" action="/api/auth/logout">
+                        <button type="submit" class="nav-dropdown-logout">Logout</button>
+                    </form>
+                </div>
+            </div>
         </div>
     </nav>
 
-    <template x-if="visible">
+    <template x-if="mobileOpen">
         <div>
-            <div class="mobile-overlay" @click="close()"></div>
+            <div class="mobile-overlay" @click="closeMobile()"></div>
             <div class="mobile-menu">
-                <button @click="close()" class="mobile-menu-close">&#10005;</button>
+                <button @click="closeMobile()" class="mobile-menu-close">&#10005;</button>
                 <a href="/dashboard">Dashboard</a>
                 <a href="/settings">Settings</a>
                 <form method="POST" action="/api/auth/logout">

@@ -46,11 +46,17 @@ document.addEventListener('alpine:init', () => {
         close()  { this.open = false; },
     }));
 
-    // Mobile Menu
-    Alpine.data('mobileMenu', () => ({
-        visible: false,
-        open()  { this.visible = true; },
-        close() { this.visible = false; },
+    // Nav Menu (hamburger: desktop dropdown + mobile slide-out)
+    Alpine.data('navMenu', () => ({
+        dropdownOpen: false,
+        mobileOpen: false,
+        isMobile() { return window.innerWidth <= 768; },
+        toggle() {
+            if (this.isMobile()) { this.mobileOpen = true; this.dropdownOpen = false; }
+            else { this.dropdownOpen = !this.dropdownOpen; this.mobileOpen = false; }
+        },
+        closeDropdown() { this.dropdownOpen = false; },
+        closeMobile() { this.mobileOpen = false; },
     }));
 
     // Tabs

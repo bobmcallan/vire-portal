@@ -1581,7 +1581,7 @@ func TestNavTemplate_ContainsLogoutPostForm(t *testing.T) {
 }
 
 func TestNavTemplate_MobileMenuPresent(t *testing.T) {
-	// Verify mobile menu elements exist when logged in.
+	// Verify mobile menu elements exist when logged in, using navMenu() component.
 	handler := NewPageHandler(nil, true)
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -1601,10 +1601,13 @@ func TestNavTemplate_MobileMenuPresent(t *testing.T) {
 	if !strings.Contains(body, "mobile-overlay") {
 		t.Error("expected mobile-overlay element to block interaction")
 	}
+	if !strings.Contains(body, `x-data="navMenu()"`) {
+		t.Error("expected Alpine.js navMenu component wrapping nav")
+	}
 }
 
-func TestNavTemplate_FlatLinksPresent(t *testing.T) {
-	// Verify nav has flat links (Dashboard, Settings, Logout) instead of dropdown.
+func TestNavTemplate_HamburgerDropdownPresent(t *testing.T) {
+	// Verify nav uses navMenu() component and has a dropdown with Settings + Logout.
 	handler := NewPageHandler(nil, true)
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -1615,14 +1618,17 @@ func TestNavTemplate_FlatLinksPresent(t *testing.T) {
 
 	body := w.Body.String()
 
+	if !strings.Contains(body, `x-data="navMenu()"`) {
+		t.Error("expected Alpine.js navMenu component wrapping nav")
+	}
+	if !strings.Contains(body, `nav-dropdown`) {
+		t.Error("expected nav-dropdown class for desktop dropdown menu")
+	}
 	if !strings.Contains(body, `href="/settings"`) {
-		t.Error("expected settings link in nav")
+		t.Error("expected settings link in dropdown")
 	}
-	if !strings.Contains(body, `class="nav-logout"`) {
-		t.Error("expected nav-logout button in nav")
-	}
-	if !strings.Contains(body, `x-data="mobileMenu()"`) {
-		t.Error("expected Alpine.js mobileMenu component wrapping nav")
+	if !strings.Contains(body, `/api/auth/logout`) {
+		t.Error("expected logout form in dropdown")
 	}
 }
 

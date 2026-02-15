@@ -29,6 +29,7 @@ go run ./tests/browser-check -url <URL> [flags]
 | Flag | Description | Example |
 |---|---|---|
 | `-url` | URL to test (required) | `http://localhost:${PORTAL_PORT:-4241}/dashboard` |
+| `-login` | Authenticate via `/api/auth/dev` before checks | `-login` |
 | `-check` | `selector\|state` assertion (repeatable) | `-check '.nav-links\|visible'` |
 | `-click` | Click selector before checks (repeatable, ordered) | `-click '.nav-hamburger'` |
 | `-eval` | JS expression, must return truthy (repeatable) | `-eval 'typeof Alpine !== "undefined"'` |
@@ -53,16 +54,21 @@ Pick checks based on what you changed. Examples:
 
 ### Changed nav/menu
 ```bash
-go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
-  -check '.nav-brand|visible' \
+# Nav elements visible, dropdown hidden by default
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
   -check '.nav-brand|text=VIRE' \
-  -check '.nav-links|visible' \
-  -check '.nav-logout|exists'
+  -check '.nav-hamburger|visible' \
+  -check '.nav-dropdown|hidden'
+
+# Click hamburger to open dropdown
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
+  -click '.nav-hamburger' \
+  -check '.nav-dropdown|visible'
 ```
 
 ### Changed mobile menu
 ```bash
-go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
   -viewport 375x812 \
   -check '.nav-links|hidden' \
   -check '.nav-hamburger|visible' \
