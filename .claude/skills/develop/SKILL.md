@@ -60,7 +60,9 @@ team_name: "vire-portal-develop"
 description: "Developing: <feature-description>"
 ```
 
-Create 7 tasks across 3 phases using `TaskCreate`. Set `blockedBy` dependencies via `TaskUpdate`.
+Create tasks across 3–4 phases using `TaskCreate`. Set `blockedBy` dependencies via `TaskUpdate`.
+Use 3 phases for backend-only changes. Add **Phase 2b** when the feature touches web pages
+(`pages/`, `pages/static/`, `pages/partials/`, CSS, JS, or handler template rendering).
 
 **Phase 1 — Implement** (no dependencies):
 - "Write tests and implement <feature>" — owner: implementer
@@ -71,10 +73,45 @@ Create 7 tasks across 3 phases using `TaskCreate`. Set `blockedBy` dependencies 
   Scope: security, failure modes, edge cases, hostile inputs.
 
 **Phase 2 — Verify** (blockedBy: review + stress-test):
-- "Build, test, and deploy to Docker" — owner: implementer
-- "Validate deployment" — owner: reviewer, blockedBy: [build task]
+- "Build, test, and run locally" — owner: implementer
+- "Validate running server" — owner: reviewer, blockedBy: [build task]
 
-**Phase 3 — Document** (blockedBy: validate):
+**Phase 2b — UI Verification** (only if web pages changed; blockedBy: build task):
+Applies when the feature touches: `pages/`, `pages/static/`, `pages/partials/`, HTML templates, CSS, or JS files.
+See `.claude/skills/browser-check/SKILL.md` for full `browser-check` syntax.
+
+- "Run chromedp UI test suite" — owner: implementer, blockedBy: [build task]
+  Run against the deployed container:
+  ```
+  VIRE_TEST_URL="http://localhost:${PORTAL_PORT:-4241}" go test ./tests/ -run "^TestUI" -v -count=1 -timeout 120s
+  ```
+- "Browser-check validation" — owner: implementer, blockedBy: [build task]
+  Run `go run ./tests/browser-check` against affected pages. Pick checks based on what changed:
+  ```bash
+  # Smoke test every affected page (catches JS errors)
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/
+
+  # If nav/dropdown changed
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
+    -check '.dropdown-menu|hidden' \
+    -click '.dropdown-trigger' \
+    -check '.dropdown-menu|visible'
+
+  # If responsive/mobile changed
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
+    -viewport 375x812 -check '.nav-links|hidden'
+
+  # Save screenshots to the work directory
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
+    -screenshot <workdir>/dashboard.png
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/ \
+    -screenshot <workdir>/landing.png
+  ```
+  Replace `<workdir>` with the actual work directory path (e.g. `.claude/workdir/20260214-1430-oauth-handler/`).
+  If checks fail, fix before proceeding to Phase 3.
+
+**Phase 3 — Document** (blockedBy: validate, and UI verification if applicable):
 - "Update affected documentation" — owner: implementer
 - "Verify documentation matches implementation" — owner: reviewer, blockedBy: [update docs task]
 
@@ -102,9 +139,11 @@ prompt: |
   3. After each task, check TaskList for your next available task
 
   For implement tasks: write tests first, then implement to pass them.
-  For verify tasks: run go test ./..., go vet ./..., then deploy:
-    ./scripts/deploy.sh local --force
-    curl -s http://localhost:4241/api/health
+  For verify tasks: run go test ./..., go vet ./..., then build and run:
+    ./scripts/run.sh restart
+    curl -s http://localhost:${PORTAL_PORT:-4241}/api/health
+  For UI verification tasks: run browser-check against affected pages (see .claude/skills/browser-check/SKILL.md).
+    Save screenshots to the work directory with -screenshot flag.
   For documentation tasks: update affected files in docs/, README.md, and .claude/skills/.
 
   Do NOT send status messages. Only message teammates for: blocking issues, review findings, or questions.
@@ -182,9 +221,11 @@ When all tasks are complete:
    - All new code has tests
    - All tests pass (`go test ./...`)
    - Go vet is clean (`go vet ./...`)
-   - Docker container builds and deploys (`./scripts/deploy.sh local --force`)
-   - Health endpoint responds (`curl -s http://localhost:4241/api/health`)
+   - Server builds and runs (`./scripts/run.sh restart`)
+   - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-4241}/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
+   - If web pages changed: chromedp UI tests pass (`go test ./tests/ -run "^TestUI"`)
+   - If web pages changed: browser-check validation passed (`go run ./tests/browser-check`)
    - README.md updated if user-facing behaviour changed
    - API contract documentation matches implementation
    - Devils-advocate has signed off
@@ -266,6 +307,7 @@ When all tasks are complete:
 | `GET /api/version` | VersionHandler | No |
 | `POST /api/auth/dev` | AuthHandler | No (dev mode only, 404 in prod) |
 | `POST /api/auth/logout` | AuthHandler | No |
+| `POST /api/shutdown` | Server | No (dev mode only, 403 in prod) |
 | `GET /settings` | SettingsHandler | No |
 | `POST /settings` | SettingsHandler | No (requires session cookie) |
 

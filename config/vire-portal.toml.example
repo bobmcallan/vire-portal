@@ -1,5 +1,10 @@
-# VIRE Portal Configuration
+# VIRE Portal Configuration (local dev)
 # Priority: defaults < this file < environment variables (VIRE_*) < CLI flags
+#
+# Copy to vire-portal.toml and edit:
+#   cp config/vire-portal.toml.example config/vire-portal.toml
+
+environment = "dev"
 
 [server]
 port = 4241
@@ -13,8 +18,8 @@ url = "http://localhost:4242"
 # display_currency = "AUD"
 
 [import]
-# users = false
-# users_file = "data/users.json"
+users = true
+users_file = "data/users.json"
 
 [storage.badger]
 path = "./data/vire"

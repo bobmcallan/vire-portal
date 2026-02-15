@@ -1,6 +1,9 @@
 package server
 
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
 
 // setupRoutes configures all HTTP routes.
 func (s *Server) setupRoutes() *http.ServeMux {
@@ -29,11 +32,38 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	// API routes
 	mux.HandleFunc("/api/health", s.app.HealthHandler.ServeHTTP)
 	mux.HandleFunc("/api/version", s.app.VersionHandler.ServeHTTP)
+	mux.HandleFunc("POST /api/shutdown", s.handleShutdown)
 
 	// 404 handler for unmatched API routes
 	mux.HandleFunc("/api/", s.handleNotFound)
 
 	return mux
+}
+
+// handleShutdown handles POST /api/shutdown (dev mode only).
+func (s *Server) handleShutdown(w http.ResponseWriter, r *http.Request) {
+	if !s.app.Config.IsDevMode() {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error":"Shutdown endpoint disabled in production"}`))
+		return
+	}
+
+	s.logger.Info().Msg("shutdown requested via HTTP endpoint")
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Shutting down gracefully...\n"))
+
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	if s.shutdownChan != nil {
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.shutdownChan <- struct{}{}
+		}()
+	}
 }
 
 // handleNotFound returns a JSON 404 for unmatched API routes.

@@ -58,7 +58,7 @@ func main() {
 
 	// Auto-discover config file if not specified
 	if len(configFiles) == 0 {
-		for _, path := range []string{"vire-portal.toml", "docker/vire-portal.toml"} {
+		for _, path := range []string{"vire-portal.toml", "config/vire-portal.toml", "docker/vire-portal.toml"} {
 			if _, err := os.Stat(path); err == nil {
 				configFiles = append(configFiles, path)
 				break
@@ -93,8 +93,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create HTTP server
+	// Create HTTP server with shutdown channel
+	shutdownChan := make(chan struct{})
 	srv := server.New(application)
+	srv.SetShutdownChannel(shutdownChan)
 
 	// Start server in goroutine
 	go func() {
@@ -111,12 +113,16 @@ func main() {
 		Str("url", fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port)).
 		Msg("server ready")
 
-	// Wait for interrupt signal
+	// Wait for interrupt signal or HTTP shutdown request
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	<-sigChan
 
-	logger.Info().Msg("shutdown signal received")
+	select {
+	case <-sigChan:
+		logger.Info().Msg("shutdown signal received")
+	case <-shutdownChan:
+		logger.Info().Msg("shutdown requested via HTTP")
+	}
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

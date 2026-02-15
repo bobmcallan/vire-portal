@@ -1743,8 +1743,7 @@ func TestXCloakStyle_InCSS(t *testing.T) {
 	}
 }
 
-func TestDashboardHandler_PageTitleSet(t *testing.T) {
-	// Verify PageTitle is set for the nav template.
+func TestDashboardHandler_PageIdentifier(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
 	handler := NewDashboardHandler(nil, true, 4241, catalogFn, nil)
 
@@ -1756,13 +1755,12 @@ func TestDashboardHandler_PageTitleSet(t *testing.T) {
 
 	body := w.Body.String()
 
-	// The nav template renders {{.PageTitle}} in <span class="nav-title">
 	if !strings.Contains(body, "DASHBOARD") {
-		t.Error("expected DASHBOARD to appear in page (from PageTitle or h1)")
+		t.Error("expected DASHBOARD to appear in page (from <title> tag)")
 	}
 }
 
-func TestSettingsHandler_PageTitleSet(t *testing.T) {
+func TestSettingsHandler_PageIdentifier(t *testing.T) {
 	lookupFn := func(userID string) (*models.User, error) {
 		return &models.User{Username: "dev_user"}, nil
 	}
@@ -1778,7 +1776,7 @@ func TestSettingsHandler_PageTitleSet(t *testing.T) {
 	body := w.Body.String()
 
 	if !strings.Contains(body, "SETTINGS") {
-		t.Error("expected SETTINGS to appear in page (from PageTitle or h1)")
+		t.Error("expected SETTINGS to appear in page (from <title> tag)")
 	}
 }
 

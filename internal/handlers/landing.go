@@ -56,7 +56,6 @@ func (h *PageHandler) ServePage(templateName string, pageName string) http.Handl
 
 		data := map[string]interface{}{
 			"Page":      pageName,
-			"PageTitle": "",
 			"DevMode":   h.devMode,
 			"LoggedIn":  cookieErr == nil,
 		}

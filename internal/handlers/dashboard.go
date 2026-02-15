@@ -84,7 +84,6 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	data := map[string]interface{}{
 		"Page":             "dashboard",
-		"PageTitle":        "DASHBOARD",
 		"DevMode":          h.devMode,
 		"LoggedIn":         loggedIn,
 		"Tools":            tools,

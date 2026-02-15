@@ -49,7 +49,6 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 
 	data := map[string]interface{}{
 		"Page":             "settings",
-		"PageTitle":        "SETTINGS",
 		"DevMode":          h.devMode,
 		"LoggedIn":         loggedIn,
 		"NavexaKeySet":     false,

@@ -15,7 +15,7 @@ services:
       - "${PORTAL_PORT:-4241}:8080"
     environment:
       - VIRE_SERVER_HOST=0.0.0.0
-      - VIRE_API_URL=http://vire-server:8080
+      - VIRE_API_URL=${VIRE_API_URL:-http://vire-server:4242}
       - VIRE_BADGER_PATH=/app/data/vire
       - VIRE_LOG_LEVEL=info
     volumes:

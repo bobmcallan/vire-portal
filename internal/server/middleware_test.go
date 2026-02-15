@@ -537,6 +537,11 @@ func TestCSP_AllowsSelfScripts(t *testing.T) {
 		t.Error("CSP script-src missing 'self' — /static/common.js will be blocked")
 	}
 
+	// script-src must include 'unsafe-eval' for Alpine.js expression evaluation
+	if !strings.Contains(csp, "'unsafe-eval'") {
+		t.Error("CSP script-src missing 'unsafe-eval' — Alpine.js expressions will be blocked")
+	}
+
 	// script-src must include cdn.jsdelivr.net for Alpine.js
 	if !strings.Contains(csp, "cdn.jsdelivr.net") {
 		t.Error("CSP script-src missing cdn.jsdelivr.net — Alpine.js will be blocked")
