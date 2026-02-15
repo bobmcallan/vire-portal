@@ -72,10 +72,12 @@ func New(cfg *config.Config, logger *common.Logger) (*App, error) {
 
 // initHandlers initializes all HTTP handlers.
 func (a *App) initHandlers() {
-	a.PageHandler = handlers.NewPageHandler(a.Logger, a.Config.IsDevMode())
+	jwtSecret := []byte(a.Config.Auth.JWTSecret)
+
+	a.PageHandler = handlers.NewPageHandler(a.Logger, a.Config.IsDevMode(), jwtSecret)
 	a.HealthHandler = handlers.NewHealthHandler(a.Logger)
 	a.VersionHandler = handlers.NewVersionHandler(a.Logger)
-	a.AuthHandler = handlers.NewAuthHandler(a.Logger, a.Config.IsDevMode())
+	a.AuthHandler = handlers.NewAuthHandler(a.Logger, a.Config.IsDevMode(), a.Config.API.URL, a.Config.Auth.CallbackURL, jwtSecret)
 
 	vireClient := client.NewVireClient(a.Config.API.URL)
 
@@ -93,12 +95,13 @@ func (a *App) initHandlers() {
 	a.MCPHandler = mcp.NewHandler(a.Config, a.Logger)
 
 	a.ServerHealthHandler = handlers.NewServerHealthHandler(a.Logger, a.Config.API.URL)
-	a.SettingsHandler = handlers.NewSettingsHandler(a.Logger, a.Config.IsDevMode(), userLookup, userSave)
+	a.SettingsHandler = handlers.NewSettingsHandler(a.Logger, a.Config.IsDevMode(), jwtSecret, userLookup, userSave)
 
 	a.DashboardHandler = handlers.NewDashboardHandler(
 		a.Logger,
 		a.Config.IsDevMode(),
 		a.Config.Server.Port,
+		jwtSecret,
 		catalogAdapter(a.MCPHandler),
 		userLookup,
 	)

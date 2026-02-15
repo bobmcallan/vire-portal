@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"html/template"
 	"net/http"
 	"path/filepath"
@@ -17,12 +15,13 @@ type SettingsHandler struct {
 	logger       *common.Logger
 	templates    *template.Template
 	devMode      bool
+	jwtSecret    []byte
 	userLookupFn func(string) (*client.UserProfile, error)
 	userSaveFn   func(string, map[string]string) error
 }
 
 // NewSettingsHandler creates a new settings handler.
-func NewSettingsHandler(logger *common.Logger, devMode bool, userLookupFn func(string) (*client.UserProfile, error), userSaveFn func(string, map[string]string) error) *SettingsHandler {
+func NewSettingsHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userLookupFn func(string) (*client.UserProfile, error), userSaveFn func(string, map[string]string) error) *SettingsHandler {
 	pagesDir := FindPagesDir()
 
 	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
@@ -32,6 +31,7 @@ func NewSettingsHandler(logger *common.Logger, devMode bool, userLookupFn func(s
 		logger:       logger,
 		templates:    templates,
 		devMode:      devMode,
+		jwtSecret:    jwtSecret,
 		userLookupFn: userLookupFn,
 		userSaveFn:   userSaveFn,
 	}
@@ -39,8 +39,7 @@ func NewSettingsHandler(logger *common.Logger, devMode bool, userLookupFn func(s
 
 // HandleSettings serves GET /settings.
 func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("vire_session")
-	loggedIn := err == nil && cookie.Value != ""
+	loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
 
 	csrfToken := ""
 	if csrfCookie, err := r.Cookie("_csrf"); err == nil {
@@ -57,14 +56,11 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 		"CSRFToken":        csrfToken,
 	}
 
-	if loggedIn {
-		sub := ExtractJWTSub(cookie.Value)
-		if sub != "" && h.userLookupFn != nil {
-			user, err := h.userLookupFn(sub)
-			if err == nil && user != nil {
-				data["NavexaKeySet"] = user.NavexaKeySet
-				data["NavexaKeyPreview"] = user.NavexaKeyPreview
-			}
+	if loggedIn && claims != nil && claims.Sub != "" && h.userLookupFn != nil {
+		user, err := h.userLookupFn(claims.Sub)
+		if err == nil && user != nil {
+			data["NavexaKeySet"] = user.NavexaKeySet
+			data["NavexaKeyPreview"] = user.NavexaKeyPreview
 		}
 	}
 
@@ -78,14 +74,8 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 
 // HandleSaveSettings handles POST /settings.
 func (h *SettingsHandler) HandleSaveSettings(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("vire_session")
-	if err != nil || cookie.Value == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	sub := ExtractJWTSub(cookie.Value)
-	if sub == "" {
+	loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
+	if !loggedIn || claims == nil || claims.Sub == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -102,7 +92,7 @@ func (h *SettingsHandler) HandleSaveSettings(w http.ResponseWriter, r *http.Requ
 
 	navexaKey := strings.TrimSpace(r.FormValue("navexa_key"))
 
-	if err := h.userSaveFn(sub, map[string]string{"navexa_key": navexaKey}); err != nil {
+	if err := h.userSaveFn(claims.Sub, map[string]string{"navexa_key": navexaKey}); err != nil {
 		if h.logger != nil {
 			h.logger.Error().Str("error", err.Error()).Msg("failed to save user settings")
 		}
@@ -115,23 +105,11 @@ func (h *SettingsHandler) HandleSaveSettings(w http.ResponseWriter, r *http.Requ
 
 // ExtractJWTSub base64url-decodes the JWT payload (middle segment)
 // and returns the "sub" claim. Returns empty string on any failure.
+// Deprecated: Use IsLoggedIn and JWTClaims.Sub instead.
 func ExtractJWTSub(token string) string {
-	parts := strings.SplitN(token, ".", 3)
-	if len(parts) < 2 {
-		return ""
-	}
-
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	claims, err := ValidateJWT(token, []byte{})
 	if err != nil {
 		return ""
 	}
-
-	var claims struct {
-		Sub string `json:"sub"`
-	}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return ""
-	}
-
 	return claims.Sub
 }

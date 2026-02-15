@@ -11,6 +11,10 @@ func NewDefaultConfig() *Config {
 		API: APIConfig{
 			URL: "http://localhost:8080",
 		},
+		Auth: AuthConfig{
+			JWTSecret:   "",
+			CallbackURL: "http://localhost:4241/auth/callback",
+		},
 		User: UserConfig{
 			Portfolios:      []string{},
 			DisplayCurrency: "",

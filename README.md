@@ -27,8 +27,11 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP transport, dynamic tools) |
 | `GET /api/health` | HealthHandler | No | Health check (`{"status":"ok"}`) |
 | `GET /api/version` | VersionHandler | No | Version info (JSON) |
-| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (creates session, redirects to `/dashboard`; 404 in prod) |
+| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (calls vire-server, sets session, redirects to `/dashboard`; 404 in prod) |
 | `POST /api/auth/logout` | AuthHandler | No | Clears session cookie, redirects to `/` |
+| `GET /api/auth/login/google` | AuthHandler | No | Redirects to vire-server Google OAuth |
+| `GET /api/auth/login/github` | AuthHandler | No | Redirects to vire-server GitHub OAuth |
+| `GET /auth/callback` | AuthHandler | No | OAuth callback (receives `?token=`, sets session cookie) |
 | `GET /settings` | SettingsHandler | No | Settings page (Navexa API key management) |
 | `POST /settings` | SettingsHandler | No | Save settings (requires session cookie) |
 
@@ -68,7 +71,8 @@ The server runs on `http://localhost:8080` by default (Docker local dev override
 Set `environment = "dev"` in the TOML config or `VIRE_ENV=dev` as an environment variable to enable dev mode. This adds:
 
 - A "DEV LOGIN" button on the landing page that bypasses OAuth
-- `POST /api/auth/dev` endpoint that creates a minimal unsigned JWT session for `bobmcallan@gmail.com` and sets an httpOnly `vire_session` cookie
+- `POST /api/auth/dev` endpoint that calls vire-server `POST /api/auth/oauth` with `{ provider: "dev", code: "dev", state: "dev" }`, receives a signed JWT, and sets an httpOnly `vire_session` cookie
+- Dev login uses the same vire-server endpoint as Google and GitHub OAuth, exercising the same code path
 - All other functionality remains identical to prod
 
 Dev mode is disabled by default (`environment = "prod"`). The `POST /api/auth/dev` route returns 404 when not in dev mode.
@@ -104,6 +108,8 @@ Configuration priority (highest wins): CLI flags > environment variables > TOML 
 | Server port | `server.port` | `VIRE_SERVER_PORT` | `-port`, `-p` | `8080` |
 | Server host | `server.host` | `VIRE_SERVER_HOST` | `-host` | `localhost` |
 | API URL | `api.url` | `VIRE_API_URL` | -- | `http://localhost:8080` |
+| JWT secret | `auth.jwt_secret` | `VIRE_AUTH_JWT_SECRET` | -- | `""` |
+| OAuth callback URL | `auth.callback_url` | `VIRE_AUTH_CALLBACK_URL` | -- | `http://localhost:4241/auth/callback` |
 | Portfolios | `user.portfolios` | `VIRE_DEFAULT_PORTFOLIO` | -- | `[]` |
 | Display currency | `user.display_currency` | `VIRE_DISPLAY_CURRENCY` | -- | `""` |
 | Environment | `environment` | `VIRE_ENV` | -- | `prod` |
@@ -702,7 +708,9 @@ vire-portal/
 │   │   ├── version.go               # Version info (ldflags + .version file)
 │   │   └── version_test.go
 │   ├── handlers/
-│   │   ├── auth.go                  # POST /api/auth/dev (dev-only login), POST /api/auth/logout
+│   │   ├── auth.go                  # OAuth auth handlers (dev login, Google/GitHub redirects, callback, logout, JWT validation)
+│   │   ├── auth_test.go             # Auth handler tests (ValidateJWT, IsLoggedIn, OAuth flows)
+│   │   ├── auth_stress_test.go      # Security stress tests (alg:none attack, tampering, timing, hostile inputs)
 │   │   ├── dashboard.go             # GET /dashboard (MCP config, tools, config status)
 │   │   ├── handlers_test.go
 │   │   ├── health.go                # GET /api/health

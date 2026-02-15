@@ -14,10 +14,11 @@ type PageHandler struct {
 	logger    *common.Logger
 	templates *template.Template
 	devMode   bool
+	jwtSecret []byte
 }
 
 // NewPageHandler creates a new page handler that loads templates from the pages directory.
-func NewPageHandler(logger *common.Logger, devMode bool) *PageHandler {
+func NewPageHandler(logger *common.Logger, devMode bool, jwtSecret []byte) *PageHandler {
 	pagesDir := FindPagesDir()
 
 	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
@@ -27,6 +28,7 @@ func NewPageHandler(logger *common.Logger, devMode bool) *PageHandler {
 		logger:    logger,
 		templates: templates,
 		devMode:   devMode,
+		jwtSecret: jwtSecret,
 	}
 }
 
@@ -52,12 +54,12 @@ func FindPagesDir() string {
 // ServePage creates a handler function for serving a specific page template.
 func (h *PageHandler) ServePage(templateName string, pageName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, cookieErr := r.Cookie("vire_session")
+		loggedIn, _ := IsLoggedIn(r, h.jwtSecret)
 
 		data := map[string]interface{}{
 			"Page":     pageName,
 			"DevMode":  h.devMode,
-			"LoggedIn": cookieErr == nil,
+			"LoggedIn": loggedIn,
 		}
 
 		if err := h.templates.ExecuteTemplate(w, templateName, data); err != nil {

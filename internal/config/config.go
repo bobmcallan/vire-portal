@@ -9,11 +9,18 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+// AuthConfig contains authentication settings.
+type AuthConfig struct {
+	JWTSecret   string `toml:"jwt_secret"`
+	CallbackURL string `toml:"callback_url"`
+}
+
 // Config represents the application configuration.
 type Config struct {
 	Environment string        `toml:"environment"`
 	Server      ServerConfig  `toml:"server"`
 	API         APIConfig     `toml:"api"`
+	Auth        AuthConfig    `toml:"auth"`
 	User        UserConfig    `toml:"user"`
 	Logging     LoggingConfig `toml:"logging"`
 }
@@ -115,6 +122,14 @@ func applyEnvOverrides(config *Config) {
 	}
 	if currency := os.Getenv("VIRE_DISPLAY_CURRENCY"); currency != "" {
 		config.User.DisplayCurrency = currency
+	}
+
+	// Auth overrides
+	if jwtSecret := os.Getenv("VIRE_AUTH_JWT_SECRET"); jwtSecret != "" {
+		config.Auth.JWTSecret = jwtSecret
+	}
+	if callbackURL := os.Getenv("VIRE_AUTH_CALLBACK_URL"); callbackURL != "" {
+		config.Auth.CallbackURL = callbackURL
 	}
 }
 

@@ -13,6 +13,10 @@ host = "localhost"
 [api]
 url = "http://localhost:4242"
 
+[auth]
+jwt_secret = ""
+callback_url = "http://localhost:4241/auth/callback"
+
 [user]
 # portfolios = ["SMSF", "Personal"]
 # display_currency = "AUD"

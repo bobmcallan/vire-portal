@@ -16,8 +16,11 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP, dynamic tools from vire-server catalog) |
 | `GET /api/health` | HealthHandler | No | Health check (`{"status":"ok"}`) |
 | `GET /api/version` | VersionHandler | No | Version info (JSON) |
-| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (creates session, redirects to `/dashboard`; 404 in prod) |
+| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (calls vire-server, sets session, redirects to `/dashboard`; 404 in prod) |
 | `POST /api/auth/logout` | AuthHandler | No | Clears session cookie, redirects to `/` |
+| `GET /api/auth/login/google` | AuthHandler | No | Redirects to vire-server Google OAuth |
+| `GET /api/auth/login/github` | AuthHandler | No | Redirects to vire-server GitHub OAuth |
+| `GET /auth/callback` | AuthHandler | No | OAuth callback (receives `?token=`, sets session cookie) |
 | `GET /settings` | SettingsHandler | No | Settings page (Navexa API key management) |
 | `POST /settings` | SettingsHandler | No | Save settings (requires session cookie) |
 
@@ -26,7 +29,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | Route | Page | Auth Required | Purpose |
 |-------|------|---------------|---------|
 | `/` | Landing | No | Product overview, "Sign in with Google" and "Sign in with GitHub" buttons |
-| `/auth/callback` | OAuth Callback | No | Receives OAuth redirect, sends auth code to gateway, stores session |
+| `/auth/callback` | OAuth Callback | No | Receives `?token=` from vire-server, sets `vire_session` cookie, redirects to `/dashboard` (implemented) |
 | `/dashboard` | Dashboard | Yes | Usage stats (requests this month, quota bar, daily trend, top endpoints), instance status (running/stopped), plan info |
 | `/settings` | Settings | Yes | Profile info, API key management (BYOK), preferences (default portfolio, exchange) |
 | `/connect` | Connect | Yes | MCP config generator with copy-to-clipboard for Claude Code and Claude Desktop, URL regeneration |
@@ -37,7 +40,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 - **Go 1.25+** with standard `net/http` (no framework)
 - **Go `html/template`** for server-side rendering
 - **Alpine.js** (CDN) for client-side interactivity
-- **BadgerDB** via [badgerhold](https://github.com/timshannon/badgerhold) for embedded storage
+- **Stateless** -- all user data managed by vire-server via REST API
 - **TOML** configuration with priority: defaults < file < env (VIRE_ prefix) < CLI flags
 - **Port 8080** -- default port; Docker local dev overrides to 4241 via `docker/vire-portal.toml`
 - **80s B&W aesthetic** -- IBM Plex Mono, no border-radius, no box-shadow, monochrome only
@@ -500,7 +503,8 @@ Configuration is handled via TOML file and environment variables with the `VIRE_
 | `VIRE_API_URL` | `http://localhost:8080` | vire-server URL for MCP proxy |
 | `VIRE_DEFAULT_PORTFOLIO` | `""` | Default portfolio name |
 | `VIRE_DISPLAY_CURRENCY` | `""` | Display currency (e.g., AUD, USD) |
-| `VIRE_BADGER_PATH` | `./data/vire` | BadgerDB storage path |
+| `VIRE_AUTH_JWT_SECRET` | `""` | JWT signing secret (shared with vire-server) |
+| `VIRE_AUTH_CALLBACK_URL` | `http://localhost:4241/auth/callback` | OAuth callback URL |
 | `VIRE_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 | `VIRE_LOG_FORMAT` | `text` | Log format (text, json) |
 | `VIRE_ENV` | `prod` | Environment (`prod` or `dev`; enables dev login when `dev`) |
@@ -663,7 +667,7 @@ vire-portal/
 │       └── tools.go                 # MCP tool definitions (25+ tools)
 ├── internal/
 │   ├── app/
-│   │   └── app.go                   # Dependency container (Config, Logger, StorageManager, Handlers)
+│   │   └── app.go                   # Dependency container (Config, Logger, Handlers)
 │   ├── config/
 │   │   ├── config.go                # TOML loading with defaults -> file -> env -> CLI priority
 │   │   ├── config_test.go
@@ -671,7 +675,9 @@ vire-portal/
 │   │   ├── version.go               # Version info (ldflags + .version file)
 │   │   └── version_test.go
 │   ├── handlers/
-│   │   ├── auth.go                  # POST /api/auth/dev (dev-only login), POST /api/auth/logout
+│   │   ├── auth.go                  # OAuth auth handlers (dev login, Google/GitHub redirects, callback, logout, JWT validation)
+│   │   ├── auth_test.go             # Auth handler tests (ValidateJWT, IsLoggedIn, OAuth flows)
+│   │   ├── auth_stress_test.go      # Security stress tests (alg:none attack, tampering, timing, hostile inputs)
 │   │   ├── dashboard.go             # GET /dashboard (MCP config, tools, config status)
 │   │   ├── handlers_test.go
 │   │   ├── health.go                # GET /api/health
@@ -679,13 +685,9 @@ vire-portal/
 │   │   ├── landing.go               # PageHandler (template rendering + static file serving)
 │   │   ├── settings.go              # GET/POST /settings (Navexa API key management)
 │   │   └── version.go               # GET /api/version
-│   ├── importer/
-│   │   ├── users.go                 # ImportUsers (JSON -> BadgerDB, bcrypt password hashing)
-│   │   └── users_test.go
-│   ├── interfaces/
-│   │   └── storage.go               # StorageManager + KeyValueStorage interfaces
-│   ├── models/
-│   │   └── user.go                  # User model (username, email, password, role, navexa_key)
+│   ├── client/
+│   │   ├── vire_client.go           # HTTP client for vire-server API (GetUser, UpdateUser, ExchangeOAuth)
+│   │   └── vire_client_test.go
 │   ├── mcp/
 │   │   ├── catalog.go               # Dynamic tool catalog (fetch, validate, build, generic handler)
 │   │   ├── context.go               # UserContext (per-request user identity for proxy headers)
@@ -702,13 +704,6 @@ vire-portal/
 │   │   ├── routes.go                 # Route registration
 │   │   ├── routes_test.go
 │   │   └── server.go                 # HTTP server (net/http, timeouts, graceful shutdown)
-│   ├── storage/
-│   │   ├── factory.go                # Storage factory (creates BadgerDB manager)
-│   │   └── badger/
-│   │       ├── connection.go         # BadgerDB connection via badgerhold
-│   │       ├── kv_storage.go         # KeyValueStorage implementation
-│   │       ├── kv_storage_test.go
-│   │       └── manager.go            # StorageManager implementation
 │   └── vire/                         # Shared packages (migrated from vire repo)
 │       ├── common/                   # Version, logging, config, formatting helpers
 │       ├── interfaces/               # Service and storage interface contracts
@@ -824,7 +819,6 @@ resource "google_cloud_run_v2_service" "portal" {
       ports { container_port = 8080 }
       env { name = "VIRE_SERVER_HOST"; value = "0.0.0.0" }
       env { name = "VIRE_SERVER_PORT"; value = "8080" }
-      env { name = "VIRE_BADGER_PATH"; value = "/app/data/vire" }
       env { name = "VIRE_LOG_LEVEL";   value = "info" }
       resources {
         limits = { cpu = "1", memory = "256Mi" }

@@ -666,6 +666,69 @@ func TestDockerComposeHealthcheck(t *testing.T) {
 	}
 }
 
+// --- Auth Config Tests ---
+
+func TestNewDefaultConfig_AuthDefaults(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	if cfg.Auth.JWTSecret != "" {
+		t.Errorf("expected empty default jwt_secret, got %s", cfg.Auth.JWTSecret)
+	}
+	if cfg.Auth.CallbackURL != "http://localhost:4241/auth/callback" {
+		t.Errorf("expected default callback_url http://localhost:4241/auth/callback, got %s", cfg.Auth.CallbackURL)
+	}
+}
+
+func TestApplyEnvOverrides_AuthJWTSecret(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_AUTH_JWT_SECRET", "my-secret-key")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.Auth.JWTSecret != "my-secret-key" {
+		t.Errorf("expected jwt_secret my-secret-key, got %s", cfg.Auth.JWTSecret)
+	}
+}
+
+func TestApplyEnvOverrides_AuthCallbackURL(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_AUTH_CALLBACK_URL", "http://myhost:4241/auth/callback")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.Auth.CallbackURL != "http://myhost:4241/auth/callback" {
+		t.Errorf("expected callback_url http://myhost:4241/auth/callback, got %s", cfg.Auth.CallbackURL)
+	}
+}
+
+func TestLoadFromFiles_AuthSection(t *testing.T) {
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "auth.toml")
+
+	content := `
+[auth]
+jwt_secret = "file-secret"
+callback_url = "http://portal.example.com/auth/callback"
+`
+	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromFiles(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
+	}
+
+	if cfg.Auth.JWTSecret != "file-secret" {
+		t.Errorf("expected jwt_secret file-secret, got %s", cfg.Auth.JWTSecret)
+	}
+	if cfg.Auth.CallbackURL != "http://portal.example.com/auth/callback" {
+		t.Errorf("expected callback_url from file, got %s", cfg.Auth.CallbackURL)
+	}
+}
+
 func TestDockerComposeNoServerPortEnv(t *testing.T) {
 	// Verify docker-compose.yml does NOT set VIRE_SERVER_PORT.
 	// The Go default is already 8080, so setting it is unnecessary and confusing.

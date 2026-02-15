@@ -29,13 +29,14 @@ type DashboardHandler struct {
 	templates    *template.Template
 	devMode      bool
 	port         int
+	jwtSecret    []byte
 	catalogFn    func() []DashboardTool
 	configStatus DashboardConfigStatus
 	userLookupFn func(string) (*client.UserProfile, error)
 }
 
 // NewDashboardHandler creates a new dashboard handler.
-func NewDashboardHandler(logger *common.Logger, devMode bool, port int, catalogFn func() []DashboardTool, userLookupFn func(string) (*client.UserProfile, error)) *DashboardHandler {
+func NewDashboardHandler(logger *common.Logger, devMode bool, port int, jwtSecret []byte, catalogFn func() []DashboardTool, userLookupFn func(string) (*client.UserProfile, error)) *DashboardHandler {
 	pagesDir := FindPagesDir()
 
 	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
@@ -46,6 +47,7 @@ func NewDashboardHandler(logger *common.Logger, devMode bool, port int, catalogF
 		templates:    templates,
 		devMode:      devMode,
 		port:         port,
+		jwtSecret:    jwtSecret,
 		catalogFn:    catalogFn,
 		userLookupFn: userLookupFn,
 	}
@@ -68,17 +70,13 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	mcpEndpoint := fmt.Sprintf("http://localhost:%d/mcp", h.port)
 
-	cookie, cookieErr := r.Cookie("vire_session")
-	loggedIn := cookieErr == nil
+	loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
 
 	navexaKeyMissing := false
-	if loggedIn && h.userLookupFn != nil {
-		sub := ExtractJWTSub(cookie.Value)
-		if sub != "" {
-			user, err := h.userLookupFn(sub)
-			if err == nil && user != nil && !user.NavexaKeySet {
-				navexaKeyMissing = true
-			}
+	if loggedIn && h.userLookupFn != nil && claims != nil && claims.Sub != "" {
+		user, err := h.userLookupFn(claims.Sub)
+		if err == nil && user != nil && !user.NavexaKeySet {
+			navexaKeyMissing = true
 		}
 	}
 

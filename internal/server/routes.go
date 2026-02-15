@@ -28,6 +28,9 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	// Auth routes
 	mux.HandleFunc("POST /api/auth/dev", s.app.AuthHandler.HandleDevLogin)
 	mux.HandleFunc("POST /api/auth/logout", s.app.AuthHandler.HandleLogout)
+	mux.HandleFunc("GET /api/auth/login/google", s.app.AuthHandler.HandleGoogleLogin)
+	mux.HandleFunc("GET /api/auth/login/github", s.app.AuthHandler.HandleGitHubLogin)
+	mux.HandleFunc("GET /auth/callback", s.app.AuthHandler.HandleOAuthCallback)
 
 	// API routes
 	mux.HandleFunc("/api/health", s.app.HealthHandler.ServeHTTP)

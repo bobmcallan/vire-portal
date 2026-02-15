@@ -64,6 +64,51 @@ func (c *VireClient) GetUser(userID string) (*UserProfile, error) {
 	return &result.Data, nil
 }
 
+// OAuthResponse holds the token and user profile from an OAuth exchange.
+type OAuthResponse struct {
+	Token string      `json:"token"`
+	User  UserProfile `json:"user"`
+}
+
+// ExchangeOAuth exchanges OAuth credentials for a JWT token via vire-server.
+// POST /api/auth/oauth with { provider, code, state } -> { status: "ok", data: OAuthResponse }
+func (c *VireClient) ExchangeOAuth(provider, code, state string) (*OAuthResponse, error) {
+	body := map[string]string{
+		"provider": provider,
+		"code":     code,
+		"state":    state,
+	}
+	jsonData, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Post(c.baseURL+"/api/auth/oauth", "application/json", bytes.NewReader(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to reach vire-server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		Status string        `json:"status"`
+		Data   OAuthResponse `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &result.Data, nil
+}
+
 // UpdateUser updates user fields on vire-server.
 // PUT /api/users/{id} with JSON body -> { status: "ok", data: UserProfile }
 func (c *VireClient) UpdateUser(userID string, fields map[string]string) (*UserProfile, error) {

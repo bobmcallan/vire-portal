@@ -271,8 +271,16 @@ func newTestAppWithConfig(t *testing.T, cfg *config.Config) *app.App {
 // --- Dev Mode Route Tests ---
 
 func TestRoutes_DevAuthEndpoint_DevMode(t *testing.T) {
+	// Mock vire-server for dev login
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok","data":{"token":"eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJkZXZfdXNlciIsImV4cCI6OTk5OTk5OTk5OX0."}}`))
+	}))
+	defer mockServer.Close()
+
 	cfg := config.NewDefaultConfig()
 	cfg.Environment = "dev"
+	cfg.API.URL = mockServer.URL
 	application := newTestAppWithConfig(t, cfg)
 	srv := New(application)
 
@@ -320,8 +328,16 @@ func TestRoutes_DevAuthEndpoint_ProdMode(t *testing.T) {
 }
 
 func TestRoutes_DevAuthEndpoint_NotBlockedByCSRF(t *testing.T) {
+	// Mock vire-server so the handler completes
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok","data":{"token":"eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJkZXZfdXNlciIsImV4cCI6OTk5OTk5OTk5OX0."}}`))
+	}))
+	defer mockServer.Close()
+
 	cfg := config.NewDefaultConfig()
 	cfg.Environment = "dev"
+	cfg.API.URL = mockServer.URL
 	application := newTestAppWithConfig(t, cfg)
 	srv := New(application)
 
