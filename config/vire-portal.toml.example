@@ -17,13 +17,8 @@ url = "http://localhost:4242"
 # portfolios = ["SMSF", "Personal"]
 # display_currency = "AUD"
 
-[import]
-users = true
-users_file = "data/users.json"
-
-[storage.badger]
-path = "./data/vire"
-
 [logging]
-level = "info"    # debug, info, warn, error
-format = "text"   # text, json
+level = "info"              # debug, info, warn, error
+format = "text"             # text, json
+outputs = ["file"]          # console, file (default: console)
+file_path = "logs/vire-portal.log"

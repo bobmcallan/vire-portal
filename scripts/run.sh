@@ -81,9 +81,8 @@ case "${1:-start}" in
     fi
 
     # Start detached from bin directory
-    LOG_FILE="$BIN_DIR/vire-portal.log"
     cd "$BIN_DIR"
-    nohup ./vire-portal > "$LOG_FILE" 2>&1 &
+    nohup ./vire-portal > /dev/null 2>&1 &
     SERVER_PID=$!
     echo "$SERVER_PID" > "$PID_FILE"
 
@@ -92,7 +91,6 @@ case "${1:-start}" in
         echo "vire-portal v$VERSION running (PID $SERVER_PID)"
         echo "  http://localhost:$PORT"
         echo "  http://localhost:$PORT/api/health"
-        echo "  Log:  $LOG_FILE"
         echo "  Stop: ./scripts/run.sh stop"
     else
         echo "vire-portal failed to start"

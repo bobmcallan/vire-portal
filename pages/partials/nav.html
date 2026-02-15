@@ -8,12 +8,11 @@
                 <li><a href="/dashboard" {{if eq .Page "dashboard"}}class="active"{{end}}>Dashboard</a></li>
             </ul>
 
-            <div x-data="statusIndicators()" class="status-indicators">
-                <span class="status-dot" :class="'status-' + portal" title="Portal">P</span>
-                <span class="status-dot" :class="'status-' + server" title="Server">S</span>
-            </div>
-
             <div class="nav-hamburger-wrap" @click.outside="closeDropdown()">
+                <div x-data="statusIndicators()" class="status-indicators">
+                    <span class="status-dot" :class="'status-' + portal" title="Portal">P</span>
+                    <span class="status-dot" :class="'status-' + server" title="Server">S</span>
+                </div>
                 <button @click="toggle()" class="nav-hamburger">
                     <span class="nav-hamburger-icon"></span>
                 </button>

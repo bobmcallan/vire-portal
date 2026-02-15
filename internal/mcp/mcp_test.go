@@ -1585,7 +1585,7 @@ func TestNewHandler_CatalogUnavailable(t *testing.T) {
 	cfg := testConfig()
 	cfg.API.URL = "http://127.0.0.1:1"
 
-	handler := NewHandler(cfg, testLogger(), nil)
+	handler := NewHandler(cfg, testLogger())
 
 	// Handler should still be created (non-fatal)
 	if handler == nil {
@@ -1616,7 +1616,7 @@ func TestNewHandler_CatalogRetry_SucceedsOnSecondAttempt(t *testing.T) {
 	cfg := testConfig()
 	cfg.API.URL = mockServer.URL
 
-	handler := NewHandler(cfg, testLogger(), nil)
+	handler := NewHandler(cfg, testLogger())
 
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
@@ -1645,7 +1645,7 @@ func TestNewHandler_CatalogValidation_FiltersInvalid(t *testing.T) {
 	cfg := testConfig()
 	cfg.API.URL = mockServer.URL
 
-	handler := NewHandler(cfg, testLogger(), nil)
+	handler := NewHandler(cfg, testLogger())
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
 	}
@@ -1665,7 +1665,7 @@ func TestNewHandler_CatalogAvailable(t *testing.T) {
 	cfg := testConfig()
 	cfg.API.URL = mockServer.URL
 
-	handler := NewHandler(cfg, testLogger(), nil)
+	handler := NewHandler(cfg, testLogger())
 
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
@@ -1676,7 +1676,7 @@ func TestNewHandler_CatalogAvailable(t *testing.T) {
 
 func TestUserContext_RoundTrip(t *testing.T) {
 	ctx := context.Background()
-	uc := UserContext{UserID: "alice", NavexaKey: "key123"}
+	uc := UserContext{UserID: "alice"}
 
 	ctx = WithUserContext(ctx, uc)
 	got, ok := GetUserContext(ctx)
@@ -1685,9 +1685,6 @@ func TestUserContext_RoundTrip(t *testing.T) {
 	}
 	if got.UserID != "alice" {
 		t.Errorf("expected UserID 'alice', got %q", got.UserID)
-	}
-	if got.NavexaKey != "key123" {
-		t.Errorf("expected NavexaKey 'key123', got %q", got.NavexaKey)
 	}
 }
 
@@ -1754,7 +1751,7 @@ func TestProxy_ForwardsUserContextHeaders(t *testing.T) {
 	p := NewMCPProxy(mockServer.URL, testLogger(), cfg)
 
 	// Create a context with UserContext
-	ctx := WithUserContext(t.Context(), UserContext{UserID: "alice", NavexaKey: "navexa-key-123"})
+	ctx := WithUserContext(t.Context(), UserContext{UserID: "alice"})
 
 	body, err := p.get(ctx, "/api/version")
 	if err != nil {
@@ -1767,8 +1764,8 @@ func TestProxy_ForwardsUserContextHeaders(t *testing.T) {
 	if receivedHeaders.Get("X-Vire-User-ID") != "alice" {
 		t.Errorf("expected X-Vire-User-ID 'alice', got %q", receivedHeaders.Get("X-Vire-User-ID"))
 	}
-	if receivedHeaders.Get("X-Vire-Navexa-Key") != "navexa-key-123" {
-		t.Errorf("expected X-Vire-Navexa-Key 'navexa-key-123', got %q", receivedHeaders.Get("X-Vire-Navexa-Key"))
+	if receivedHeaders.Get("X-Vire-Navexa-Key") != "" {
+		t.Errorf("expected no X-Vire-Navexa-Key header, got %q", receivedHeaders.Get("X-Vire-Navexa-Key"))
 	}
 	// Static headers should also be present
 	if receivedHeaders.Get("X-Vire-Portfolios") != "SMSF,Personal" {
@@ -1803,30 +1800,17 @@ func TestProxy_NoUserContextHeaders_WhenMissing(t *testing.T) {
 }
 
 func TestHandler_WithUserContext_NoCookie(t *testing.T) {
-	lookupCalled := false
-	lookupFn := func(userID string) (*UserContext, error) {
-		lookupCalled = true
-		return &UserContext{UserID: userID}, nil
-	}
-
-	h := &Handler{userLookupFn: lookupFn}
+	h := &Handler{}
 	req := httptest.NewRequest("POST", "/mcp", nil)
 	result := h.withUserContext(req)
 
-	if lookupCalled {
-		t.Error("expected lookup NOT to be called when no cookie")
-	}
 	if _, ok := GetUserContext(result.Context()); ok {
 		t.Error("expected no UserContext when no cookie")
 	}
 }
 
 func TestHandler_WithUserContext_ValidCookie(t *testing.T) {
-	lookupFn := func(userID string) (*UserContext, error) {
-		return &UserContext{UserID: userID, NavexaKey: "key-abc"}, nil
-	}
-
-	h := &Handler{userLookupFn: lookupFn}
+	h := &Handler{}
 
 	// Build a dev JWT cookie
 	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"dev_user"}`))
@@ -1845,25 +1829,18 @@ func TestHandler_WithUserContext_ValidCookie(t *testing.T) {
 	if uc.UserID != "dev_user" {
 		t.Errorf("expected UserID 'dev_user', got %q", uc.UserID)
 	}
-	if uc.NavexaKey != "key-abc" {
-		t.Errorf("expected NavexaKey 'key-abc', got %q", uc.NavexaKey)
-	}
 }
 
-func TestHandler_WithUserContext_NilLookupFn(t *testing.T) {
-	h := &Handler{userLookupFn: nil}
-
-	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"dev_user"}`))
-	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
-	token := header + "." + payload + "."
+func TestHandler_WithUserContext_InvalidJWT(t *testing.T) {
+	h := &Handler{}
 
 	req := httptest.NewRequest("POST", "/mcp", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "not-a-jwt"})
 
 	result := h.withUserContext(req)
 
 	if _, ok := GetUserContext(result.Context()); ok {
-		t.Error("expected no UserContext when lookupFn is nil")
+		t.Error("expected no UserContext for invalid JWT")
 	}
 }
 
@@ -1991,8 +1968,7 @@ func TestProxy_HeaderInjection_NewlinesInUserID(t *testing.T) {
 
 	// UserID with CRLF injection attempt
 	ctx := WithUserContext(t.Context(), UserContext{
-		UserID:    "alice\r\nX-Injected: evil",
-		NavexaKey: "key\r\nX-Injected2: evil2",
+		UserID: "alice\r\nX-Injected: evil",
 	})
 
 	_, err := p.get(ctx, "/api/version")
@@ -2000,12 +1976,9 @@ func TestProxy_HeaderInjection_NewlinesInUserID(t *testing.T) {
 		t.Fatalf("get failed: %v", err)
 	}
 
-	// Verify the injected headers are NOT present
+	// Verify the injected header is NOT present
 	if receivedHeaders.Get("X-Injected") != "" {
 		t.Error("CRLF injection succeeded: X-Injected header present on server")
-	}
-	if receivedHeaders.Get("X-Injected2") != "" {
-		t.Error("CRLF injection succeeded: X-Injected2 header present on server")
 	}
 
 	// The sanitized value should be present (newlines stripped)
@@ -2048,7 +2021,7 @@ func TestProxy_EmptyUserID_NoHeader(t *testing.T) {
 	p := NewMCPProxy(mockServer.URL, testLogger(), cfg)
 
 	// UserContext with empty values should NOT set headers
-	ctx := WithUserContext(t.Context(), UserContext{UserID: "", NavexaKey: ""})
+	ctx := WithUserContext(t.Context(), UserContext{UserID: ""})
 
 	_, err := p.get(ctx, "/api/version")
 	if err != nil {
@@ -2058,19 +2031,13 @@ func TestProxy_EmptyUserID_NoHeader(t *testing.T) {
 	if receivedHeaders.Get("X-Vire-User-ID") != "" {
 		t.Error("expected no X-Vire-User-ID header for empty UserID")
 	}
-	if receivedHeaders.Get("X-Vire-Navexa-Key") != "" {
-		t.Error("expected no X-Vire-Navexa-Key header for empty NavexaKey")
-	}
 }
 
-func TestHandler_WithUserContext_LookupError(t *testing.T) {
-	lookupFn := func(userID string) (*UserContext, error) {
-		return nil, fmt.Errorf("database connection failed")
-	}
+func TestHandler_WithUserContext_EmptySub(t *testing.T) {
+	h := &Handler{}
 
-	h := &Handler{userLookupFn: lookupFn}
-
-	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"dev_user"}`))
+	// JWT with empty sub claim
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"","iss":"vire-dev"}`))
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
 	token := header + "." + payload + "."
 
@@ -2079,36 +2046,26 @@ func TestHandler_WithUserContext_LookupError(t *testing.T) {
 
 	result := h.withUserContext(req)
 
-	// Should gracefully handle lookup error -- no user context, no panic
+	// Empty sub should not set UserContext
 	if _, ok := GetUserContext(result.Context()); ok {
-		t.Error("expected no UserContext when lookup returns error")
+		t.Error("expected no UserContext when sub is empty")
 	}
 }
 
 func TestHandler_WithUserContext_EmptyCookieValue(t *testing.T) {
-	lookupCalled := false
-	lookupFn := func(userID string) (*UserContext, error) {
-		lookupCalled = true
-		return &UserContext{UserID: userID}, nil
-	}
-
-	h := &Handler{userLookupFn: lookupFn}
+	h := &Handler{}
 	req := httptest.NewRequest("POST", "/mcp", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: ""})
 
-	h.withUserContext(req)
+	result := h.withUserContext(req)
 
-	if lookupCalled {
-		t.Error("expected lookup NOT to be called for empty cookie value")
+	if _, ok := GetUserContext(result.Context()); ok {
+		t.Error("expected no UserContext for empty cookie value")
 	}
 }
 
 func TestHandler_WithUserContext_ConcurrentRequests(t *testing.T) {
-	lookupFn := func(userID string) (*UserContext, error) {
-		return &UserContext{UserID: userID, NavexaKey: "key-" + userID}, nil
-	}
-
-	h := &Handler{userLookupFn: lookupFn}
+	h := &Handler{}
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
@@ -2564,7 +2521,7 @@ func TestIntegration_CatalogToToolCall(t *testing.T) {
 	cfg.API.URL = mockServer.URL
 
 	// Create handler (fetches catalog, registers tools)
-	handler := NewHandler(cfg, testLogger(), nil)
+	handler := NewHandler(cfg, testLogger())
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
 	}

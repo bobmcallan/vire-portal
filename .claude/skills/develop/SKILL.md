@@ -281,14 +281,11 @@ When all tasks are complete:
 |-----------|----------|
 | Entry Point | `cmd/vire-portal/` |
 | Application | `internal/app/` |
+| API Client | `internal/client/` |
 | Configuration | `internal/config/` |
 | HTTP Handlers | `internal/handlers/` |
 | MCP Server | `internal/mcp/` |
-| User Importer | `internal/importer/` |
-| Storage Interfaces | `internal/interfaces/` |
-| User Model | `internal/models/` |
 | HTTP Server | `internal/server/` |
-| BadgerDB Storage | `internal/storage/badger/` |
 | HTML Templates | `pages/` |
 | Template Partials | `pages/partials/` |
 | Static Assets | `pages/static/` |
@@ -297,6 +294,8 @@ When all tasks are complete:
 | Documentation | `docs/`, `README.md` |
 | Scripts | `scripts/` |
 | Skills | `.claude/skills/` |
+
+The portal is stateless -- all user data is managed by vire-server via REST API (`internal/client/vire_client.go`).
 
 ### Routes
 
@@ -326,9 +325,6 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 | API URL | `VIRE_API_URL` | `http://localhost:8080` |
 | Default portfolio | `VIRE_DEFAULT_PORTFOLIO` | `""` |
 | Display currency | `VIRE_DISPLAY_CURRENCY` | `""` |
-| Import users | -- | `false` (TOML: `import.users`) |
-| Import users file | -- | `data/users.json` (TOML: `import.users_file`) |
-| BadgerDB path | `VIRE_BADGER_PATH` | `./data/vire` |
 | Environment | `VIRE_ENV` | `prod` |
 | Log level | `VIRE_LOG_LEVEL` | `info` |
 | Log format | `VIRE_LOG_FORMAT` | `text` |
@@ -341,10 +337,12 @@ MCP tool calls are proxied to vire-server with X-Vire-* header injection:
 - MCP endpoint: `POST /mcp` (mcp-go StreamableHTTPServer, stateless)
 - Proxy: `internal/mcp/proxy.go` forwards to vire-server (default `http://localhost:8080`)
 - Static headers: X-Vire-Portfolios, X-Vire-Display-Currency (from config)
-- Per-request headers: X-Vire-User-ID, X-Vire-Navexa-Key (from session cookie + user lookup)
+- Per-request headers: X-Vire-User-ID (from session cookie JWT sub claim)
 - Tools: dynamic catalog from `GET /api/mcp/tools` (registered at startup via `internal/mcp/catalog.go`, 3-attempt retry, validated)
 - Response format: raw JSON from vire-server (no markdown formatting)
 - Timeouts: 300s proxy + 300s server WriteTimeout (for slow tools like generate_report)
+- User data: fetched from vire-server via `internal/client/vire_client.go` (GET/PUT `/api/users/{id}`)
+- Navexa key: resolved by vire-server from X-Vire-User-ID (portal never handles the raw key)
 
 Future gateway integration (deferred):
 - Auth: JWT in `Authorization: Bearer` header

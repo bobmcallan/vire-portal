@@ -76,9 +76,6 @@ func (p *MCPProxy) applyUserHeaders(req *http.Request) {
 		if uc.UserID != "" {
 			req.Header.Set("X-Vire-User-ID", sanitizeHeaderValue(uc.UserID))
 		}
-		if uc.NavexaKey != "" {
-			req.Header.Set("X-Vire-Navexa-Key", sanitizeHeaderValue(uc.NavexaKey))
-		}
 	}
 }
 

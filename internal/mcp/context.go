@@ -7,8 +7,7 @@ type userContextKey struct{}
 
 // UserContext holds per-request user identity for MCP proxy header injection.
 type UserContext struct {
-	UserID    string
-	NavexaKey string
+	UserID string
 }
 
 // WithUserContext returns a new context with the given UserContext attached.

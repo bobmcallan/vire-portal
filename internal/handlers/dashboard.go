@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/bobmcallan/vire-portal/internal/models"
+	"github.com/bobmcallan/vire-portal/internal/client"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
@@ -31,11 +31,11 @@ type DashboardHandler struct {
 	port         int
 	catalogFn    func() []DashboardTool
 	configStatus DashboardConfigStatus
-	userLookupFn func(string) (*models.User, error)
+	userLookupFn func(string) (*client.UserProfile, error)
 }
 
 // NewDashboardHandler creates a new dashboard handler.
-func NewDashboardHandler(logger *common.Logger, devMode bool, port int, catalogFn func() []DashboardTool, userLookupFn func(string) (*models.User, error)) *DashboardHandler {
+func NewDashboardHandler(logger *common.Logger, devMode bool, port int, catalogFn func() []DashboardTool, userLookupFn func(string) (*client.UserProfile, error)) *DashboardHandler {
 	pagesDir := FindPagesDir()
 
 	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
@@ -76,7 +76,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sub := ExtractJWTSub(cookie.Value)
 		if sub != "" {
 			user, err := h.userLookupFn(sub)
-			if err == nil && user != nil && user.NavexaKey == "" {
+			if err == nil && user != nil && !user.NavexaKeySet {
 				navexaKeyMissing = true
 			}
 		}

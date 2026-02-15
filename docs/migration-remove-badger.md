@@ -1,8 +1,36 @@
 # Migration: Remove BadgerDB from Portal, Move User Storage to vire-server
 
+## Completed
+
+**Date:** 2026-02-15
+
+BadgerDB has been removed from the portal. All user data is now managed by vire-server via REST API. The portal is stateless -- it fetches user profiles from `GET /api/users/{id}` and saves settings via `PUT /api/users/{id}`. The MCP proxy sends only `X-Vire-User-ID`; vire-server resolves the navexa key internally (Option B).
+
+Phases 1-4 are complete. See the changes summary below.
+
+### What Changed
+
+| Component | Change |
+|-----------|--------|
+| `internal/client/vire_client.go` | New API client for vire-server user endpoints |
+| `internal/client/vire_client_test.go` | Tests with httptest mock server |
+| `internal/app/app.go` | Removed StorageManager, initStorage, importer; uses VireClient |
+| `internal/handlers/settings.go` | Uses `client.UserProfile` and API save function |
+| `internal/handlers/dashboard.go` | Uses `client.UserProfile`, checks `NavexaKeySet` |
+| `internal/mcp/handler.go` | Removed `userLookupFn`; extracts UserID from JWT directly |
+| `internal/mcp/context.go` | Removed `NavexaKey` from `UserContext` |
+| `internal/mcp/proxy.go` | Removed `X-Vire-Navexa-Key` header injection |
+| `internal/config/config.go` | Removed `ImportConfig`, `StorageConfig`, `BadgerConfig` |
+| `internal/config/defaults.go` | Removed storage and import defaults |
+| `internal/storage/` | Deleted (entire directory) |
+| `internal/interfaces/` | Deleted (entire directory) |
+| `internal/models/` | Deleted (entire directory) |
+| `internal/importer/` | Deleted (entire directory) |
+| `go.mod` | Removed badgerhold, badger, x/crypto dependencies |
+
 ## Overview
 
-vire-portal currently stores user data locally in BadgerDB (via badgerhold). This creates a split data model: user credentials and settings live in the portal while portfolio/market data lives in vire-server's file-based storage. This document describes how to consolidate all data storage into vire-server, making the portal a stateless frontend.
+The portal previously stored user data locally in BadgerDB (via badgerhold). This created a split data model: user credentials and settings lived in the portal while portfolio/market data lived in vire-server's file-based storage. This document describes the consolidation of all data storage into vire-server, making the portal a stateless frontend.
 
 ## Current State
 
@@ -255,33 +283,30 @@ Currently the portal reads the navexa_key from BadgerDB and injects it as `X-Vir
 
 ## Migration Sequence
 
-### Phase 1: Add server endpoints (no portal changes)
-1. Add User model and storage to vire-server
-2. Implement `/api/users/*` CRUD endpoints
-3. Implement `/api/auth/login` and `/api/auth/validate`
-4. Implement `/api/users/import` for bulk import
-5. Enhance userContextMiddleware to resolve navexa_key from X-Vire-User-ID
-6. Test all new endpoints
+### Phase 1: Add server endpoints (no portal changes) -- COMPLETE
+1. Added User model and storage to vire-server
+2. Implemented `/api/users/*` CRUD endpoints
+3. Implemented `/api/auth/login` and `/api/auth/validate`
+4. Implemented `/api/users/import` for bulk import
+5. Enhanced userContextMiddleware to resolve navexa_key from X-Vire-User-ID
+6. Tested all new endpoints
 
-### Phase 2: Add portal API client (parallel storage)
-1. Create `internal/client/vire_client.go` in portal
-2. Wire into handlers alongside existing BadgerDB calls
-3. Run both in parallel — write to both, read from server with BadgerDB fallback
-4. Verify server responses match BadgerDB data
+### Phase 2: Add portal API client (parallel storage) -- COMPLETE
+1. Created `internal/client/vire_client.go` in portal
+2. Wired into handlers (skipped parallel storage -- went direct to Phase 3)
 
-### Phase 3: Remove BadgerDB from portal
-1. Switch all handlers to use API client exclusively
-2. Remove BadgerDB code, storage interfaces, importer, models
-3. Remove badgerhold/bcrypt dependencies from go.mod
-4. Remove data directory and storage config
-5. Update tests to mock API client instead of badgerhold store
-6. Update documentation and skills
+### Phase 3: Remove BadgerDB from portal -- COMPLETE
+1. Switched all handlers to use API client exclusively
+2. Removed BadgerDB code, storage interfaces, importer, models
+3. Removed badgerhold/bcrypt dependencies from go.mod
+4. Removed data directory and storage config
+5. Updated tests to use `client.UserProfile` closures instead of badgerhold store
+6. Updated documentation and skills
 
-### Phase 4: Cleanup
-1. Remove parallel storage code
-2. Remove BadgerDB config from TOML files
-3. Update Docker compose (no volume mount for data/)
-4. Update run.sh (no data/ copy to bin/)
+### Phase 4: Cleanup -- COMPLETE
+1. Removed BadgerDB config from TOML defaults and env overrides
+2. Removed storage/importer/interfaces/models directories
+3. Ran `go mod tidy` to clean dependencies
 
 ## Config Changes
 

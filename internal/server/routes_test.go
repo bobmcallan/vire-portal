@@ -17,7 +17,6 @@ func newTestApp(t *testing.T) *app.App {
 	t.Helper()
 
 	cfg := config.NewDefaultConfig()
-	cfg.Storage.Badger.Path = t.TempDir()
 
 	logger := common.NewSilentLogger()
 
@@ -254,8 +253,6 @@ func TestRoutes_MCPHasCorrelationID(t *testing.T) {
 // newTestAppWithConfig creates a test app with a custom config.
 func newTestAppWithConfig(t *testing.T, cfg *config.Config) *app.App {
 	t.Helper()
-
-	cfg.Storage.Badger.Path = t.TempDir()
 
 	logger := common.NewSilentLogger()
 

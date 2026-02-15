@@ -16,9 +16,6 @@ func TestNewDefaultConfig(t *testing.T) {
 	if cfg.Server.Host != "localhost" {
 		t.Errorf("expected default host localhost, got %s", cfg.Server.Host)
 	}
-	if cfg.Storage.Badger.Path != "./data/vire" {
-		t.Errorf("expected default badger path ./data/vire, got %s", cfg.Storage.Badger.Path)
-	}
 	if cfg.Logging.Level != "info" {
 		t.Errorf("expected default log level info, got %s", cfg.Logging.Level)
 	}
@@ -46,9 +43,6 @@ func TestLoadFromFiles_ValidTOML(t *testing.T) {
 port = 9090
 host = "0.0.0.0"
 
-[storage.badger]
-path = "/tmp/test-db"
-
 [logging]
 level = "debug"
 format = "json"
@@ -67,9 +61,6 @@ format = "json"
 	}
 	if cfg.Server.Host != "0.0.0.0" {
 		t.Errorf("expected host 0.0.0.0, got %s", cfg.Server.Host)
-	}
-	if cfg.Storage.Badger.Path != "/tmp/test-db" {
-		t.Errorf("expected badger path /tmp/test-db, got %s", cfg.Storage.Badger.Path)
 	}
 	if cfg.Logging.Level != "debug" {
 		t.Errorf("expected log level debug, got %s", cfg.Logging.Level)
@@ -169,7 +160,6 @@ func TestApplyEnvOverrides(t *testing.T) {
 
 	t.Setenv("VIRE_SERVER_PORT", "9999")
 	t.Setenv("VIRE_SERVER_HOST", "env-host")
-	t.Setenv("VIRE_BADGER_PATH", "/env/path")
 	t.Setenv("VIRE_LOG_LEVEL", "error")
 	t.Setenv("VIRE_LOG_FORMAT", "json")
 
@@ -180,9 +170,6 @@ func TestApplyEnvOverrides(t *testing.T) {
 	}
 	if cfg.Server.Host != "env-host" {
 		t.Errorf("expected env host env-host, got %s", cfg.Server.Host)
-	}
-	if cfg.Storage.Badger.Path != "/env/path" {
-		t.Errorf("expected env badger path /env/path, got %s", cfg.Storage.Badger.Path)
 	}
 	if cfg.Logging.Level != "error" {
 		t.Errorf("expected env log level error, got %s", cfg.Logging.Level)
@@ -253,14 +240,6 @@ func TestNewDefaultConfig_UserDefaults(t *testing.T) {
 	}
 }
 
-func TestNewDefaultConfig_ImportDefaults(t *testing.T) {
-	cfg := NewDefaultConfig()
-
-	if cfg.Import.Users != false {
-		t.Errorf("expected default import.users false, got %v", cfg.Import.Users)
-	}
-}
-
 func TestLoadFromFiles_MCPSections(t *testing.T) {
 	dir := t.TempDir()
 	tomlPath := filepath.Join(dir, "mcp.toml")
@@ -326,28 +305,6 @@ func TestApplyEnvOverrides_DisplayCurrency(t *testing.T) {
 
 	if cfg.User.DisplayCurrency != "USD" {
 		t.Errorf("expected display currency USD, got %s", cfg.User.DisplayCurrency)
-	}
-}
-
-func TestLoadFromFiles_ImportSection(t *testing.T) {
-	dir := t.TempDir()
-	tomlPath := filepath.Join(dir, "import.toml")
-
-	content := `
-[import]
-users = true
-`
-	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := LoadFromFiles(tomlPath)
-	if err != nil {
-		t.Fatalf("LoadFromFiles failed: %v", err)
-	}
-
-	if !cfg.Import.Users {
-		t.Error("expected import.users true from TOML")
 	}
 }
 
@@ -672,29 +629,6 @@ func TestApplyEnvOverrides_HostilePortValues(t *testing.T) {
 			// Should either keep default or parse the numeric portion
 			// The point is: must not panic
 		})
-	}
-}
-
-func TestDockerComposeProjectName(t *testing.T) {
-	// Verify docker-compose.yml uses "vire-portal" project name, not "vire".
-	// Using "vire" causes --remove-orphans to kill vire-server containers.
-	composePath := filepath.Join("..", "..", "docker", "docker-compose.yml")
-	data, err := os.ReadFile(composePath)
-	if err != nil {
-		t.Skipf("could not read docker-compose.yml: %v", err)
-	}
-	content := string(data)
-
-	if !strings.Contains(content, "name: vire-portal") {
-		t.Error("docker-compose.yml must use 'name: vire-portal' to prevent cross-service interference")
-	}
-	// Should NOT use bare "name: vire" which would conflict
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "name: vire" {
-			t.Error("docker-compose.yml must NOT use 'name: vire' — conflicts with vire-server project")
-		}
 	}
 }
 

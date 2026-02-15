@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bobmcallan/vire-portal/internal/models"
+	"github.com/bobmcallan/vire-portal/internal/client"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
@@ -17,12 +17,12 @@ type SettingsHandler struct {
 	logger       *common.Logger
 	templates    *template.Template
 	devMode      bool
-	userLookupFn func(string) (*models.User, error)
-	userSaveFn   func(*models.User) error
+	userLookupFn func(string) (*client.UserProfile, error)
+	userSaveFn   func(string, map[string]string) error
 }
 
 // NewSettingsHandler creates a new settings handler.
-func NewSettingsHandler(logger *common.Logger, devMode bool, userLookupFn func(string) (*models.User, error), userSaveFn func(*models.User) error) *SettingsHandler {
+func NewSettingsHandler(logger *common.Logger, devMode bool, userLookupFn func(string) (*client.UserProfile, error), userSaveFn func(string, map[string]string) error) *SettingsHandler {
 	pagesDir := FindPagesDir()
 
 	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
@@ -62,14 +62,8 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 		if sub != "" && h.userLookupFn != nil {
 			user, err := h.userLookupFn(sub)
 			if err == nil && user != nil {
-				if user.NavexaKey != "" {
-					data["NavexaKeySet"] = true
-					if len(user.NavexaKey) >= 4 {
-						data["NavexaKeyPreview"] = user.NavexaKey[len(user.NavexaKey)-4:]
-					} else {
-						data["NavexaKeyPreview"] = user.NavexaKey
-					}
-				}
+				data["NavexaKeySet"] = user.NavexaKeySet
+				data["NavexaKeyPreview"] = user.NavexaKeyPreview
 			}
 		}
 	}
@@ -96,14 +90,8 @@ func (h *SettingsHandler) HandleSaveSettings(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if h.userLookupFn == nil || h.userSaveFn == nil {
+	if h.userSaveFn == nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	user, err := h.userLookupFn(sub)
-	if err != nil || user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -113,9 +101,8 @@ func (h *SettingsHandler) HandleSaveSettings(w http.ResponseWriter, r *http.Requ
 	}
 
 	navexaKey := strings.TrimSpace(r.FormValue("navexa_key"))
-	user.NavexaKey = navexaKey
 
-	if err := h.userSaveFn(user); err != nil {
+	if err := h.userSaveFn(sub, map[string]string{"navexa_key": navexaKey}); err != nil {
 		if h.logger != nil {
 			h.logger.Error().Str("error", err.Error()).Msg("failed to save user settings")
 		}

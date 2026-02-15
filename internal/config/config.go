@@ -15,8 +15,6 @@ type Config struct {
 	Server      ServerConfig  `toml:"server"`
 	API         APIConfig     `toml:"api"`
 	User        UserConfig    `toml:"user"`
-	Import      ImportConfig  `toml:"import"`
-	Storage     StorageConfig `toml:"storage"`
 	Logging     LoggingConfig `toml:"logging"`
 }
 
@@ -37,26 +35,10 @@ type UserConfig struct {
 	DisplayCurrency string   `toml:"display_currency"`
 }
 
-// ImportConfig contains settings for data import on startup.
-type ImportConfig struct {
-	Users     bool   `toml:"users"`
-	UsersFile string `toml:"users_file"`
-}
-
 // ServerConfig contains HTTP server settings.
 type ServerConfig struct {
 	Port int    `toml:"port"`
 	Host string `toml:"host"`
-}
-
-// StorageConfig contains storage layer settings.
-type StorageConfig struct {
-	Badger BadgerConfig `toml:"badger"`
-}
-
-// BadgerConfig contains BadgerDB-specific settings.
-type BadgerConfig struct {
-	Path string `toml:"path"`
 }
 
 // LoggingConfig contains logging settings.
@@ -116,9 +98,6 @@ func applyEnvOverrides(config *Config) {
 	}
 	if host := os.Getenv("VIRE_SERVER_HOST"); host != "" {
 		config.Server.Host = host
-	}
-	if badgerPath := os.Getenv("VIRE_BADGER_PATH"); badgerPath != "" {
-		config.Storage.Badger.Path = badgerPath
 	}
 	if level := os.Getenv("VIRE_LOG_LEVEL"); level != "" {
 		config.Logging.Level = level

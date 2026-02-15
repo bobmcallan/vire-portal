@@ -16,10 +16,9 @@ import (
 // Handler is the HTTP handler for the MCP endpoint.
 // It wraps mcp-go's StreamableHTTPServer and delegates to it.
 type Handler struct {
-	streamable   *mcpserver.StreamableHTTPServer
-	logger       *common.Logger
-	catalog      []CatalogTool
-	userLookupFn func(userID string) (*UserContext, error)
+	streamable *mcpserver.StreamableHTTPServer
+	logger     *common.Logger
+	catalog    []CatalogTool
 }
 
 // catalogRetryAttempts is the number of times to retry fetching the catalog.
@@ -29,7 +28,7 @@ const catalogRetryAttempts = 3
 const catalogRetryDelay = 2 * time.Second
 
 // NewHandler creates a new MCP handler with dynamic tool registration from vire-server.
-func NewHandler(cfg *config.Config, logger *common.Logger, userLookupFn func(userID string) (*UserContext, error)) *Handler {
+func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 	mcpSrv := mcpserver.NewMCPServer(
 		"vire-portal",
 		"1.0.0",
@@ -82,10 +81,9 @@ func NewHandler(cfg *config.Config, logger *common.Logger, userLookupFn func(use
 		Msg("MCP handler initialized")
 
 	return &Handler{
-		streamable:   streamable,
-		logger:       logger,
-		catalog:      validated,
-		userLookupFn: userLookupFn,
+		streamable: streamable,
+		logger:     logger,
+		catalog:    validated,
 	}
 }
 
@@ -104,13 +102,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // withUserContext extracts the vire_session cookie, decodes the JWT sub claim,
-// looks up the user, and attaches UserContext to the request context.
+// and attaches UserContext to the request context.
 // If anything fails, the original request is returned unchanged.
 func (h *Handler) withUserContext(r *http.Request) *http.Request {
-	if h.userLookupFn == nil {
-		return r
-	}
-
 	cookie, err := r.Cookie("vire_session")
 	if err != nil || cookie.Value == "" {
 		return r
@@ -121,12 +115,7 @@ func (h *Handler) withUserContext(r *http.Request) *http.Request {
 		return r
 	}
 
-	uc, err := h.userLookupFn(sub)
-	if err != nil || uc == nil {
-		return r
-	}
-
-	ctx := WithUserContext(r.Context(), *uc)
+	ctx := WithUserContext(r.Context(), UserContext{UserID: sub})
 	return r.WithContext(ctx)
 }
 

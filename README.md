@@ -11,7 +11,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 - **Go 1.25+** with standard `net/http` (no framework)
 - **Go `html/template`** for server-side rendering
 - **Alpine.js** (CDN) for client-side interactivity
-- **BadgerDB** via [badgerhold](https://github.com/timshannon/badgerhold) for embedded storage
+- **Stateless** -- all user data managed by vire-server via REST API
 - **TOML** configuration with priority: defaults < file < env (VIRE_ prefix) < CLI flags
 - **Port 8080** -- default port; Docker local dev overrides to 4241 via `docker/vire-portal.toml`
 - **80s B&W aesthetic** -- IBM Plex Mono, no border-radius, no box-shadow, monochrome only
@@ -106,9 +106,6 @@ Configuration priority (highest wins): CLI flags > environment variables > TOML 
 | API URL | `api.url` | `VIRE_API_URL` | -- | `http://localhost:8080` |
 | Portfolios | `user.portfolios` | `VIRE_DEFAULT_PORTFOLIO` | -- | `[]` |
 | Display currency | `user.display_currency` | `VIRE_DISPLAY_CURRENCY` | -- | `""` |
-| Import users | `import.users` | -- | -- | `false` |
-| Import users file | `import.users_file` | -- | -- | `data/users.json` |
-| BadgerDB path | `storage.badger.path` | `VIRE_BADGER_PATH` | -- | `./data/vire` |
 | Environment | `environment` | `VIRE_ENV` | -- | `prod` |
 | Log level | `logging.level` | `VIRE_LOG_LEVEL` | -- | `info` |
 | Log format | `logging.format` | `VIRE_LOG_FORMAT` | -- | `text` |
@@ -119,7 +116,7 @@ Configuration priority (highest wins): CLI flags > environment variables > TOML 
 
 The config file is auto-discovered from `vire-portal.toml` or `docker/vire-portal.toml`. Specify explicitly with `-c path/to/config.toml`.
 
-The `[api]` and `[user]` sections configure the MCP proxy. `api.url` points to the vire-server instance. User context is injected as X-Vire-* headers on every proxied request. The `[import]` section controls startup data loading (e.g., importing users from JSON into BadgerDB).
+The `[api]` and `[user]` sections configure the MCP proxy. `api.url` points to the vire-server instance. User context is injected as X-Vire-* headers on every proxied request. All user data is managed by vire-server.
 
 ## MCP Endpoint
 
@@ -173,9 +170,8 @@ The proxy injects these headers on every request to vire-server:
 | `X-Vire-Portfolios` | Config (`user.portfolios`) | Comma-separated portfolio names |
 | `X-Vire-Display-Currency` | Config (`user.display_currency`) | Currency for display values |
 | `X-Vire-User-ID` | Session cookie (per-request) | Username from JWT sub claim |
-| `X-Vire-Navexa-Key` | User record (per-request) | Navexa API key for the user |
 
-Static headers are set from config on every request. Per-request headers are set when a `vire_session` cookie is present -- the handler decodes the JWT sub claim, looks up the user in BadgerDB, and injects their identity and API key.
+Static headers are set from config on every request. Per-request headers are set when a `vire_session` cookie is present -- the handler decodes the JWT sub claim and injects the user ID. vire-server resolves the user's navexa key internally from the user ID.
 
 ## Authentication Flow
 
@@ -641,9 +637,8 @@ RUN apk --no-cache add ca-certificates wget
 COPY --from=builder /build/vire-portal .
 COPY --from=builder /build/pages ./pages
 COPY --from=builder /build/docker/vire-portal.toml .
-COPY --from=builder /build/data ./seed
 COPY .version .
-RUN mkdir -p /app/data /app/logs
+RUN mkdir -p /app/logs
 EXPOSE 8080
 HEALTHCHECK NONE
 ENTRYPOINT ["./vire-portal"]
@@ -674,24 +669,12 @@ build: 02-14-20-27-29
 
 ## Data Layer
 
-The storage layer uses interfaces so BadgerDB can be swapped for a centralised database later:
+The portal is stateless -- it does not store any user data locally. All user profiles and settings are managed by vire-server via its REST API:
 
-```go
-type StorageManager interface {
-    KeyValueStorage() KeyValueStorage
-    DB() interface{}
-    Close() error
-}
+- `GET /api/users/{id}` -- fetch user profile (username, email, role, navexa key status)
+- `PUT /api/users/{id}` -- update user fields (e.g., navexa key)
 
-type KeyValueStorage interface {
-    Get(ctx context.Context, key string) (string, error)
-    Set(ctx context.Context, key, value string) error
-    Delete(ctx context.Context, key string) error
-    GetAll(ctx context.Context) (map[string]string, error)
-}
-```
-
-To switch from BadgerDB to PostgreSQL or another database, implement these interfaces and update `internal/storage/factory.go`.
+The API client is in `internal/client/vire_client.go`.
 
 ## Project Structure
 
@@ -711,7 +694,7 @@ vire-portal/
 │       └── tools.go                 # MCP tool definitions (25+ tools)
 ├── internal/
 │   ├── app/
-│   │   └── app.go                   # Dependency container (Config, Logger, StorageManager, Handlers)
+│   │   └── app.go                   # Dependency container (Config, Logger, Handlers)
 │   ├── config/
 │   │   ├── config.go                # TOML loading with defaults -> file -> env -> CLI priority
 │   │   ├── config_test.go
@@ -727,21 +710,17 @@ vire-portal/
 │   │   ├── landing.go               # PageHandler (template rendering + static file serving)
 │   │   ├── settings.go              # GET/POST /settings (Navexa API key management)
 │   │   └── version.go               # GET /api/version
+│   ├── client/
+│   │   ├── vire_client.go           # HTTP client for vire-server user API (GetUser, UpdateUser)
+│   │   └── vire_client_test.go
 │   ├── mcp/
 │   │   ├── catalog.go               # Dynamic tool catalog types, FetchCatalog, BuildMCPTool, GenericToolHandler
 │   │   ├── context.go               # UserContext (per-request user identity for proxy headers)
 │   │   ├── handler.go               # MCP HTTP handler (mcp-go StreamableHTTPServer, catalog fetch at startup)
 │   │   ├── handlers.go              # errorResult helper, resolvePortfolio
-│   │   ├── mcp_test.go              # 81 tests: catalog, validation, tools, handlers, proxy, integration
+│   │   ├── mcp_test.go              # Tests: catalog, validation, tools, handlers, proxy, integration
 │   │   ├── proxy.go                 # HTTP proxy to vire-server with X-Vire-* headers
 │   │   └── tools.go                 # RegisterToolsFromCatalog (dynamic registration)
-│   ├── importer/
-│   │   ├── users.go                 # ImportUsers (JSON -> BadgerDB, bcrypt password hashing)
-│   │   └── users_test.go
-│   ├── interfaces/
-│   │   └── storage.go               # StorageManager + KeyValueStorage interfaces
-│   ├── models/
-│   │   └── user.go                  # User model (username, email, password, role, navexa_key)
 │   ├── server/
 │   │   ├── middleware.go             # Correlation ID, logging, CORS, recovery
 │   │   ├── middleware_test.go
@@ -750,13 +729,6 @@ vire-portal/
 │   │   ├── routes.go                 # Route registration
 │   │   ├── routes_test.go
 │   │   └── server.go                 # HTTP server (net/http, timeouts, graceful shutdown)
-│   ├── storage/
-│   │   ├── factory.go                # Storage factory (creates BadgerDB manager)
-│   │   └── badger/
-│   │       ├── connection.go         # BadgerDB connection via badgerhold
-│   │       ├── kv_storage.go         # KeyValueStorage implementation
-│   │       ├── kv_storage_test.go
-│   │       └── manager.go            # StorageManager implementation
 │   └── vire/                         # Shared packages (migrated from vire repo)
 │       ├── common/                   # Version, logging, config, formatting helpers
 │       ├── interfaces/               # Service and storage interface contracts
@@ -773,8 +745,6 @@ vire-portal/
 │       ├── css/
 │       │   └── portal.css            # 80s B&W aesthetic (no border-radius, no box-shadow)
 │       └── common.js                 # Client logging (debugLog, debugError) + Alpine.js init
-├── data/
-│   └── users.json                   # Seed users for import (dev, admin)
 ├── docker/
 │   ├── Dockerfile                    # Portal multi-stage build (golang:1.25 -> alpine)
 │   ├── Dockerfile.mcp               # MCP multi-stage build (golang:1.25 -> alpine)
@@ -865,7 +835,6 @@ docker build -f docker/Dockerfile -t vire-portal:latest .
 docker run -p 4241:8080 \
   -e VIRE_SERVER_HOST=0.0.0.0 \
   -e VIRE_API_URL=http://host.docker.internal:8080 \
-  -v portal-data:/app/data \
   vire-portal:latest
 ```
 
@@ -892,7 +861,6 @@ resource "google_cloud_run_v2_service" "portal" {
       ports { container_port = 8080 }
       env { name = "VIRE_SERVER_HOST"; value = "0.0.0.0" }
       env { name = "VIRE_SERVER_PORT"; value = "8080" }
-      env { name = "VIRE_BADGER_PATH"; value = "/app/data/vire" }
       env { name = "VIRE_LOG_LEVEL";   value = "info" }
       resources {
         limits = { cpu = "1", memory = "256Mi" }

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bobmcallan/vire-portal/internal/models"
+	"github.com/bobmcallan/vire-portal/internal/client"
 )
 
 func TestHealthHandler_ReturnsOK(t *testing.T) {
@@ -887,10 +887,10 @@ func TestExtractJWTSub_InvalidToken(t *testing.T) {
 // --- Settings Handler Tests ---
 
 func TestSettingsHandler_GET_NoKey(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user", NavexaKey: ""}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error { return nil }
+	saveFn := func(userID string, fields map[string]string) error { return nil }
 
 	handler := NewSettingsHandler(nil, true, lookupFn, saveFn)
 
@@ -913,10 +913,10 @@ func TestSettingsHandler_GET_NoKey(t *testing.T) {
 }
 
 func TestSettingsHandler_GET_WithKey(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user", NavexaKey: "sk-test-abc123"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: "c123"}, nil
 	}
-	saveFn := func(u *models.User) error { return nil }
+	saveFn := func(userID string, fields map[string]string) error { return nil }
 
 	handler := NewSettingsHandler(nil, true, lookupFn, saveFn)
 
@@ -939,11 +939,11 @@ func TestSettingsHandler_GET_WithKey(t *testing.T) {
 
 func TestSettingsHandler_POST_SavesKey(t *testing.T) {
 	var savedKey string
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user", NavexaKey: ""}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error {
-		savedKey = u.NavexaKey
+	saveFn := func(userID string, fields map[string]string) error {
+		savedKey = fields["navexa_key"]
 		return nil
 	}
 
@@ -970,10 +970,10 @@ func TestSettingsHandler_POST_SavesKey(t *testing.T) {
 }
 
 func TestSettingsHandler_POST_NoCookie(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error { return nil }
+	saveFn := func(userID string, fields map[string]string) error { return nil }
 
 	handler := NewSettingsHandler(nil, true, lookupFn, saveFn)
 
@@ -990,10 +990,10 @@ func TestSettingsHandler_POST_NoCookie(t *testing.T) {
 }
 
 func TestSettingsHandler_GET_NoCookie(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error { return nil }
+	saveFn := func(userID string, fields map[string]string) error { return nil }
 
 	handler := NewSettingsHandler(nil, true, lookupFn, saveFn)
 
@@ -1014,10 +1014,10 @@ func TestSettingsHandler_GET_NoCookie(t *testing.T) {
 }
 
 func TestSettingsHandler_GET_SavedBanner(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user", NavexaKey: "key123"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: "y123"}, nil
 	}
-	saveFn := func(u *models.User) error { return nil }
+	saveFn := func(userID string, fields map[string]string) error { return nil }
 
 	handler := NewSettingsHandler(nil, true, lookupFn, saveFn)
 
@@ -1038,8 +1038,8 @@ func TestSettingsHandler_GET_SavedBanner(t *testing.T) {
 
 func TestDashboardHandler_NavexaKeyMissing_WhenEmpty(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user", NavexaKey: ""}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
 	handler := NewDashboardHandler(nil, true, 4241, catalogFn, lookupFn)
@@ -1062,8 +1062,8 @@ func TestDashboardHandler_NavexaKeyMissing_WhenEmpty(t *testing.T) {
 
 func TestDashboardHandler_NavexaKeyMissing_WhenSet(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user", NavexaKey: "some-key"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: "ekey"}, nil
 	}
 
 	handler := NewDashboardHandler(nil, true, 4241, catalogFn, lookupFn)
@@ -1083,8 +1083,8 @@ func TestDashboardHandler_NavexaKeyMissing_WhenSet(t *testing.T) {
 
 func TestDashboardHandler_NavexaKeyMissing_NotLoggedIn(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user", NavexaKey: ""}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
 	handler := NewDashboardHandler(nil, true, 4241, catalogFn, lookupFn)
@@ -1104,10 +1104,10 @@ func TestDashboardHandler_NavexaKeyMissing_NotLoggedIn(t *testing.T) {
 // --- Settings Handler Stress Tests ---
 
 func TestSettingsHandler_POST_EmptyCookie(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error { return nil }
+	saveFn := func(userID string, fields map[string]string) error { return nil }
 
 	handler := NewSettingsHandler(nil, true, lookupFn, saveFn)
 
@@ -1124,10 +1124,10 @@ func TestSettingsHandler_POST_EmptyCookie(t *testing.T) {
 }
 
 func TestSettingsHandler_POST_GarbageJWT(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error { return nil }
+	saveFn := func(userID string, fields map[string]string) error { return nil }
 
 	handler := NewSettingsHandler(nil, true, lookupFn, saveFn)
 
@@ -1153,11 +1153,13 @@ func TestSettingsHandler_POST_GarbageJWT(t *testing.T) {
 }
 
 func TestSettingsHandler_POST_UnknownUser(t *testing.T) {
-	// User lookup returns not-found error
-	lookupFn := func(userID string) (*models.User, error) {
+	// Save returns error when user doesn't exist on the server
+	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return nil, fmt.Errorf("user not found")
 	}
-	saveFn := func(u *models.User) error { return nil }
+	saveFn := func(userID string, fields map[string]string) error {
+		return fmt.Errorf("user not found: %s", userID)
+	}
 
 	handler := NewSettingsHandler(nil, true, lookupFn, saveFn)
 
@@ -1169,8 +1171,8 @@ func TestSettingsHandler_POST_UnknownUser(t *testing.T) {
 
 	handler.HandleSaveSettings(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for unknown user, got %d", w.Code)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for unknown user save, got %d", w.Code)
 	}
 }
 
@@ -1178,11 +1180,11 @@ func TestSettingsHandler_POST_HostileInputs(t *testing.T) {
 	// Verify hostile API key inputs are stored as-is (not interpreted) and don't crash.
 	// html/template handles escaping on output — the storage layer should accept arbitrary strings.
 	var savedKeys []string
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error {
-		savedKeys = append(savedKeys, u.NavexaKey)
+	saveFn := func(userID string, fields map[string]string) error {
+		savedKeys = append(savedKeys, fields["navexa_key"])
 		return nil
 	}
 
@@ -1232,11 +1234,11 @@ func TestSettingsHandler_POST_VeryLongKey(t *testing.T) {
 	// The 1MB body size limit from middleware protects against extreme payloads,
 	// but test that a moderately long key doesn't crash the handler.
 	var savedKey string
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error {
-		savedKey = u.NavexaKey
+	saveFn := func(userID string, fields map[string]string) error {
+		savedKey = fields["navexa_key"]
 		return nil
 	}
 
@@ -1260,10 +1262,10 @@ func TestSettingsHandler_POST_VeryLongKey(t *testing.T) {
 }
 
 func TestSettingsHandler_POST_StorageFailure(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error {
+	saveFn := func(userID string, fields map[string]string) error {
 		return fmt.Errorf("database connection lost")
 	}
 
@@ -1300,11 +1302,11 @@ func TestSettingsHandler_POST_NilLookupAndSaveFn(t *testing.T) {
 }
 
 func TestSettingsHandler_GET_XSSInNavexaKeyPreview(t *testing.T) {
-	// If a hostile key was stored, verify the preview is HTML-escaped on output
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user", NavexaKey: `<img onerror=alert(1) src=x>`}, nil
+	// If the server returns a hostile preview, verify it is HTML-escaped on output
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: `<img onerror=alert(1) src=x>`}, nil
 	}
-	saveFn := func(u *models.User) error { return nil }
+	saveFn := func(userID string, fields map[string]string) error { return nil }
 
 	handler := NewSettingsHandler(nil, true, lookupFn, saveFn)
 
@@ -1321,32 +1323,25 @@ func TestSettingsHandler_GET_XSSInNavexaKeyPreview(t *testing.T) {
 	if strings.Contains(body, "<img onerror") {
 		t.Error("NavexaKeyPreview contains unescaped HTML — XSS vulnerability")
 	}
-	// The last 4 chars of the hostile key are "=x>" which should be escaped
-	if strings.Contains(body, "=x>") && !strings.Contains(body, "=x&gt;") {
-		t.Error("expected > to be escaped to &gt; in key preview")
-	}
 }
 
-func TestSettingsHandler_GET_ShortKeyExposesFullKey(t *testing.T) {
-	// Keys shorter than 4 chars: the preview shows the entire key.
-	// Verify this works but document the information leakage concern.
+func TestSettingsHandler_GET_DisplaysServerPreview(t *testing.T) {
+	// The portal displays whatever preview the server sends, prefixed with ****.
 	tests := []struct {
-		key     string
+		name    string
 		preview string
 	}{
-		{"abc", "abc"},    // 3-char key fully exposed
-		{"ab", "ab"},      // 2-char key fully exposed
-		{"a", "a"},        // 1-char key fully exposed
-		{"abcd", "abcd"},  // 4-char key: shows last 4 (all of it)
-		{"abcde", "bcde"}, // 5-char key: shows last 4
+		{"4char", "bcde"},
+		{"short", "ab"},
+		{"empty", ""},
 	}
 
 	for _, tc := range tests {
-		t.Run("key_len_"+tc.key, func(t *testing.T) {
-			lookupFn := func(userID string) (*models.User, error) {
-				return &models.User{Username: "dev_user", NavexaKey: tc.key}, nil
+		t.Run(tc.name, func(t *testing.T) {
+			lookupFn := func(userID string) (*client.UserProfile, error) {
+				return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: tc.preview}, nil
 			}
-			handler := NewSettingsHandler(nil, true, lookupFn, func(u *models.User) error { return nil })
+			handler := NewSettingsHandler(nil, true, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 			token := buildTestJWT("dev_user")
 			req := httptest.NewRequest("GET", "/settings", nil)
@@ -1356,8 +1351,8 @@ func TestSettingsHandler_GET_ShortKeyExposesFullKey(t *testing.T) {
 			handler.HandleSettings(w, req)
 
 			body := w.Body.String()
-			if !strings.Contains(body, "****"+tc.preview) {
-				t.Errorf("expected preview '****%s' in body for key %q", tc.preview, tc.key)
+			if tc.preview != "" && !strings.Contains(body, "****"+tc.preview) {
+				t.Errorf("expected preview '****%s' in body", tc.preview)
 			}
 		})
 	}
@@ -1365,10 +1360,10 @@ func TestSettingsHandler_GET_ShortKeyExposesFullKey(t *testing.T) {
 
 func TestSettingsHandler_GET_SavedQueryParamInjection(t *testing.T) {
 	// Verify only "saved=1" triggers the banner; other values don't cause issues
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, lookupFn, func(u *models.User) error { return nil })
+	handler := NewSettingsHandler(nil, true, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	tests := []struct {
 		query      string
@@ -1411,10 +1406,10 @@ func TestSettingsHandler_GET_SavedQueryParamInjection(t *testing.T) {
 
 func TestSettingsHandler_POST_ConcurrentSaves(t *testing.T) {
 	var saveCount atomic.Int32
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error {
+	saveFn := func(userID string, fields map[string]string) error {
 		saveCount.Add(1)
 		return nil
 	}
@@ -1447,10 +1442,10 @@ func TestSettingsHandler_POST_ConcurrentSaves(t *testing.T) {
 
 func TestSettingsHandler_POST_RedirectIsHardcoded(t *testing.T) {
 	// Verify the redirect target after save cannot be influenced by request parameters
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	saveFn := func(u *models.User) error { return nil }
+	saveFn := func(userID string, fields map[string]string) error { return nil }
 
 	handler := NewSettingsHandler(nil, true, lookupFn, saveFn)
 
@@ -1478,10 +1473,10 @@ func TestSettingsHandler_POST_RedirectIsHardcoded(t *testing.T) {
 
 func TestSettingsHandler_GET_LookupFailure(t *testing.T) {
 	// If the DB is unavailable during GET, the page should still render (just without key info)
-	lookupFn := func(userID string) (*models.User, error) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return nil, fmt.Errorf("database unavailable")
 	}
-	handler := NewSettingsHandler(nil, true, lookupFn, func(u *models.User) error { return nil })
+	handler := NewSettingsHandler(nil, true, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/settings", nil)
@@ -1505,7 +1500,7 @@ func TestSettingsHandler_GET_LookupFailure(t *testing.T) {
 func TestDashboardHandler_NavexaKeyMissing_LookupFailure(t *testing.T) {
 	// If user lookup fails, the warning should NOT show (fail open, don't crash)
 	catalogFn := func() []DashboardTool { return nil }
-	lookupFn := func(userID string) (*models.User, error) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return nil, fmt.Errorf("database unavailable")
 	}
 
@@ -1531,9 +1526,9 @@ func TestDashboardHandler_NavexaKeyMissing_LookupFailure(t *testing.T) {
 func TestDashboardHandler_NavexaKeyMissing_GarbageCookie(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
 	lookupCalled := false
-	lookupFn := func(userID string) (*models.User, error) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
 		lookupCalled = true
-		return &models.User{Username: userID, NavexaKey: ""}, nil
+		return &client.UserProfile{Username: userID}, nil
 	}
 
 	handler := NewDashboardHandler(nil, true, 4241, catalogFn, lookupFn)
@@ -1770,10 +1765,10 @@ func TestDashboardHandler_PageIdentifier(t *testing.T) {
 }
 
 func TestSettingsHandler_PageIdentifier(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, lookupFn, func(u *models.User) error { return nil })
+	handler := NewSettingsHandler(nil, true, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/settings", nil)
@@ -1790,10 +1785,10 @@ func TestSettingsHandler_PageIdentifier(t *testing.T) {
 }
 
 func TestSettingsHandler_FormUsesComponentLibraryClasses(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, lookupFn, func(u *models.User) error { return nil })
+	handler := NewSettingsHandler(nil, true, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/settings", nil)
@@ -1842,10 +1837,10 @@ func TestDashboardHandler_ToolTableUseComponentLibraryClasses(t *testing.T) {
 
 func TestSettingsHandler_CSRFTokenInHiddenField(t *testing.T) {
 	// The settings form must include a hidden CSRF token field.
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, lookupFn, func(u *models.User) error { return nil })
+	handler := NewSettingsHandler(nil, true, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/settings", nil)
@@ -1868,10 +1863,10 @@ func TestSettingsHandler_CSRFTokenInHiddenField(t *testing.T) {
 
 func TestSettingsHandler_CSRFTokenXSSEscaped(t *testing.T) {
 	// If a hostile CSRF cookie value is set, it must be HTML-escaped in the hidden field.
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, lookupFn, func(u *models.User) error { return nil })
+	handler := NewSettingsHandler(nil, true, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/settings", nil)
@@ -1938,8 +1933,8 @@ func TestDashboardHandler_PortNegative(t *testing.T) {
 func TestDashboardHandler_WarningBannerCSS(t *testing.T) {
 	// Verify warning banner uses correct component library class.
 	catalogFn := func() []DashboardTool { return nil }
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user", NavexaKey: ""}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
 	handler := NewDashboardHandler(nil, true, 4241, catalogFn, lookupFn)
@@ -1958,10 +1953,10 @@ func TestDashboardHandler_WarningBannerCSS(t *testing.T) {
 }
 
 func TestSettingsHandler_SuccessBannerCSS(t *testing.T) {
-	lookupFn := func(userID string) (*models.User, error) {
-		return &models.User{Username: "dev_user"}, nil
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, lookupFn, func(u *models.User) error { return nil })
+	handler := NewSettingsHandler(nil, true, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/settings?saved=1", nil)

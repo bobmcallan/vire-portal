@@ -15,15 +15,6 @@ func NewDefaultConfig() *Config {
 			Portfolios:      []string{},
 			DisplayCurrency: "",
 		},
-		Import: ImportConfig{
-			Users:     false,
-			UsersFile: "data/users.json",
-		},
-		Storage: StorageConfig{
-			Badger: BadgerConfig{
-				Path: "./data/vire",
-			},
-		},
 		Logging: LoggingConfig{
 			Level:    "info",
 			Format:   "text",
