@@ -90,4 +90,24 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
+    // Status Indicators
+    Alpine.data('statusIndicators', () => ({
+        portal: 'startup',
+        server: 'startup',
+        init() {
+            this.check();
+            setInterval(() => this.check(), 5000);
+        },
+        async check() {
+            try {
+                const pr = await fetch('/api/health', { signal: AbortSignal.timeout(3000) });
+                this.portal = pr.ok ? 'up' : 'down';
+            } catch { this.portal = 'down'; }
+            try {
+                const sr = await fetch('/api/server-health', { signal: AbortSignal.timeout(3000) });
+                this.server = sr.ok ? 'up' : 'down';
+            } catch { this.server = 'down'; }
+        },
+    }));
+
 });

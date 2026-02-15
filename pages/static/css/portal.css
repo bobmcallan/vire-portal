@@ -141,6 +141,55 @@ a:hover {
     color: #000;
 }
 
+.nav-logout-form {
+    margin: 0;
+    padding: 0;
+}
+
+.nav-logout {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #000;
+    padding: 0.25rem 0;
+    border-bottom: 2px solid transparent;
+}
+
+.nav-logout:hover {
+    border-bottom-color: #000;
+}
+
+/* Status indicators */
+.status-indicators {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 1rem;
+}
+
+.status-dot {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50% !important;
+    font-size: 0.5rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    letter-spacing: 0;
+    transition: background-color 0.3s ease;
+}
+
+.status-up { background-color: #2d8a4e; }
+.status-startup { background-color: #d97706; }
+.status-down { background-color: #c53030; }
+
 /* Hamburger */
 .nav-hamburger {
     display: none;
@@ -221,78 +270,6 @@ a:hover {
     text-decoration: none;
     color: #000;
     border-bottom: 1px solid #888;
-}
-
-
-/* ============================================================
-   DROPDOWN
-   ============================================================ */
-
-.dropdown {
-    position: relative;
-}
-
-.dropdown-trigger {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-
-.dropdown-arrow {
-    font-size: 0.55rem;
-    transition: transform 0.15s;
-}
-
-.dropdown-arrow.open {
-    transform: rotate(180deg);
-}
-
-.dropdown-menu {
-    position: absolute;
-    top: calc(100% + 0.5rem);
-    right: 0;
-    min-width: 160px;
-    background: #fff;
-    border: 2px solid #000;
-    z-index: 200;
-}
-
-.dropdown-menu a,
-.dropdown-menu button {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 0.5rem 0.75rem;
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    text-decoration: none;
-    color: #000;
-    background: none;
-    border: none;
-    border-bottom: 1px solid #888;
-    cursor: pointer;
-}
-
-.dropdown-menu a:last-child,
-.dropdown-menu button:last-child {
-    border-bottom: none;
-}
-
-.dropdown-menu a:hover,
-.dropdown-menu button:hover {
-    background: #000;
-    color: #fff;
 }
 
 

@@ -74,6 +74,7 @@ Use 3 phases for backend-only changes. Add **Phase 2b** when the feature touches
 
 **Phase 2 — Verify** (blockedBy: review + stress-test):
 - "Build, test, and run locally" — owner: implementer
+  Run `go test ./...`, `go vet ./...`, then `./scripts/run.sh restart` (rebuilds and restarts; leaves the server running for subsequent verification tasks).
 - "Validate running server" — owner: reviewer, blockedBy: [build task]
 
 **Phase 2b — UI Verification** (only if web pages changed; blockedBy: build task):
@@ -92,11 +93,11 @@ See `.claude/skills/browser-check/SKILL.md` for full `browser-check` syntax.
   go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard
   go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/
 
-  # If nav/dropdown changed
+  # If nav changed
   go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
-    -check '.dropdown-menu|hidden' \
-    -click '.dropdown-trigger' \
-    -check '.dropdown-menu|visible'
+    -check '.nav-links|visible' \
+    -check '.nav-logout|exists' \
+    -check '.nav-brand|text=VIRE'
 
   # If responsive/mobile changed
   go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
@@ -139,10 +140,11 @@ prompt: |
   3. After each task, check TaskList for your next available task
 
   For implement tasks: write tests first, then implement to pass them.
-  For verify tasks: run go test ./..., go vet ./..., then build and run:
+  For verify tasks: run go test ./..., go vet ./..., then build and restart:
     ./scripts/run.sh restart
     curl -s http://localhost:${PORTAL_PORT:-4241}/api/health
-  For UI verification tasks: run browser-check against affected pages (see .claude/skills/browser-check/SKILL.md).
+    Leave the server running — subsequent tasks (UI verification, validation) need it.
+  For UI verification tasks: run browser-check against the running server (see .claude/skills/browser-check/SKILL.md).
     Save screenshots to the work directory with -screenshot flag.
   For documentation tasks: update affected files in docs/, README.md, and .claude/skills/.
 
@@ -221,7 +223,7 @@ When all tasks are complete:
    - All new code has tests
    - All tests pass (`go test ./...`)
    - Go vet is clean (`go vet ./...`)
-   - Server builds and runs (`./scripts/run.sh restart`)
+   - Server builds and runs (`./scripts/run.sh restart`) — leave it running
    - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-4241}/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
    - If web pages changed: chromedp UI tests pass (`go test ./tests/ -run "^TestUI"`)
@@ -229,6 +231,7 @@ When all tasks are complete:
    - README.md updated if user-facing behaviour changed
    - API contract documentation matches implementation
    - Devils-advocate has signed off
+   - Server is left running after completion
 
 2. Write `summary.md` in the work directory:
 
@@ -304,6 +307,7 @@ When all tasks are complete:
 | `GET /static/*` | PageHandler | No |
 | `POST /mcp` | MCPHandler | No |
 | `GET /api/health` | HealthHandler | No |
+| `GET /api/server-health` | ServerHealthHandler | No |
 | `GET /api/version` | VersionHandler | No |
 | `POST /api/auth/dev` | AuthHandler | No (dev mode only, 404 in prod) |
 | `POST /api/auth/logout` | AuthHandler | No |

@@ -42,13 +42,14 @@ type App struct {
 	StorageManager interfaces.StorageManager
 
 	// HTTP handlers
-	PageHandler      *handlers.PageHandler
-	HealthHandler    *handlers.HealthHandler
-	VersionHandler   *handlers.VersionHandler
-	AuthHandler      *handlers.AuthHandler
-	DashboardHandler *handlers.DashboardHandler
-	SettingsHandler  *handlers.SettingsHandler
-	MCPHandler       *mcp.Handler
+	PageHandler         *handlers.PageHandler
+	HealthHandler       *handlers.HealthHandler
+	VersionHandler      *handlers.VersionHandler
+	AuthHandler         *handlers.AuthHandler
+	DashboardHandler    *handlers.DashboardHandler
+	SettingsHandler     *handlers.SettingsHandler
+	ServerHealthHandler *handlers.ServerHealthHandler
+	MCPHandler          *mcp.Handler
 }
 
 // New initializes the application with all dependencies.
@@ -142,6 +143,7 @@ func (a *App) initHandlers() {
 	}
 	a.MCPHandler = mcp.NewHandler(a.Config, a.Logger, userLookup)
 
+	a.ServerHealthHandler = handlers.NewServerHealthHandler(a.Logger, a.Config.API.URL)
 	a.SettingsHandler = handlers.NewSettingsHandler(a.Logger, a.Config.IsDevMode(), userLookupModels, userSave)
 
 	a.DashboardHandler = handlers.NewDashboardHandler(

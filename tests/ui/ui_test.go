@@ -76,7 +76,7 @@ func TestUIDashboardRenders(t *testing.T) {
 
 	err := chromedp.Run(ctx,
 		chromedp.Navigate(serverURL()+"/dashboard"),
-		chromedp.WaitVisible(".dashboard-title", chromedp.ByQuery),
+		chromedp.WaitVisible(".dashboard", chromedp.ByQuery),
 		chromedp.Title(&title),
 	)
 	if err != nil {
@@ -144,85 +144,30 @@ func TestUIAlpineInitialised(t *testing.T) {
 // DROPDOWN — not stuck open on page load
 // ════════════════════════════════════════════════════════════
 
-func TestUIDropdownsClosedOnLoad(t *testing.T) {
+func TestUINavLinksPresent(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	if err := navigateAndWait(ctx, serverURL()+"/dashboard"); err != nil {
+	if err := loginAndNavigate(ctx, serverURL()+"/dashboard"); err != nil {
 		t.Fatal(err)
 	}
 
-	// Every dropdown-menu should be hidden on load
-	var anyOpen bool
-	err := chromedp.Run(ctx,
-		chromedp.Evaluate(`
-			(() => {
-				const menus = document.querySelectorAll('.dropdown-menu');
-				for (const m of menus) {
-					if (getComputedStyle(m).display !== 'none') return true;
-				}
-				return false;
-			})()
-		`, &anyOpen),
-	)
+	// Nav should have Dashboard, Settings, and Logout links
+	count, err := elementCount(ctx, ".nav-links li")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if anyOpen {
-		t.Error("dropdown menu is visible on page load — should be closed")
-	}
-}
-
-func TestUIDropdownOpensAndCloses(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	if err := navigateAndWait(ctx, serverURL()+"/dashboard"); err != nil {
-		t.Fatal(err)
+	if count < 3 {
+		t.Errorf("expected at least 3 nav items (Dashboard, Settings, Logout), got %d", count)
 	}
 
-	// Check trigger exists
-	count, err := elementCount(ctx, ".dropdown-trigger")
+	// Verify logout button exists
+	logoutCount, err := elementCount(ctx, ".nav-logout")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count == 0 {
-		t.Skip("no dropdown-trigger found on dashboard")
-	}
-
-	// Click to open
-	err = chromedp.Run(ctx,
-		chromedp.Click(".dropdown-trigger", chromedp.ByQuery),
-		chromedp.Sleep(300*time.Millisecond),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	visible, err := isVisible(ctx, ".dropdown-menu")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !visible {
-		t.Error("dropdown did not open on click")
-	}
-
-	// Click outside to close
-	err = chromedp.Run(ctx,
-		chromedp.Click(".dashboard-title, .page-title, h1", chromedp.ByQuery),
-		chromedp.Sleep(300*time.Millisecond),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	hidden, err := isHidden(ctx, ".dropdown-menu")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !hidden {
-		t.Error("dropdown did not close on outside click")
+	if logoutCount == 0 {
+		t.Error("expected nav-logout button in nav links")
 	}
 }
 
@@ -318,6 +263,11 @@ func TestUINavLinksHiddenOnMobile(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
+	// Authenticate first, then set mobile viewport and navigate
+	if err := loginAndNavigate(ctx, serverURL()+"/dashboard"); err != nil {
+		t.Fatal(err)
+	}
+
 	err := chromedp.Run(ctx,
 		chromedp.EmulateViewport(375, 812),
 		chromedp.Navigate(serverURL()+"/dashboard"),
@@ -340,6 +290,11 @@ func TestUINavLinksHiddenOnMobile(t *testing.T) {
 func TestUINavLinksVisibleOnDesktop(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
+
+	// Authenticate first, then navigate at desktop viewport
+	if err := loginAndNavigate(ctx, serverURL()+"/dashboard"); err != nil {
+		t.Fatal(err)
+	}
 
 	err := chromedp.Run(ctx,
 		chromedp.EmulateViewport(1280, 800),

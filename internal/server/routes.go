@@ -31,6 +31,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 
 	// API routes
 	mux.HandleFunc("/api/health", s.app.HealthHandler.ServeHTTP)
+	mux.HandleFunc("/api/server-health", s.app.ServerHealthHandler.ServeHTTP)
 	mux.HandleFunc("/api/version", s.app.VersionHandler.ServeHTTP)
 	mux.HandleFunc("POST /api/shutdown", s.handleShutdown)
 

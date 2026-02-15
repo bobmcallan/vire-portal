@@ -109,6 +109,29 @@ func navigateAndWait(ctx context.Context, url string) error {
 	)
 }
 
+// loginAndNavigate authenticates via the dev auth endpoint, then navigates to
+// the target URL. This is needed for pages that render nav only when logged in.
+func loginAndNavigate(ctx context.Context, targetURL string) error {
+	base := serverURL()
+	return chromedp.Run(ctx,
+		// Navigate to any page first so we have the right origin for fetch
+		chromedp.Navigate(base+"/"),
+		chromedp.WaitVisible("body", chromedp.ByQuery),
+		// POST to dev auth to set the session cookie
+		chromedp.Evaluate(fmt.Sprintf(`
+			(async () => {
+				const r = await fetch('%s/api/auth/dev', { method: 'POST', credentials: 'same-origin' });
+				return r.status;
+			})()
+		`, base), nil),
+		chromedp.Sleep(300*time.Millisecond),
+		// Now navigate to the target page with the session cookie set
+		chromedp.Navigate(targetURL),
+		chromedp.WaitVisible("body", chromedp.ByQuery),
+		chromedp.Sleep(800*time.Millisecond),
+	)
+}
+
 // isHidden checks if an element is display:none or not in the DOM.
 func isHidden(ctx context.Context, selector string) (bool, error) {
 	var hidden bool

@@ -55,9 +55,9 @@ func (h *PageHandler) ServePage(templateName string, pageName string) http.Handl
 		_, cookieErr := r.Cookie("vire_session")
 
 		data := map[string]interface{}{
-			"Page":      pageName,
-			"DevMode":   h.devMode,
-			"LoggedIn":  cookieErr == nil,
+			"Page":     pageName,
+			"DevMode":  h.devMode,
+			"LoggedIn": cookieErr == nil,
 		}
 
 		if err := h.templates.ExecuteTemplate(w, templateName, data); err != nil {

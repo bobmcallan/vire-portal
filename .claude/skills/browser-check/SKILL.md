@@ -29,8 +29,8 @@ go run ./tests/browser-check -url <URL> [flags]
 | Flag | Description | Example |
 |---|---|---|
 | `-url` | URL to test (required) | `http://localhost:${PORTAL_PORT:-4241}/dashboard` |
-| `-check` | `selector\|state` assertion (repeatable) | `-check '.dropdown-menu\|hidden'` |
-| `-click` | Click selector before checks (repeatable, ordered) | `-click '.dropdown-trigger'` |
+| `-check` | `selector\|state` assertion (repeatable) | `-check '.nav-links\|visible'` |
+| `-click` | Click selector before checks (repeatable, ordered) | `-click '.nav-hamburger'` |
 | `-eval` | JS expression, must return truthy (repeatable) | `-eval 'typeof Alpine !== "undefined"'` |
 | `-viewport` | Set viewport WxH | `-viewport 375x812` |
 | `-screenshot` | Save screenshot | `-screenshot /tmp/page.png` |
@@ -51,14 +51,13 @@ JS errors are **always checked** automatically.
 
 Pick checks based on what you changed. Examples:
 
-### Changed nav/dropdown/menu
+### Changed nav/menu
 ```bash
 go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
   -check '.nav-brand|visible' \
   -check '.nav-brand|text=VIRE' \
-  -check '.dropdown-menu|hidden' \
-  -click '.dropdown-trigger' \
-  -check '.dropdown-menu|visible'
+  -check '.nav-links|visible' \
+  -check '.nav-logout|exists'
 ```
 
 ### Changed mobile menu
@@ -82,7 +81,7 @@ go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboar
 ```bash
 go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
   -eval 'typeof Alpine !== "undefined"' \
-  -check '.dropdown-menu|hidden' \
+  -check '.status-indicators|visible' \
   -check '.panel-collapse-body|hidden'
 ```
 

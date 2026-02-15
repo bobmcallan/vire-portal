@@ -1603,8 +1603,8 @@ func TestNavTemplate_MobileMenuPresent(t *testing.T) {
 	}
 }
 
-func TestNavTemplate_DropdownPresent(t *testing.T) {
-	// Verify Alpine.js dropdown component is present in nav.
+func TestNavTemplate_FlatLinksPresent(t *testing.T) {
+	// Verify nav has flat links (Dashboard, Settings, Logout) instead of dropdown.
 	handler := NewPageHandler(nil, true)
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -1615,8 +1615,11 @@ func TestNavTemplate_DropdownPresent(t *testing.T) {
 
 	body := w.Body.String()
 
-	if !strings.Contains(body, `x-data="dropdown()"`) {
-		t.Error("expected Alpine.js dropdown component in nav")
+	if !strings.Contains(body, `href="/settings"`) {
+		t.Error("expected settings link in nav")
+	}
+	if !strings.Contains(body, `class="nav-logout"`) {
+		t.Error("expected nav-logout button in nav")
 	}
 	if !strings.Contains(body, `x-data="mobileMenu()"`) {
 		t.Error("expected Alpine.js mobileMenu component wrapping nav")
@@ -1964,6 +1967,483 @@ func TestSettingsHandler_SuccessBannerCSS(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, "success-banner") {
 		t.Error("expected success-banner class from component library")
+	}
+}
+
+// --- Server Health Handler Tests ---
+
+func TestServerHealthHandler_ReturnsOKWhenUpstreamHealthy(t *testing.T) {
+	// Simulate a healthy upstream vire-server
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/health" {
+			t.Errorf("expected request to /api/health, got %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	req := httptest.NewRequest("GET", "/api/server-health", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if body["status"] != "ok" {
+		t.Errorf("expected status ok, got %s", body["status"])
+	}
+}
+
+func TestServerHealthHandler_Returns503WhenUpstreamUnreachable(t *testing.T) {
+	// Point to a port that's not listening
+	handler := NewServerHealthHandler(nil, "http://127.0.0.1:19999")
+
+	req := httptest.NewRequest("GET", "/api/server-health", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503, got %d", w.Code)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if body["status"] != "down" {
+		t.Errorf("expected status down, got %s", body["status"])
+	}
+}
+
+func TestServerHealthHandler_Returns503WhenUpstreamReturnsNon200(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	req := httptest.NewRequest("GET", "/api/server-health", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503, got %d", w.Code)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if body["status"] != "down" {
+		t.Errorf("expected status down, got %s", body["status"])
+	}
+}
+
+func TestServerHealthHandler_RejectsNonGET(t *testing.T) {
+	handler := NewServerHealthHandler(nil, "http://localhost:8080")
+
+	req := httptest.NewRequest("POST", "/api/server-health", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status 405, got %d", w.Code)
+	}
+}
+
+// --- Server Health Handler Stress Tests ---
+
+func TestServerHealthHandler_SSRF_ApiURLFromConfig(t *testing.T) {
+	// Verify the target URL comes from config (constructor), not from request parameters.
+	// An attacker should NOT be able to redirect the health check to an arbitrary host.
+	requestedURLs := make(chan string, 10)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedURLs <- r.URL.String()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	// Try hostile query parameters that might influence the target
+	paths := []string{
+		"/api/server-health?url=http://evil.com",
+		"/api/server-health?target=http://evil.com",
+		"/api/server-health?host=evil.com",
+		"/api/server-health?apiURL=http://evil.com",
+		"/api/server-health?redirect=http://evil.com",
+	}
+
+	for _, path := range paths {
+		req := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("path=%s: expected 200, got %d", path, w.Code)
+		}
+
+		// Verify the upstream request went to /api/health, not evil.com
+		select {
+		case requestedURL := <-requestedURLs:
+			if requestedURL != "/api/health" {
+				t.Errorf("path=%s: upstream received %s instead of /api/health — SSRF", path, requestedURL)
+			}
+		case <-time.After(2 * time.Second):
+			t.Errorf("path=%s: no request received by upstream", path)
+		}
+	}
+}
+
+func TestServerHealthHandler_SSRF_HostHeader(t *testing.T) {
+	// Verify a hostile Host header doesn't influence the upstream target.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	req := httptest.NewRequest("GET", "/api/server-health", nil)
+	req.Host = "evil.com" // hostile Host header
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	// Should still reach the configured upstream, not evil.com
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 (reached configured upstream), got %d", w.Code)
+	}
+}
+
+func TestServerHealthHandler_ConcurrentRequests(t *testing.T) {
+	// Verify concurrent health checks don't cause race conditions or panics.
+	var requestCount atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	done := make(chan bool, 100)
+	for i := 0; i < 100; i++ {
+		go func() {
+			req := httptest.NewRequest("GET", "/api/server-health", nil)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("concurrent request got status %d", w.Code)
+			}
+			done <- true
+		}()
+	}
+
+	for i := 0; i < 100; i++ {
+		<-done
+	}
+
+	if count := requestCount.Load(); count != 100 {
+		t.Errorf("expected 100 upstream requests, got %d", count)
+	}
+}
+
+func TestServerHealthHandler_SlowUpstream(t *testing.T) {
+	// Verify that a slow upstream triggers the 3s timeout and returns 503.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(5 * time.Second) // longer than the 3s timeout
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	start := time.Now()
+	req := httptest.NewRequest("GET", "/api/server-health", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	elapsed := time.Since(start)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 for slow upstream, got %d", w.Code)
+	}
+
+	// Should timeout within ~3s, not wait the full 5s
+	if elapsed > 4*time.Second {
+		t.Errorf("handler took %v, expected timeout within ~3s", elapsed)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if body["status"] != "down" {
+		t.Errorf("expected status down for slow upstream, got %s", body["status"])
+	}
+}
+
+func TestServerHealthHandler_UpstreamRedirect(t *testing.T) {
+	// If the upstream redirects, http.DefaultClient follows it by default.
+	// Verify the handler doesn't crash and treats the final response status correctly.
+	redirectTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer redirectTarget.Close()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, redirectTarget.URL+"/api/health", http.StatusTemporaryRedirect)
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	req := httptest.NewRequest("GET", "/api/server-health", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	// http.DefaultClient follows redirects; the final response should be 200
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 after redirect, got %d", w.Code)
+	}
+}
+
+func TestServerHealthHandler_InvalidAPIURL(t *testing.T) {
+	// Verify handler doesn't panic with malformed apiURL values.
+	badURLs := []string{
+		"",
+		"not-a-url",
+		"://missing-scheme",
+		"http://",
+		"http://[::1:bad",
+	}
+
+	for _, apiURL := range badURLs {
+		t.Run("url_"+apiURL, func(t *testing.T) {
+			handler := NewServerHealthHandler(nil, apiURL)
+
+			req := httptest.NewRequest("GET", "/api/server-health", nil)
+			w := httptest.NewRecorder()
+
+			// Must not panic
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusServiceUnavailable {
+				t.Errorf("expected 503 for invalid apiURL %q, got %d", apiURL, w.Code)
+			}
+		})
+	}
+}
+
+func TestServerHealthHandler_ResponseBodyNotLeaked(t *testing.T) {
+	// Verify the upstream response body is not forwarded to the client.
+	// The handler should only return {"status":"ok"} or {"status":"down"},
+	// never the raw upstream body (which could contain sensitive info).
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok","secret":"internal-data","db_host":"10.0.0.5"}`))
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	req := httptest.NewRequest("GET", "/api/server-health", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if strings.Contains(body, "secret") {
+		t.Error("upstream response body leaked to client — information disclosure")
+	}
+	if strings.Contains(body, "internal-data") {
+		t.Error("upstream internal data leaked to client")
+	}
+	if strings.Contains(body, "db_host") {
+		t.Error("upstream db_host leaked to client")
+	}
+	if strings.Contains(body, "10.0.0.5") {
+		t.Error("upstream internal IP leaked to client")
+	}
+}
+
+func TestServerHealthHandler_ContentTypeIsJSON(t *testing.T) {
+	// Verify Content-Type is always application/json regardless of status.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	// Test OK case
+	req := httptest.NewRequest("GET", "/api/server-health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected Content-Type application/json for OK response, got %s", ct)
+	}
+
+	// Test down case
+	handler2 := NewServerHealthHandler(nil, "http://127.0.0.1:19999")
+	req2 := httptest.NewRequest("GET", "/api/server-health", nil)
+	w2 := httptest.NewRecorder()
+	handler2.ServeHTTP(w2, req2)
+
+	if ct := w2.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected Content-Type application/json for down response, got %s", ct)
+	}
+}
+
+func TestServerHealthHandler_UpstreamClosesConnectionEarly(t *testing.T) {
+	// Simulate an upstream that closes the connection without sending a response.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Skip("server doesn't support hijacking")
+			return
+		}
+		conn, _, _ := hj.Hijack()
+		conn.Close()
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	req := httptest.NewRequest("GET", "/api/server-health", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 when upstream closes connection, got %d", w.Code)
+	}
+}
+
+func TestServerHealthHandler_NilLogger(t *testing.T) {
+	// Verify handler works with nil logger (same pattern as other handlers).
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	handler := NewServerHealthHandler(nil, upstream.URL)
+
+	req := httptest.NewRequest("GET", "/api/server-health", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 with nil logger, got %d", w.Code)
+	}
+}
+
+// --- Status Indicator CSS Tests ---
+
+func TestStatusIndicatorCSS_AllStatesExist(t *testing.T) {
+	// Verify all three status CSS classes are defined in portal.css.
+	// If any are missing, the dots will have no background color.
+	cssPath := filepath.Join(FindPagesDir(), "static", "css", "portal.css")
+	cssBytes, err := os.ReadFile(cssPath)
+	if err != nil {
+		t.Fatalf("failed to read portal.css: %v", err)
+	}
+	css := string(cssBytes)
+
+	requiredClasses := []string{".status-up", ".status-startup", ".status-down"}
+	for _, class := range requiredClasses {
+		if !strings.Contains(css, class) {
+			t.Errorf("CSS missing %s class — status dots will be invisible", class)
+		}
+	}
+}
+
+func TestStatusIndicatorCSS_DotBorderRadius(t *testing.T) {
+	// The status dots should be round (border-radius: 50%).
+	// The global reset uses border-radius: 0 !important, so .status-dot
+	// needs to override with 50% !important.
+	cssPath := filepath.Join(FindPagesDir(), "static", "css", "portal.css")
+	cssBytes, err := os.ReadFile(cssPath)
+	if err != nil {
+		t.Fatalf("failed to read portal.css: %v", err)
+	}
+	css := string(cssBytes)
+
+	if !strings.Contains(css, "border-radius: 50% !important") {
+		t.Error("status-dot needs border-radius: 50% !important to override global reset")
+	}
+}
+
+// --- Nav Template Status Indicator Tests ---
+
+func TestNavTemplate_StatusIndicatorsPresent(t *testing.T) {
+	// Verify status indicators appear in the nav when logged in.
+	handler := NewPageHandler(nil, true)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "some-token"})
+	w := httptest.NewRecorder()
+
+	handler.ServePage("landing.html", "home")(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, "status-indicators") {
+		t.Error("expected status-indicators container in nav")
+	}
+	if !strings.Contains(body, `x-data="statusIndicators()"`) {
+		t.Error("expected Alpine.js statusIndicators component in nav")
+	}
+	if !strings.Contains(body, `title="Portal"`) {
+		t.Error("expected Portal status dot with title attribute")
+	}
+	if !strings.Contains(body, `title="Server"`) {
+		t.Error("expected Server status dot with title attribute")
+	}
+}
+
+func TestNavTemplate_StatusIndicatorsXSSInClassBinding(t *testing.T) {
+	// The :class binding uses "'status-' + portal" where portal is a JS variable.
+	// Verify the template doesn't inject user-controlled values into the class.
+	// In this implementation, portal/server are only set to 'startup', 'up', or 'down'
+	// so no XSS is possible. This test verifies the class binding pattern is safe.
+	handler := NewPageHandler(nil, true)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "some-token"})
+	w := httptest.NewRecorder()
+
+	handler.ServePage("landing.html", "home")(w, req)
+
+	body := w.Body.String()
+
+	// The class binding should use string concatenation with hardcoded prefix
+	if !strings.Contains(body, `'status-' + portal`) {
+		t.Error("expected safe class binding pattern for portal status")
+	}
+	if !strings.Contains(body, `'status-' + server`) {
+		t.Error("expected safe class binding pattern for server status")
 	}
 }
 
