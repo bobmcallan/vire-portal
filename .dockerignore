@@ -28,7 +28,7 @@ logs/
 # Claude
 .claude/
 
-# Docker artifacts (keep vire-portal.toml for COPY)
+# Docker artifacts
 docker/.last_build
 docker/docker-compose*.yml
 docker/README.md

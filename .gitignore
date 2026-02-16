@@ -50,4 +50,5 @@ docker/.last_build
 # TOML config (use .toml.default/.toml.example as template)
 config/*.toml
 !config/*.toml.example
+!config/*.toml.docker
 docker/*.tomlbrowser-check

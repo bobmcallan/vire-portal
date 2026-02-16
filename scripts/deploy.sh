@@ -49,7 +49,7 @@ case "$MODE" in
            find "$PROJECT_DIR/pages" -newer "$COMPOSE_DIR/.last_build" 2>/dev/null | grep -q . || \
            [ "$PROJECT_DIR/go.mod" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/go.sum" -nt "$COMPOSE_DIR/.last_build" ] || \
-           [ "$PROJECT_DIR/docker/vire-portal.toml" -nt "$COMPOSE_DIR/.last_build" ] || \
+           [ "$PROJECT_DIR/config/vire-portal.toml.docker" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/docker-compose.dev.yml" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/Dockerfile" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/Dockerfile.mcp" -nt "$COMPOSE_DIR/.last_build" ] || \

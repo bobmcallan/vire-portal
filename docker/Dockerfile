@@ -38,7 +38,7 @@ COPY --from=builder /build/vire-portal .
 
 # Copy templates, config, and version file
 COPY --from=builder /build/pages ./pages
-COPY --from=builder /build/docker/vire-portal.toml .
+COPY --from=builder /build/config/vire-portal.toml.docker ./vire-portal.toml
 COPY .version .
 
 # Create data and logs directories

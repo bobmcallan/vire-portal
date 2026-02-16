@@ -38,7 +38,7 @@ for f in \
     "docker/docker-compose.yml" \
     "docker/docker-compose.dev.yml" \
     "docker/docker-compose.ghcr.yml" \
-    "docker/vire-portal.toml" \
+    "config/vire-portal.toml.docker" \
     "docker/Dockerfile" \
     "docker/Dockerfile.mcp" \
     ".version" \
