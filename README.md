@@ -79,12 +79,11 @@ The server runs on `http://localhost:8080` by default (Docker local dev override
 
 Set `environment = "dev"` in the TOML config or `VIRE_ENV=dev` as an environment variable to enable dev mode. This adds:
 
-- A "DEV LOGIN" button on the landing page that bypasses OAuth
-- `POST /api/auth/dev` endpoint that calls vire-server `POST /api/auth/oauth` with `{ provider: "dev", code: "dev", state: "dev" }`, receives a signed JWT, and sets an httpOnly `vire_session` cookie
-- Dev login uses the same vire-server endpoint as Google and GitHub OAuth, exercising the same code path
+- JWT signature verification is relaxed when `auth.jwt_secret` is empty (legacy fallback extracts `sub` claim without signature check)
+- `POST /api/shutdown` endpoint for graceful shutdown via HTTP
 - All other functionality remains identical to prod
 
-Dev mode is disabled by default (`environment = "prod"`). The `POST /api/auth/dev` route returns 404 when not in dev mode.
+Dev mode is disabled by default (`environment = "prod"`).
 
 ```bash
 # Run in dev mode
@@ -159,7 +158,38 @@ All tool calls are proxied to vire-server. The portal does not parse or format r
 
 ### Connecting Claude
 
-Add this to your Claude Code MCP settings or `~/.claude.json`:
+The portal implements MCP OAuth 2.1 (RFC 9728) with PKCE S256 and Dynamic Client Registration. Claude Desktop and Claude Code authenticate differently:
+
+#### Claude Desktop (OAuth -- automatic)
+
+Claude Desktop discovers the OAuth endpoints via `/.well-known/oauth-authorization-server` and handles the full flow automatically:
+
+1. Claude Desktop calls `GET /.well-known/oauth-authorization-server` to discover endpoints
+2. Registers itself via `POST /register` (Dynamic Client Registration)
+3. Redirects the user to `GET /authorize` with PKCE challenge
+4. Portal sets an `mcp_session_id` cookie and redirects to the login page
+5. User logs in (email/password or Google/GitHub OAuth)
+6. On successful login, the portal detects the `mcp_session_id` cookie, completes the authorization, and redirects back to Claude Desktop with an authorization code
+7. Claude Desktop exchanges the code for a JWT access token via `POST /token`
+8. All subsequent MCP requests include `Authorization: Bearer <jwt>`
+
+Add to Claude Desktop settings (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "vire": {
+      "url": "http://localhost:4241/mcp"
+    }
+  }
+}
+```
+
+Claude Desktop will prompt you to log in on first connection. Tokens expire after 1 hour and are refreshed automatically via the refresh_token grant.
+
+#### Claude Code (Bearer token -- manual)
+
+Claude Code uses Streamable HTTP transport. Add to `~/.claude.json` or project `.mcp.json`:
 
 ```json
 {
@@ -171,6 +201,29 @@ Add this to your Claude Code MCP settings or `~/.claude.json`:
   }
 }
 ```
+
+Without OAuth, Claude Code connects unauthenticated. The MCP handler still works but cannot resolve a user ID, so `X-Vire-User-ID` is not sent and vire-server falls back to default/anonymous context.
+
+To connect as a specific user, Claude Code would need to send an `Authorization: Bearer <jwt>` header. This requires obtaining a JWT via one of:
+- `POST /api/auth/login` with email/password (returns a JWT in the response)
+- The full OAuth flow described above
+
+#### Authentication Chain
+
+```
+Claude (Bearer token or cookie)
+  -> POST /mcp
+    -> vire-portal: extract user ID from JWT "sub" claim
+      -> proxy to vire-server with X-Vire-User-ID header
+        -> vire-server: look up user's Navexa key from DB
+          -> call Navexa API with user's key
+```
+
+The portal extracts user identity from either:
+1. `Authorization: Bearer <jwt>` header (Claude Desktop / CLI)
+2. `vire_session` cookie (web dashboard)
+
+Bearer token takes priority. If neither is present, the request proceeds without user context.
 
 ### Tools
 
@@ -190,72 +243,75 @@ Static headers are set from config on every request. Per-request headers are set
 
 ## Authentication Flow
 
-The portal uses direct OAuth with Google and GitHub. The gateway handles token exchange and issues its own JWTs. No Firebase Auth SDK is involved.
+The portal authenticates users via vire-server. Three login methods are supported: email/password, Google OAuth, and GitHub OAuth. vire-server handles credential validation and token exchange; the portal never touches passwords or OAuth secrets directly.
 
-### Sign-in Flow
-
-The sign-in buttons are **anchor tags** (`<a>`) pointing directly at the gateway's login endpoint. This is necessary because the gateway returns a 302 redirect to the OAuth provider, and you cannot follow cross-origin 302 redirects from `fetch()`.
+### Email/Password Login
 
 ```
-1. User clicks "Sign in with Google" on /
-   -> <a href="${API_URL}/api/auth/login/google">Sign in with Google</a>
-   -> Browser navigates to the gateway URL (full page navigation, not fetch)
-2. Gateway generates a random `state` token, stores it server-side (or in a
-   signed cookie), and 302-redirects to the provider's OAuth consent screen
-   with params: client_id, redirect_uri, scope, state
-   -> redirect_uri = https://${DOMAIN}/auth/callback
-   -> The gateway derives redirect_uri from its own config (the portal's DOMAIN).
-     The same URI must be registered in Google Cloud Console / GitHub OAuth app.
-3. User authorises on the provider's consent screen
-4. Provider redirects to https://${DOMAIN}/auth/callback?code=xxx&state=yyy
-5. The /auth/callback page extracts `code` and `state` from query params
-6. Frontend sends both to gateway: POST /api/auth/callback
-   { "provider": "google", "code": "xxx", "state": "yyy" }
-7. Gateway validates the state token (CSRF protection), exchanges the code
-   for tokens with the provider, creates/updates user profile in Firestore
-8. Gateway returns:
-   - Session JWT (short-lived, 1h) in response body
-   - Refresh token (7d) as httpOnly Secure SameSite=Lax cookie
-     (SameSite=Lax is required here -- the callback is a cross-site redirect
-      from the OAuth provider, and SameSite=Strict would block the cookie)
-9. Frontend stores JWT in memory (not localStorage)
-10. Frontend redirects to /dashboard
-11. All subsequent API calls include JWT in Authorization: Bearer header
+1. User submits email + password on the landing page
+2. Portal forwards to vire-server: POST /api/auth/login { username, password }
+3. vire-server validates credentials, returns a signed JWT
+4. Portal sets the JWT as an httpOnly "vire_session" cookie
+5. User is redirected to /dashboard
 ```
 
-**OAuth redirect_uri configuration:**
-
-| Environment | Portal Domain | redirect_uri | Where to Register |
-|-------------|--------------|--------------|-------------------|
-| dev | `dev.vire.app` | `https://dev.vire.app/auth/callback` | Google Cloud Console, GitHub OAuth App |
-| prod | `vire.app` | `https://vire.app/auth/callback` | Google Cloud Console, GitHub OAuth App |
-
-The `redirect_uri` is constructed by the gateway from its own domain configuration, not passed by the portal. Both the Google and GitHub OAuth apps must have the redirect URI registered in their settings, or the provider will reject the request.
-
-### Token Refresh Flow
+### OAuth Login (Google / GitHub)
 
 ```
-1. Frontend detects JWT expiry (decode exp claim) or receives 401 response
-2. POST /api/auth/refresh (refresh token sent automatically via httpOnly cookie)
-3. Gateway validates refresh token, issues new JWT
-4. Frontend stores new JWT in memory
-5. No user interaction required
+1. User clicks "Sign in with Google" (or GitHub) on /
+   -> Browser navigates to portal: GET /api/auth/login/google
+2. Portal 302-redirects to vire-server: GET {API_URL}/api/auth/login/google?callback={callbackURL}
+3. vire-server redirects to the OAuth provider's consent screen
+4. User authorises, provider redirects back to vire-server
+5. vire-server exchanges code for tokens, creates/updates user, mints a JWT
+6. vire-server redirects to portal: GET /auth/callback?token=<jwt>
+7. Portal sets the JWT as an httpOnly "vire_session" cookie
+8. User is redirected to /dashboard
 ```
+
+The `callback_url` config setting tells the portal where vire-server should redirect after OAuth completes. This must match the URL registered with each OAuth provider.
+
+### MCP OAuth 2.1 Flow (Claude Desktop)
+
+When Claude Desktop connects, it performs a full OAuth 2.1 flow with PKCE:
+
+```
+1. Claude Desktop discovers endpoints: GET /.well-known/oauth-authorization-server
+2. Claude Desktop registers: POST /register (Dynamic Client Registration)
+3. Claude Desktop redirects user: GET /authorize?client_id=...&code_challenge=...&state=...
+4. Portal creates a pending session, sets mcp_session_id cookie, redirects to /
+5. User logs in (email/password or OAuth — same flows as above)
+6. On login success, portal detects mcp_session_id cookie
+7. Portal calls CompleteAuthorization: creates auth code, redirects to Claude Desktop's redirect_uri
+8. Claude Desktop exchanges code + code_verifier: POST /token
+9. Portal verifies PKCE S256, mints a JWT access token (1h) + refresh token (7d)
+10. Claude Desktop sends Bearer token on all subsequent MCP requests
+```
+
+### JWT Claims
+
+Tokens minted by the portal OAuth server contain:
+
+| Claim | Description |
+|-------|-------------|
+| `sub` | User ID (from vire-server) |
+| `scope` | Granted scopes (e.g. `openid portfolio:read tools:invoke`) |
+| `client_id` | OAuth client ID |
+| `iss` | Portal base URL |
+| `iat` / `exp` | Issued-at / expiry (1 hour) |
+
+Tokens are HMAC-SHA256 signed using the `auth.jwt_secret` config value.
 
 ### OAuth Provider Configuration
 
-| Provider | OAuth Endpoint | Scopes | User Info Fields |
-|----------|---------------|--------|-----------------|
-| Google | `accounts.google.com/o/oauth2/v2/auth` | `openid`, `email`, `profile` | email, name, picture |
-| GitHub | `github.com/login/oauth/authorize` | `read:user`, `user:email` | email, login, name, avatar_url |
+| Provider | Scopes |
+|----------|--------|
+| Google | `openid`, `email`, `profile` |
+| GitHub | `read:user`, `user:email` |
 
-## API Contract with Gateway
+## API Contract with vire-server
 
-> **Note:** The canonical API design is in the [architecture document](https://github.com/bobmcallan/vire-infra/blob/main/docs/architecture-per-user-deployment.md) (Stage 1). This section derives from it and specifies the portal-facing contract -- request/response shapes the portal must handle. If the gateway API evolves, the architecture doc is authoritative.
-
-The portal communicates exclusively with the vire-gateway (control plane) REST API.
-
-All protected routes require `Authorization: Bearer <jwt>` header. All request/response bodies are JSON.
+The portal communicates exclusively with vire-server's REST API. All request/response bodies are JSON.
 
 ### Error Response Format
 
@@ -953,7 +1009,7 @@ The portal and MCP server run alongside vire-server in a three-service Docker Co
     └──────────────────────────────────────────────────┘
 ```
 
-Both the portal and vire-mcp proxy tool calls to vire-server. The portal uses dynamic tool registration from the vire-server catalog and injects X-Vire-* headers for user context. vire-mcp is a standalone MCP server with built-in tool definitions. For future multi-user cloud deployment, the portal will also integrate with vire-gateway for OAuth and user management.
+Both the portal and vire-mcp proxy tool calls to vire-server. The portal uses dynamic tool registration from the vire-server catalog and injects X-Vire-* headers for user context. vire-mcp is a standalone MCP server with built-in tool definitions. The portal implements MCP OAuth 2.1 so Claude Desktop can authenticate users and receive per-user JWT tokens. vire-server resolves the user's API keys (Navexa, EODHD, etc.) from the user ID in the `X-Vire-User-ID` header.
 
 ## License
 
