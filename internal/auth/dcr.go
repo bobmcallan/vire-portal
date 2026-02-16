@@ -67,7 +67,7 @@ func (s *OAuthServer) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		GrantTypes:              grantTypes,
 		ResponseTypes:           responseTypes,
 		TokenEndpointAuthMethod: authMethod,
-		CreatedAt:               time.Now(),
+		CreatedAt:               time.Now().Unix(),
 	}
 
 	s.clients.Put(client)

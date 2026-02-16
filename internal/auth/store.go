@@ -7,14 +7,14 @@ import (
 
 // OAuthClient represents a dynamically registered OAuth client.
 type OAuthClient struct {
-	ClientID                string    `json:"client_id"`
-	ClientSecret            string    `json:"client_secret,omitempty"`
-	ClientName              string    `json:"client_name"`
-	RedirectURIs            []string  `json:"redirect_uris"`
-	GrantTypes              []string  `json:"grant_types"`
-	ResponseTypes           []string  `json:"response_types"`
-	TokenEndpointAuthMethod string    `json:"token_endpoint_auth_method"`
-	CreatedAt               time.Time `json:"client_id_issued_at,omitempty"`
+	ClientID                string   `json:"client_id"`
+	ClientSecret            string   `json:"client_secret,omitempty"`
+	ClientName              string   `json:"client_name"`
+	RedirectURIs            []string `json:"redirect_uris"`
+	GrantTypes              []string `json:"grant_types"`
+	ResponseTypes           []string `json:"response_types"`
+	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
+	CreatedAt               int64    `json:"client_id_issued_at,omitempty"`
 }
 
 // ClientStore holds DCR-registered OAuth clients.

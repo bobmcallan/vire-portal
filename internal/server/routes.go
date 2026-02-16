@@ -9,9 +9,11 @@ import (
 func (s *Server) setupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 
-	// OAuth discovery endpoints
+	// OAuth discovery endpoints (root + /mcp-suffixed per MCP spec)
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", s.app.OAuthServer.HandleAuthorizationServer)
+	mux.HandleFunc("GET /.well-known/oauth-authorization-server/mcp", s.app.OAuthServer.HandleAuthorizationServer)
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource", s.app.OAuthServer.HandleProtectedResource)
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", s.app.OAuthServer.HandleProtectedResource)
 	// Return 404 for unregistered well-known paths (prevents the "/" catch-all
 	// from serving HTML, which breaks MCP clients probing openid-configuration).
 	mux.HandleFunc("/.well-known/", handleWellKnownNotFound)

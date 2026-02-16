@@ -173,7 +173,7 @@ func (s *OAuthServer) createAuthSession(clientID, redirectURI, responseType, cod
 			GrantTypes:              []string{"authorization_code", "refresh_token"},
 			ResponseTypes:           []string{"code"},
 			TokenEndpointAuthMethod: "none",
-			CreatedAt:               time.Now(),
+			CreatedAt:               time.Now().Unix(),
 		}
 		s.clients.Put(client)
 	}

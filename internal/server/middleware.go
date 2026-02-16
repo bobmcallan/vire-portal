@@ -213,6 +213,9 @@ func generateCSRFToken() string {
 }
 
 // responseWriter wraps http.ResponseWriter to capture status code and bytes written.
+// It also implements http.Flusher and http.Hijacker by delegating to the
+// underlying ResponseWriter when supported, which is required for SSE streaming
+// (used by the MCP Streamable HTTP transport).
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode   int
@@ -228,4 +231,14 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	n, err := rw.ResponseWriter.Write(b)
 	rw.bytesWritten += n
 	return n, err
+}
+
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (rw *responseWriter) Unwrap() http.ResponseWriter {
+	return rw.ResponseWriter
 }
