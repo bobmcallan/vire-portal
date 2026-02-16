@@ -4,7 +4,7 @@ Web application and MCP server for the Vire investment platform. Hosts a landing
 
 The portal is a Go server that renders HTML templates with Alpine.js for interactivity and provides an MCP (Model Context Protocol) endpoint for Claude and other MCP clients. It proxies tool calls to vire-server, injecting X-Vire-* headers for user context. Served from a Docker container alongside vire-server.
 
-> **Repository layout:** This repo contains the portal server and MCP server code. The Docker images (`ghcr.io/bobmcallan/vire-portal:latest` and `ghcr.io/bobmcallan/vire-mcp:latest`) run alongside `ghcr.io/bobmcallan/vire-server:latest` in a three-service Docker Compose stack. Portal infrastructure (Cloud Run deployment) is managed by [vire-infra](https://github.com/bobmcallan/vire-infra) Terraform (`infra/modules/portal/`).
+> **Repository layout:** This repo contains the portal server and MCP server code. The Docker images (`ghcr.io/bobmcallan/vire-portal:latest` and `ghcr.io/bobmcallan/vire-mcp:latest`) are published to GHCR. The portal runs alongside `ghcr.io/bobmcallan/vire-server:latest` in a Docker Compose stack. `vire-mcp` is an ephemeral stdio binary launched by Claude Desktop (not a long-running service). Portal infrastructure (Cloud Run deployment) is managed by [vire-infra](https://github.com/bobmcallan/vire-infra) Terraform (`infra/modules/portal/`).
 
 ## Tech Stack
 
@@ -158,19 +158,28 @@ All tool calls are proxied to vire-server. The portal does not parse or format r
 
 ### Connecting Claude
 
-The portal serves MCP over Streamable HTTP at `POST /mcp`. Claude Desktop and Claude Code have different transport constraints, so the connection method differs.
+The portal serves MCP over Streamable HTTP at `POST /mcp`. For local development and testing, `vire-mcp` provides a standalone stdio MCP server that reuses the same `internal/mcp` code path as the portal.
 
 #### Transport Compatibility
 
 | Client | Supported Transports | How to Connect |
 |--------|---------------------|----------------|
-| Claude Code | Streamable HTTP, SSE | Direct HTTP URL |
-| Claude Desktop (`claude_desktop_config.json`) | stdio, SSE only | `mcp-remote` bridge (see below) |
+| Claude Code | Streamable HTTP, SSE | Direct HTTP URL (portal) |
+| Claude Desktop (`claude_desktop_config.json`) | stdio only | `vire-mcp` binary or Docker (see below) |
 | Claude Desktop (Connectors UI) | HTTPS only | Public HTTPS URL required |
 
-Claude Desktop's config file does not support Streamable HTTP directly. For local development, use `mcp-remote` to bridge stdio to the portal's HTTP endpoint.
+#### Claude Desktop (local dev via vire-mcp)
 
-#### Claude Desktop (local dev via mcp-remote)
+`vire-mcp` is a thin stdio wrapper around `internal/mcp/` — it exercises the same dynamic catalog, generic handler, and proxy logic as the portal. Configuration is via environment variables only.
+
+| Env Var | Required | Default | Description |
+|---------|----------|---------|-------------|
+| `VIRE_API_URL` | Yes | `http://localhost:4242` | vire-server URL |
+| `VIRE_DEFAULT_PORTFOLIO` | No | — | Default portfolio name |
+| `VIRE_DISPLAY_CURRENCY` | No | — | Display currency |
+| `VIRE_LOG_LEVEL` | No | `warn` | Log level |
+
+**Option 1: Docker (recommended)**
 
 Add to `claude_desktop_config.json`:
 
@@ -178,16 +187,34 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "vire": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://localhost:4241/mcp"]
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "host",
+        "-e", "VIRE_API_URL=http://localhost:4242",
+        "ghcr.io/bobmcallan/vire-mcp:latest"
+      ]
     }
   }
 }
 ```
 
-`mcp-remote` launches as a stdio subprocess, bridges to the portal's Streamable HTTP endpoint, and handles the OAuth 2.1 flow (PKCE + Dynamic Client Registration) automatically. On first connection, a browser window opens for login. Tokens are cached locally and refreshed automatically.
+**Option 2: Direct binary**
 
-Requires Node.js 18+.
+```json
+{
+  "mcpServers": {
+    "vire": {
+      "command": "/path/to/vire-mcp",
+      "env": {
+        "VIRE_API_URL": "http://localhost:4242"
+      }
+    }
+  }
+}
+```
+
+Both use stdio transport. Claude Desktop launches the process, which fetches the tool catalog from vire-server and registers tools dynamically.
 
 #### Claude Desktop (production via Connectors)
 
@@ -736,7 +763,7 @@ ENTRYPOINT ["./vire-portal"]
 
 ## GitHub Actions Workflow
 
-`.github/workflows/release.yml` builds and pushes Docker images for both vire-portal and vire-mcp to GHCR on push to main or version tags (matrix strategy):
+`.github/workflows/release.yml` builds and pushes Docker images for vire-portal and vire-mcp to GHCR on push to main or version tags (matrix strategy):
 
 - Extracts version from `.version` file
 - Passes VERSION, BUILD, GIT_COMMIT as Docker build args
@@ -777,11 +804,7 @@ vire-portal/
 │   ├── vire-portal/
 │   │   └── main.go                  # Portal entry point (flag parsing, config, graceful shutdown)
 │   └── vire-mcp/
-│       ├── main.go                  # MCP server entry point (stdio + HTTP transport)
-│       ├── proxy.go                 # HTTP proxy to vire-server REST API
-│       ├── handlers.go              # MCP tool handler implementations
-│       ├── formatters.go            # Response formatters (markdown, JSON)
-│       └── tools.go                 # MCP tool definitions (25+ tools)
+│       └── main.go                  # Thin stdio MCP server (reuses internal/mcp)
 ├── internal/
 │   ├── app/
 │   │   └── app.go                   # Dependency container (Config, Logger, Handlers, OAuthServer)
@@ -851,13 +874,11 @@ vire-portal/
 │       └── common.js                 # Client logging (debugLog, debugError) + Alpine.js init
 ├── docker/
 │   ├── Dockerfile                    # Portal multi-stage build (golang:1.25 -> alpine)
-│   ├── Dockerfile.mcp               # MCP multi-stage build (golang:1.25 -> alpine)
-│   ├── docker-compose.yml            # 3-service stack: portal + mcp + vire-server
+│   ├── Dockerfile.mcp               # MCP stdio binary build (golang:1.25 -> alpine)
+│   ├── docker-compose.yml            # Portal + vire-server stack
 │   ├── docker-compose.dev.yml        # Dev overlay (VIRE_ENV=dev, used by deploy.sh local)
 │   ├── docker-compose.ghcr.yml       # GHCR pull + watchtower auto-update
 │   ├── vire-portal.toml              # Portal configuration
-│   ├── vire-mcp.toml                 # MCP configuration (local)
-│   ├── vire-mcp.toml.docker          # MCP configuration (Docker/CI)
 │   └── README.md                     # Docker usage documentation
 ├── docs/
 │   ├── requirements.md               # API contracts and architecture
@@ -883,23 +904,22 @@ vire-portal/
 
 The project includes deployment scripts matching the [vire](https://github.com/bobmcallan/vire) project patterns. See `docker/README.md` for full details.
 
-### Three-Service Stack (portal + mcp + vire-server)
+### Service Stack (portal + vire-server)
 
-The recommended deployment runs all three services together via docker-compose:
+The recommended deployment runs portal and vire-server together via docker-compose:
 
 ```bash
-# Build portal + mcp and start all services (uses dev compose overlay)
+# Build portal and start services (uses dev compose overlay)
 ./scripts/deploy.sh local
 ```
 
 This starts:
 - **vire-portal** on port 4241 -- landing page + MCP endpoint (dev mode)
-- **vire-mcp** on port 4243 -- standalone MCP server (proxies to vire-server)
 - **vire-server** on port 4242 -- backend API (pulled from GHCR)
 
 Local deploys automatically use `docker-compose.dev.yml` as a compose overlay, which sets `VIRE_ENV=dev` to enable dev mode (dev login, etc.). The base `docker-compose.yml` stays unchanged for prod-like builds.
 
-The portal connects to vire-server via `VIRE_API_URL=http://vire-server:8080` (Docker internal network). Claude connects to `http://localhost:4241/mcp` (portal) or `http://localhost:4243/mcp` (standalone mcp).
+The portal connects to vire-server via `VIRE_API_URL=http://vire-server:8080` (Docker internal network). Claude Code connects to `http://localhost:4241/mcp` (portal). Claude Desktop uses `vire-mcp` via stdio (see Connecting Claude section above).
 
 ### Portal Only
 
@@ -1003,20 +1023,21 @@ The vire-infra Terraform references `ghcr.io/bobmcallan/vire-portal:latest`. Aft
 
 ## Architecture Context
 
-The portal and MCP server run alongside vire-server in a three-service Docker Compose stack:
+The portal runs alongside vire-server in a Docker Compose stack. `vire-mcp` is an ephemeral stdio binary launched by Claude Desktop:
 
 ```
      ┌───────────────┐    ┌──────────────────┐
      │     User      │    │  Claude / MCP     │
      │   (browser)   │    │     Client        │
      └───────┬───────┘    └──┬────────────┬───┘
-             │ GET /         │ POST /mcp  │ POST /mcp
+             │ GET /         │ POST /mcp  │ stdio
              │               │            │
     ┌────────┴───────────────┴──┐    ┌────┴────────────────────────┐
-    │  vire-portal (:4241)      │    │  vire-mcp (:4243)           │
-    │  - Landing page           │    │  - Standalone MCP server    │
-    │  - MCP endpoint (dynamic) │    │  - 25+ tools (stdio + HTTP) │
-    │  - X-Vire-* headers       │    │  - Direct vire-server proxy │
+    │  vire-portal (:4241)      │    │  vire-mcp (stdio)           │
+    │  - Landing page           │    │  - Thin wrapper around      │
+    │  - MCP endpoint (dynamic) │    │    internal/mcp              │
+    │  - X-Vire-* headers       │    │  - Same code path as portal │
+    │  - OAuth 2.1              │    │  - Ephemeral (Claude launch) │
     └────────────┬──────────────┘    └──────────────┬──────────────┘
                  │ REST API proxy                   │
                  │                                  │
@@ -1028,7 +1049,7 @@ The portal and MCP server run alongside vire-server in a three-service Docker Co
     └──────────────────────────────────────────────────┘
 ```
 
-Both the portal and vire-mcp proxy tool calls to vire-server. The portal uses dynamic tool registration from the vire-server catalog and injects X-Vire-* headers for user context. vire-mcp is a standalone MCP server with built-in tool definitions. The portal implements MCP OAuth 2.1 so Claude Desktop can authenticate users and receive per-user JWT tokens. vire-server resolves the user's API keys (Navexa, EODHD, etc.) from the user ID in the `X-Vire-User-ID` header.
+Both the portal and vire-mcp proxy tool calls to vire-server using the same `internal/mcp` package. They share the dynamic tool catalog, generic handler, and proxy logic. The portal implements MCP OAuth 2.1 so Claude Desktop can authenticate users and receive per-user JWT tokens. vire-server resolves the user's API keys (Navexa, EODHD, etc.) from the user ID in the `X-Vire-User-ID` header.
 
 ## License
 

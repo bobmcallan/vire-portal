@@ -26,28 +26,6 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.scope=vire-portal"
 
-  vire-mcp:
-    image: ghcr.io/bobmcallan/vire-mcp:latest
-    pull_policy: always
-    container_name: vire-mcp
-    ports:
-      - "${MCP_PORT:-4243}:8080"
-    environment:
-      - VIRE_SERVER_URL=http://vire-server:8080
-      - VIRE_MCP_PORT=8080
-      - VIRE_LOG_LEVEL=info
-    depends_on:
-      vire-server:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget --timeout=2 --method=POST -qO /dev/null http://localhost:8080/mcp 2>&1 || [ $? -eq 8 ]"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.scope=vire-portal"
-
   vire-server:
     image: ghcr.io/bobmcallan/vire-server:latest
     pull_policy: always

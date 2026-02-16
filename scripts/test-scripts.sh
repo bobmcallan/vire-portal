@@ -39,8 +39,6 @@ for f in \
     "docker/docker-compose.dev.yml" \
     "docker/docker-compose.ghcr.yml" \
     "docker/vire-portal.toml" \
-    "docker/vire-mcp.toml" \
-    "docker/vire-mcp.toml.docker" \
     "docker/Dockerfile" \
     "docker/Dockerfile.mcp" \
     ".version" \
@@ -421,12 +419,6 @@ if [ -f "$LOCAL_COMPOSE" ]; then
         fail "docker-compose.yml missing vire-portal service"
     fi
 
-    if grep -q 'vire-mcp:' "$LOCAL_COMPOSE"; then
-        pass "docker-compose.yml has vire-mcp service"
-    else
-        fail "docker-compose.yml missing vire-mcp service"
-    fi
-
     # Check build context points to parent
     if grep -q 'context: \.\.' "$LOCAL_COMPOSE"; then
         pass "docker-compose.yml build context is parent directory"
@@ -524,12 +516,6 @@ if [ -f "$GHCR_COMPOSE" ]; then
         pass "docker-compose.ghcr.yml uses GHCR image for vire-portal"
     else
         fail "docker-compose.ghcr.yml missing GHCR image for vire-portal"
-    fi
-
-    if grep -q 'ghcr.io/bobmcallan/vire-mcp' "$GHCR_COMPOSE"; then
-        pass "docker-compose.ghcr.yml uses GHCR image for vire-mcp"
-    else
-        fail "docker-compose.ghcr.yml missing GHCR image for vire-mcp"
     fi
 
     # Check pull_policy
@@ -739,10 +725,11 @@ if [ -f "$DOCKERFILE_MCP" ]; then
         fail "Dockerfile.mcp ldflags missing internal/vire/common path"
     fi
 
-    if grep -q 'vire-mcp.toml.docker' "$DOCKERFILE_MCP"; then
-        pass "Dockerfile.mcp copies vire-mcp.toml.docker"
+    # Verify no config file copy (env vars only)
+    if ! grep -q 'vire-mcp.toml' "$DOCKERFILE_MCP"; then
+        pass "Dockerfile.mcp has no config file copy (env vars only)"
     else
-        fail "Dockerfile.mcp missing vire-mcp.toml.docker copy"
+        fail "Dockerfile.mcp should not copy config files (env vars only)"
     fi
 else
     fail "Dockerfile.mcp not found"

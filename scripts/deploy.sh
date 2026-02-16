@@ -49,7 +49,6 @@ case "$MODE" in
            [ "$PROJECT_DIR/go.mod" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/go.sum" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/vire-portal.toml" -nt "$COMPOSE_DIR/.last_build" ] || \
-           [ "$PROJECT_DIR/docker/vire-mcp.toml" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/docker-compose.dev.yml" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/Dockerfile" -nt "$COMPOSE_DIR/.last_build" ] || \
            [ "$PROJECT_DIR/docker/Dockerfile.mcp" -nt "$COMPOSE_DIR/.last_build" ] || \
@@ -64,7 +63,7 @@ case "$MODE" in
         docker compose -f "$COMPOSE_DIR/docker-compose.ghcr.yml" down --remove-orphans 2>/dev/null || true
         # Build new images while old containers keep running
         if [ "$FORCE" = true ]; then
-            docker image rm vire-portal:latest vire-mcp:latest 2>/dev/null || true
+            docker image rm vire-portal:latest 2>/dev/null || true
             docker compose $COMPOSE_FILES build --no-cache
         else
             docker compose $COMPOSE_FILES build

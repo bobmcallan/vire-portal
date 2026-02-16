@@ -1,146 +1,89 @@
+// Command vire-mcp is a thin stdio MCP server that reuses internal/mcp.
+// It fetches the tool catalog from vire-server, registers tools dynamically,
+// and serves over stdio for Claude Desktop integration.
+//
+// Configuration is via environment variables only (no TOML, no flags):
+//
+//	VIRE_API_URL             vire-server URL       (default: http://localhost:4242)
+//	VIRE_DEFAULT_PORTFOLIO   default portfolio name (optional)
+//	VIRE_DISPLAY_CURRENCY    display currency       (optional)
+//	VIRE_LOG_LEVEL           log level              (default: warn)
 package main
 
 import (
-	"flag"
+	"context"
 	"fmt"
-	"log"
 	"os"
+	"time"
 
 	"github.com/mark3labs/mcp-go/server"
-	toml "github.com/pelletier/go-toml/v2"
 
-	"github.com/bobmcallan/vire-portal/internal/vire/common"
+	"github.com/bobmcallan/vire-portal/internal/config"
+	"github.com/bobmcallan/vire-portal/internal/mcp"
+	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
-// UserConfig holds per-user configuration that gets injected as X-Vire-* headers.
-type UserConfig struct {
-	Portfolios      []string `toml:"portfolios"`
-	DisplayCurrency string   `toml:"display_currency"`
-}
-
-// NavexaConfig holds per-user Navexa API configuration.
-type NavexaConfig struct {
-	APIKey string `toml:"api_key"`
-}
-
-// ServerConfig holds MCP server settings.
-type ServerConfig struct {
-	Name      string `toml:"name"`
-	Port      string `toml:"port"`
-	ServerURL string `toml:"server_url"`
-}
-
-// Config holds all vire-mcp configuration.
-type Config struct {
-	Server  ServerConfig         `toml:"server"`
-	User    UserConfig           `toml:"user"`
-	Navexa  NavexaConfig         `toml:"navexa"`
-	Logging common.LoggingConfig `toml:"logging"`
-}
-
-// newDefaultConfig returns a Config with sensible defaults.
-func newDefaultConfig() Config {
-	return Config{
-		Server: ServerConfig{
-			Name:      "Vire-MCP",
-			Port:      "4243",
-			ServerURL: "http://vire-server:4242",
-		},
-		Logging: common.LoggingConfig{
-			Level:      "info",
-			Outputs:    []string{"console", "file"},
-			FilePath:   "logs/vire-mcp.log",
-			MaxSizeMB:  100,
-			MaxBackups: 3,
-		},
-	}
-}
-
-// loadConfig loads configuration from a TOML file with defaults and env overrides.
-func loadConfig(path string) Config {
-	cfg := newDefaultConfig()
-
-	if path != "" {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				log.Fatalf("Failed to read config file %s: %v", path, err)
-			}
-			// File not found — use defaults
-		} else {
-			if err := toml.Unmarshal(data, &cfg); err != nil {
-				log.Fatalf("Failed to parse config file %s: %v", path, err)
-			}
-		}
-	}
-
-	// Apply environment overrides (matches vire-server patterns)
-	if p := os.Getenv("VIRE_DEFAULT_PORTFOLIO"); p != "" {
-		cfg.User.Portfolios = []string{p}
-	}
-	if dc := os.Getenv("VIRE_DISPLAY_CURRENCY"); dc != "" {
-		cfg.User.DisplayCurrency = dc
-	}
-	if nk := os.Getenv("NAVEXA_API_KEY"); nk != "" {
-		cfg.Navexa.APIKey = nk
-	}
-	if url := os.Getenv("VIRE_SERVER_URL"); url != "" {
-		cfg.Server.ServerURL = url
-	}
-	if port := os.Getenv("VIRE_MCP_PORT"); port != "" {
-		cfg.Server.Port = port
-	}
-
-	return cfg
-}
-
 func main() {
-	stdio := flag.Bool("stdio", false, "Use stdio transport (for Claude Desktop)")
-	configFile := flag.String("config", "vire-mcp.toml", "Path to config file")
-	flag.Parse()
+	cfg := buildConfigFromEnv()
 
-	cfg := loadConfig(*configFile)
+	// Logger writes to stderr only — stdout is reserved for stdio MCP transport.
+	logger := common.NewLoggerFromConfig(common.LoggingConfig{
+		Level:   cfg.Logging.Level,
+		Outputs: []string{"console"},
+	})
 
-	// Load version
 	common.LoadVersionFromFile()
 
-	// Setup logging
-	logger := common.NewLoggerFromConfig(cfg.Logging)
+	proxy := mcp.NewMCPProxy(cfg.API.URL, logger, cfg)
 
-	serverURL := cfg.Server.ServerURL
-	proxy := NewMCPProxy(serverURL, logger, cfg.User, cfg.Navexa)
+	// Fetch tool catalog from vire-server.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	catalog, err := proxy.FetchCatalog(ctx)
+	cancel()
+	if err != nil {
+		logger.Warn().Str("error", err.Error()).Msg("failed to fetch tool catalog, starting with 0 tools")
+		catalog = nil
+	}
 
-	// Create MCP server with tool definitions
-	mcpServer := server.NewMCPServer(
-		cfg.Server.Name,
+	validated := mcp.ValidateCatalog(catalog, logger)
+
+	mcpSrv := server.NewMCPServer(
+		"vire",
 		common.GetVersion(),
 		server.WithToolCapabilities(true),
 	)
 
-	// Register all MCP tools
-	registerTools(mcpServer, proxy)
+	toolCount := mcp.RegisterToolsFromCatalog(mcpSrv, proxy, validated)
+	logger.Info().Int("tools", toolCount).Str("api_url", cfg.API.URL).Msg("vire-mcp ready")
 
-	if *stdio {
-		// Stdio transport — reads stdin, writes stdout
-		if err := server.ServeStdio(mcpServer); err != nil {
-			fmt.Fprintf(os.Stderr, "stdio server error: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	port := cfg.Server.Port
-
-	// Streamable HTTP transport — listens on configured port
-	httpServer := server.NewStreamableHTTPServer(mcpServer,
-		server.WithStateLess(true),
-	)
-
-	log.Printf("Starting MCP Streamable HTTP on :%s", port)
-	fmt.Fprintf(os.Stderr, "Starting MCP Streamable HTTP on :%s\n", port)
-
-	if err := httpServer.Start(":" + port); err != nil {
-		fmt.Fprintf(os.Stderr, "http server error: %v\n", err)
+	if err := server.ServeStdio(mcpSrv); err != nil {
+		fmt.Fprintf(os.Stderr, "stdio server error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// buildConfigFromEnv creates a config.Config from environment variables.
+func buildConfigFromEnv() *config.Config {
+	cfg := config.NewDefaultConfig()
+
+	// Override defaults for vire-mcp context.
+	cfg.API.URL = "http://localhost:4242"
+	cfg.Logging.Level = "warn"
+	cfg.Logging.Outputs = []string{"console"}
+
+	// Apply VIRE_* env overrides (reuses the same logic as the portal).
+	if v := os.Getenv("VIRE_API_URL"); v != "" {
+		cfg.API.URL = v
+	}
+	if v := os.Getenv("VIRE_DEFAULT_PORTFOLIO"); v != "" {
+		cfg.User.Portfolios = []string{v}
+	}
+	if v := os.Getenv("VIRE_DISPLAY_CURRENCY"); v != "" {
+		cfg.User.DisplayCurrency = v
+	}
+	if v := os.Getenv("VIRE_LOG_LEVEL"); v != "" {
+		cfg.Logging.Level = v
+	}
+
+	return cfg
 }
