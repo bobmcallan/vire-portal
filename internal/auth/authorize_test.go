@@ -236,7 +236,7 @@ func TestHandleAuthorize_InvalidChallengeMethod(t *testing.T) {
 func TestHandleAuthorize_MethodNotAllowed(t *testing.T) {
 	srv := newTestOAuthServer()
 
-	req := httptest.NewRequest(http.MethodPost, "/authorize", nil)
+	req := httptest.NewRequest(http.MethodPut, "/authorize", nil)
 	rec := httptest.NewRecorder()
 
 	srv.HandleAuthorize(rec, req)

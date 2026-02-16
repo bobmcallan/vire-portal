@@ -21,6 +21,7 @@ type Config struct {
 	Environment string        `toml:"environment"`
 	Server      ServerConfig  `toml:"server"`
 	API         APIConfig     `toml:"api"`
+	Portal      PortalConfig  `toml:"portal"`
 	Auth        AuthConfig    `toml:"auth"`
 	User        UserConfig    `toml:"user"`
 	Logging     LoggingConfig `toml:"logging"`
@@ -47,6 +48,12 @@ func (c *Config) BaseURL() string {
 
 // APIConfig contains vire-server API connection settings.
 type APIConfig struct {
+	URL string `toml:"url"`
+}
+
+// PortalConfig contains vire-portal connection settings.
+// Used by vire-mcp to know which portal instance to connect to.
+type PortalConfig struct {
 	URL string `toml:"url"`
 }
 
@@ -147,6 +154,7 @@ func applyEnvOverrides(config *Config) {
 	}
 	if portalURL := os.Getenv("VIRE_PORTAL_URL"); portalURL != "" {
 		config.Auth.PortalURL = portalURL
+		config.Portal.URL = portalURL
 	}
 }
 

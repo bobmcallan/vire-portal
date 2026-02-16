@@ -1,21 +1,21 @@
-# VIRE MCP Configuration (local dev)
+# VIRE MCP Configuration
 # Priority: defaults < this file < environment variables (VIRE_*)
 #
 # Copy to vire-mcp.toml and edit:
 #   cp config/vire-mcp.toml.example config/vire-mcp.toml
 #
-# Stdio transport only — stdout is reserved for MCP protocol.
-# Console logging goes to stderr; file logging is optional.
+# vire-mcp is a stdio-to-HTTP bridge — it connects to vire-portal's
+# Streamable HTTP MCP endpoint. All tool logic lives in vire-portal.
+# User identity comes from OAuth, not config.
+# Stdout is reserved for MCP protocol; console logging goes to stderr.
 
-[api]
-url = "http://localhost:4242"
-
-[user]
-# portfolios = ["SMSF", "Personal"]
-# display_currency = "AUD"
+[portal]
+# URL of the vire-portal instance to connect to.
+# Override with VIRE_PORTAL_URL environment variable.
+url = "http://localhost:4241"
 
 [logging]
-level = "warn"              # debug, info, warn, error
+level = "info"              # debug, info, warn, error
 # format = "text"           # text, json
 outputs = ["console"]       # console (stderr), file — console-only default for Docker
 # file_path = "logs/vire-mcp.log"

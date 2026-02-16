@@ -75,6 +75,10 @@ func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 		toolCount = RegisterToolsFromCatalog(mcpSrv, proxy, validated)
 	}
 
+	// Override get_version with combined handler that includes both
+	// vire-portal and vire-server version info.
+	mcpSrv.AddTool(VersionTool(), VersionToolHandler(proxy))
+
 	streamable := mcpserver.NewStreamableHTTPServer(mcpSrv,
 		mcpserver.WithStateLess(true),
 	)

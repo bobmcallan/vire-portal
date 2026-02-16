@@ -111,7 +111,6 @@ build_binaries() {
         [ -f "$CONFIG_DIR/vire-mcp.toml" ] && cp "$CONFIG_DIR/vire-mcp.toml" "$BIN_DIR/"
     fi
 
-    cp "$VERSION_FILE" "$BIN_DIR/.version"
 }
 
 # ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@ url = "http://localhost:4242"
 [auth]
 jwt_secret = ""
 callback_url = "http://localhost:4241/auth/callback"
-portal_url = ""    # External URL (e.g. "https://portal.vire.dev"). Empty = derive from host:port.
+portal_url = ""    # Leave empty for local dev (derived from host:port). Set for tunnel/prod.
 
 [user]
 # portfolios = ["SMSF", "Personal"]
@@ -25,5 +25,7 @@ portal_url = ""    # External URL (e.g. "https://portal.vire.dev"). Empty = deri
 [logging]
 level = "info"              # debug, info, warn, error
 format = "text"             # text, json
-outputs = ["file"]          # console, file (default: console)
+outputs = ["console", "file"]  # console (stderr), file
 file_path = "logs/vire-portal.log"
+max_size_mb = 10
+max_backups = 3

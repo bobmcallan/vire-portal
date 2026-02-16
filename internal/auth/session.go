@@ -60,6 +60,29 @@ func (s *SessionStore) Delete(sessionID string) {
 	delete(s.sessions, sessionID)
 }
 
+// GetByClientID returns the most recently created pending session for the
+// given client ID, or nil if none exists. This supports the flow where a
+// programmatic client (vire-mcp) creates a session via POST /authorize,
+// then the browser opens GET /authorize?client_id=xxx with a truncated URL.
+func (s *SessionStore) GetByClientID(clientID string) *AuthSession {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	now := time.Now()
+	var best *AuthSession
+	for _, sess := range s.sessions {
+		if sess.ClientID != clientID {
+			continue
+		}
+		if now.After(sess.CreatedAt.Add(sessionTTL)) {
+			continue
+		}
+		if best == nil || sess.CreatedAt.After(best.CreatedAt) {
+			best = sess
+		}
+	}
+	return best
+}
+
 // Cleanup removes expired sessions.
 func (s *SessionStore) Cleanup() {
 	s.mu.Lock()

@@ -175,6 +175,7 @@ func (s *Server) csrfMiddleware(next http.Handler) http.Handler {
 		// and OAuth endpoints (called by external OAuth clients)
 		if strings.HasPrefix(r.URL.Path, "/api/") ||
 			r.URL.Path == "/mcp" ||
+			r.URL.Path == "/authorize" ||
 			r.URL.Path == "/register" ||
 			r.URL.Path == "/token" {
 			next.ServeHTTP(w, r)

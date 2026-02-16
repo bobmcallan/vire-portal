@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -56,9 +57,11 @@ func main() {
 		finalPort = *serverPortP
 	}
 
-	// Auto-discover config file if not specified
+	// Auto-discover config file if not specified.
+	// Binary-relative paths are tried first so the config is found even when
+	// the working directory differs from the binary location.
 	if len(configFiles) == 0 {
-		for _, path := range []string{"vire-portal.toml", "config/vire-portal.toml", "docker/vire-portal.toml"} {
+		for _, path := range portalConfigSearchPaths() {
 			if _, err := os.Stat(path); err == nil {
 				configFiles = append(configFiles, path)
 				break
@@ -137,6 +140,45 @@ func main() {
 	}
 
 	logger.Info().Msg("server stopped")
+}
+
+// portalConfigSearchPaths returns TOML files to auto-discover (first match wins).
+// Binary-relative paths are tried first, with CWD and Docker fallbacks after.
+// Paths are deduplicated via filepath.Abs.
+func portalConfigSearchPaths() []string {
+	candidates := []string{
+		"vire-portal.toml",
+		"config/vire-portal.toml",
+		"docker/vire-portal.toml",
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		return candidates
+	}
+	binDir := filepath.Dir(exe)
+
+	paths := []string{
+		filepath.Join(binDir, "vire-portal.toml"),
+		filepath.Join(binDir, "config", "vire-portal.toml"),
+	}
+	paths = append(paths, candidates...)
+
+	// Deduplicate via absolute path.
+	seen := make(map[string]bool, len(paths))
+	deduped := make([]string, 0, len(paths))
+	for _, p := range paths {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			abs = p
+		}
+		if seen[abs] {
+			continue
+		}
+		seen[abs] = true
+		deduped = append(deduped, p)
+	}
+	return deduped
 }
 
 // setupLogger creates an arbor logger based on config.

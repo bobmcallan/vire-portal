@@ -12,10 +12,15 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	// OAuth discovery endpoints
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", s.app.OAuthServer.HandleAuthorizationServer)
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource", s.app.OAuthServer.HandleProtectedResource)
+	// Return 404 for unregistered well-known paths (prevents the "/" catch-all
+	// from serving HTML, which breaks MCP clients probing openid-configuration).
+	mux.HandleFunc("/.well-known/", handleWellKnownNotFound)
 
 	// OAuth flow endpoints
 	mux.HandleFunc("POST /register", s.app.OAuthServer.HandleRegister)
 	mux.HandleFunc("GET /authorize", s.app.OAuthServer.HandleAuthorize)
+	mux.HandleFunc("POST /authorize", s.app.OAuthServer.HandleAuthorize)
+	mux.HandleFunc("GET /authorize/resume", s.app.OAuthServer.HandleAuthorizeResume)
 	mux.HandleFunc("POST /token", s.app.OAuthServer.HandleToken)
 
 	// UI page routes (HTML templates)
@@ -84,4 +89,11 @@ func (s *Server) handleNotFound(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte(`{"error":"Not Found","message":"The requested endpoint does not exist"}`))
+}
+
+// handleWellKnownNotFound returns 404 for unregistered .well-known paths.
+func handleWellKnownNotFound(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte(`{"error":"Not Found"}`))
 }
