@@ -158,38 +158,44 @@ All tool calls are proxied to vire-server. The portal does not parse or format r
 
 ### Connecting Claude
 
-The portal implements MCP OAuth 2.1 (RFC 9728) with PKCE S256 and Dynamic Client Registration. Claude Desktop and Claude Code authenticate differently:
+The portal serves MCP over Streamable HTTP at `POST /mcp`. Claude Desktop and Claude Code have different transport constraints, so the connection method differs.
 
-#### Claude Desktop (OAuth -- automatic)
+#### Transport Compatibility
 
-Claude Desktop discovers the OAuth endpoints via `/.well-known/oauth-authorization-server` and handles the full flow automatically:
+| Client | Supported Transports | How to Connect |
+|--------|---------------------|----------------|
+| Claude Code | Streamable HTTP, SSE | Direct HTTP URL |
+| Claude Desktop (`claude_desktop_config.json`) | stdio, SSE only | `mcp-remote` bridge (see below) |
+| Claude Desktop (Connectors UI) | HTTPS only | Public HTTPS URL required |
 
-1. Claude Desktop calls `GET /.well-known/oauth-authorization-server` to discover endpoints
-2. Registers itself via `POST /register` (Dynamic Client Registration)
-3. Redirects the user to `GET /authorize` with PKCE challenge
-4. Portal sets an `mcp_session_id` cookie and redirects to the login page
-5. User logs in (email/password or Google/GitHub OAuth)
-6. On successful login, the portal detects the `mcp_session_id` cookie, completes the authorization, and redirects back to Claude Desktop with an authorization code
-7. Claude Desktop exchanges the code for a JWT access token via `POST /token`
-8. All subsequent MCP requests include `Authorization: Bearer <jwt>`
+Claude Desktop's config file does not support Streamable HTTP directly. For local development, use `mcp-remote` to bridge stdio to the portal's HTTP endpoint.
 
-Add to Claude Desktop settings (`claude_desktop_config.json`):
+#### Claude Desktop (local dev via mcp-remote)
+
+Add to `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "vire": {
-      "url": "http://localhost:4241/mcp"
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:4241/mcp"]
     }
   }
 }
 ```
 
-Claude Desktop will prompt you to log in on first connection. Tokens expire after 1 hour and are refreshed automatically via the refresh_token grant.
+`mcp-remote` launches as a stdio subprocess, bridges to the portal's Streamable HTTP endpoint, and handles the OAuth 2.1 flow (PKCE + Dynamic Client Registration) automatically. On first connection, a browser window opens for login. Tokens are cached locally and refreshed automatically.
 
-#### Claude Code (Bearer token -- manual)
+Requires Node.js 18+.
 
-Claude Code uses Streamable HTTP transport. Add to `~/.claude.json` or project `.mcp.json`:
+#### Claude Desktop (production via Connectors)
+
+For a deployed portal with HTTPS (e.g. `https://portal.vire.app`), add the server via **Settings > Connectors** in Claude Desktop. Connectors only supports HTTPS URLs and handles OAuth natively.
+
+#### Claude Code
+
+Add to `~/.claude.json` or project `.mcp.json`:
 
 ```json
 {
@@ -202,11 +208,24 @@ Claude Code uses Streamable HTTP transport. Add to `~/.claude.json` or project `
 }
 ```
 
-Without OAuth, Claude Code connects unauthenticated. The MCP handler still works but cannot resolve a user ID, so `X-Vire-User-ID` is not sent and vire-server falls back to default/anonymous context.
+Claude Code supports Streamable HTTP natively. Without OAuth, it connects unauthenticated — the MCP handler still works but cannot resolve a user ID, so `X-Vire-User-ID` is not sent and vire-server falls back to default context.
 
-To connect as a specific user, Claude Code would need to send an `Authorization: Bearer <jwt>` header. This requires obtaining a JWT via one of:
-- `POST /api/auth/login` with email/password (returns a JWT in the response)
-- The full OAuth flow described above
+#### MCP OAuth 2.1 Flow
+
+The portal implements OAuth 2.1 (RFC 9728) with PKCE S256 and Dynamic Client Registration. This flow is triggered automatically by `mcp-remote` or Claude Desktop Connectors:
+
+```
+1. Client discovers endpoints: GET /.well-known/oauth-authorization-server
+2. Client registers: POST /register (Dynamic Client Registration)
+3. Client redirects user: GET /authorize?client_id=...&code_challenge=...&state=...
+4. Portal creates a pending session, sets mcp_session_id cookie, redirects to /
+5. User logs in (email/password or Google/GitHub OAuth)
+6. On login success, portal detects mcp_session_id cookie
+7. Portal creates auth code, redirects to client's redirect_uri
+8. Client exchanges code + code_verifier: POST /token
+9. Portal verifies PKCE S256, mints JWT access token (1h) + refresh token (7d)
+10. Client sends Authorization: Bearer <jwt> on all subsequent MCP requests
+```
 
 #### Authentication Chain
 
@@ -220,7 +239,7 @@ Claude (Bearer token or cookie)
 ```
 
 The portal extracts user identity from either:
-1. `Authorization: Bearer <jwt>` header (Claude Desktop / CLI)
+1. `Authorization: Bearer <jwt>` header (Claude Desktop via mcp-remote / Connectors)
 2. `vire_session` cookie (web dashboard)
 
 Bearer token takes priority. If neither is present, the request proceeds without user context.
