@@ -203,14 +203,14 @@ func GenericToolHandler(p *MCPProxy, ct CatalogTool) server.ToolHandlerFunc {
 func resolveParamValue(ctx context.Context, p *MCPProxy, r mcp.CallToolRequest, param CatalogParam) interface{} {
 	// Try to get value from request arguments
 	switch param.Type {
-	case "number", "boolean", "array":
+	case "number", "boolean", "array", "object":
 		if args := r.GetArguments(); args != nil {
 			if v, ok := args[param.Name]; ok {
 				return v
 			}
 		}
 	default:
-		// string or object
+		// string
 		val := r.GetString(param.Name, "")
 		if val != "" {
 			return val
