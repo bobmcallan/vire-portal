@@ -19,13 +19,14 @@ case "$MODE" in
   local)
     COMPOSE_FILES="-f $COMPOSE_DIR/docker-compose.yml -f $COMPOSE_DIR/docker-compose.dev.yml"
 
-    # Extract version info
+    # Extract version info from [vire-portal] section
     VERSION="dev"
     # Note: local builds use MM-DD-HH-MM-SS format; CI uses YYYYMMDDHHmmss (intentional difference)
     BUILD_TS=$(date +"%m-%d-%H-%M-%S")
     if [ -f "$PROJECT_DIR/.version" ]; then
-        VERSION=$(grep "^version:" "$PROJECT_DIR/.version" | sed 's/version:\s*//' | tr -d ' ')
-        sed -i "s/^build:.*/build: $BUILD_TS/" "$PROJECT_DIR/.version"
+        VERSION=$(awk '/^\[vire-portal\]/{found=1;next} /^\[/{found=0} found && /^version:/{gsub(/version:\s*/,""); gsub(/ /,""); print; exit}' "$PROJECT_DIR/.version")
+        # Update build timestamp in [vire-portal] section
+        sed -i '/^\[vire-portal\]/,/^\[/{s/^build:.*/build: '"$BUILD_TS"'/}' "$PROJECT_DIR/.version"
     fi
     GIT_COMMIT=$(git -C "$PROJECT_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
 

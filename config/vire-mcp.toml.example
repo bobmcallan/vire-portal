@@ -1,0 +1,23 @@
+# VIRE MCP Configuration (local dev)
+# Priority: defaults < this file < environment variables (VIRE_*)
+#
+# Copy to vire-mcp.toml and edit:
+#   cp config/vire-mcp.toml.example config/vire-mcp.toml
+#
+# Stdio transport only — stdout is reserved for MCP protocol.
+# Console logging goes to stderr; file logging is optional.
+
+[api]
+url = "http://localhost:4242"
+
+[user]
+# portfolios = ["SMSF", "Personal"]
+# display_currency = "AUD"
+
+[logging]
+level = "warn"              # debug, info, warn, error
+# format = "text"           # text, json
+outputs = ["console"]       # console (stderr), file — console-only default for Docker
+# file_path = "logs/vire-mcp.log"
+# max_size_mb = 10
+# max_backups = 3

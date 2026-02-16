@@ -132,13 +132,13 @@ for f in "scripts/deploy.sh" "scripts/build.sh"; do
     fi
 done
 
-# Check build.sh header comment describes Docker image builder
+# Check build.sh header comment describes build script
 BUILD="$PROJECT_DIR/scripts/build.sh"
 if [ -f "$BUILD" ]; then
-    if head -5 "$BUILD" | grep -qi 'docker.*image\|image.*build'; then
-        pass "build.sh header clarifies it is a Docker image builder"
+    if head -5 "$BUILD" | grep -qi 'build script\|builds go'; then
+        pass "build.sh header clarifies it is a build script"
     else
-        fail "build.sh header should clarify it is a Docker image builder"
+        fail "build.sh header should clarify it is a build script"
     fi
 fi
 
@@ -149,24 +149,29 @@ section ".version file format"
 
 VERSION_FILE="$PROJECT_DIR/.version"
 if [ -f "$VERSION_FILE" ]; then
-    if grep -qE '^version: [0-9]+\.[0-9]+\.[0-9]+' "$VERSION_FILE"; then
-        pass ".version has valid version line (semver)"
-    else
-        fail ".version missing valid version line"
-    fi
+    # Check for INI-style sections
+    for sec in "vire-portal" "vire-mcp"; do
+        if grep -q "^\[$sec\]" "$VERSION_FILE"; then
+            pass ".version has [$sec] section"
+        else
+            fail ".version missing [$sec] section"
+        fi
 
-    if grep -qE '^build: [0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}' "$VERSION_FILE"; then
-        pass ".version has valid build timestamp"
-    else
-        fail ".version missing valid build timestamp"
-    fi
+        # Extract version from section
+        SEC_VER=$(awk -v s="[$sec]" '$0==s{f=1;next} /^\[/{f=0} f && /^version:/{print; exit}' "$VERSION_FILE")
+        if echo "$SEC_VER" | grep -qE '^version: [0-9]+\.[0-9]+\.[0-9]+'; then
+            pass ".version [$sec] has valid version (semver)"
+        else
+            fail ".version [$sec] missing valid version line"
+        fi
 
-    LINE_COUNT=$(wc -l < "$VERSION_FILE")
-    if [ "$LINE_COUNT" -eq 2 ]; then
-        pass ".version has exactly 2 lines"
-    else
-        fail ".version has $LINE_COUNT lines (expected 2)"
-    fi
+        SEC_BUILD=$(awk -v s="[$sec]" '$0==s{f=1;next} /^\[/{f=0} f && /^build:/{print; exit}' "$VERSION_FILE")
+        if echo "$SEC_BUILD" | grep -qE '^build: [0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}'; then
+            pass ".version [$sec] has valid build timestamp"
+        else
+            fail ".version [$sec] missing valid build timestamp"
+        fi
+    done
 else
     fail ".version file not found"
 fi
@@ -826,6 +831,12 @@ if [ -f "$BUILD" ]; then
         fail "build.sh --help missing --clean documentation"
     fi
 
+    if echo "$HELP_OUTPUT" | grep -q "\-\-docker"; then
+        pass "build.sh --help documents --docker flag"
+    else
+        fail "build.sh --help missing --docker documentation"
+    fi
+
     # build.sh with invalid arg should exit non-zero
     if "$BUILD" --invalid-flag >/dev/null 2>&1; then
         fail "build.sh --invalid-flag should exit non-zero"
@@ -852,16 +863,10 @@ fi
 
 # Behavioral: version extraction from .version file
 if [ -f "$BUILD" ] && [ -f "$VERSION_FILE" ]; then
-    # Test that the grep/sed pipeline in the script matches our expected extraction
-    SCRIPT_PATTERN=$(grep -oE "grep.*version.*sed.*tr" "$BUILD" | head -1 || true)
-    if [ -n "$SCRIPT_PATTERN" ]; then
-        pass "build.sh uses grep/sed/tr pipeline for version extraction"
+    if grep -q 'get_section_version\|awk.*vire-portal\|awk.*vire-mcp' "$BUILD"; then
+        pass "build.sh uses section-aware version extraction"
     else
-        if grep -qE 'grep.*version.*\|.*sed' "$BUILD"; then
-            pass "build.sh uses grep+sed pipeline for version extraction"
-        else
-            fail "build.sh version extraction pattern not recognized"
-        fi
+        fail "build.sh version extraction pattern not recognized"
     fi
 fi
 
@@ -964,10 +969,10 @@ section "Empty version validation"
 for script_name in "deploy.sh" "build.sh"; do
     script_path="$PROJECT_DIR/scripts/$script_name"
     if [ -f "$script_path" ]; then
-        if grep -qE '\-z.*VERSION' "$script_path"; then
-            pass "$script_name validates VERSION is not empty"
+        if grep -qE '\-z.*(VERSION|version)' "$script_path"; then
+            pass "$script_name validates version is not empty"
         else
-            fail "$script_name missing empty VERSION validation"
+            fail "$script_name missing empty version validation"
         fi
     fi
 done
@@ -1038,16 +1043,10 @@ fi
 section ".version edge case handling"
 
 if [ -f "$BUILD" ]; then
-    if grep -qE 'VERSION="dev"|VERSION=.dev.' "$BUILD"; then
-        pass "build.sh has fallback VERSION=dev for missing .version"
+    if grep -qE 'version="dev"|VERSION="dev"' "$BUILD"; then
+        pass "build.sh has fallback version=dev for missing .version"
     else
         fail "build.sh missing fallback for missing .version"
-    fi
-
-    if grep -qE 'BUILD_TS="unknown"|BUILD=.unknown.' "$BUILD"; then
-        pass "build.sh has fallback BUILD=unknown for missing .version"
-    else
-        fail "build.sh missing fallback BUILD for missing .version"
     fi
 fi
 

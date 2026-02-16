@@ -2,7 +2,10 @@
 // It fetches the tool catalog from vire-server, registers tools dynamically,
 // and serves over stdio for Claude Desktop integration.
 //
-// Configuration is via environment variables only (no TOML, no flags):
+// Configuration priority: defaults < TOML file < environment variables (VIRE_*).
+// The TOML file is auto-discovered from vire-mcp.toml or config/vire-mcp.toml.
+//
+// Environment variables:
 //
 //	VIRE_API_URL             vire-server URL       (default: http://localhost:4242)
 //	VIRE_DEFAULT_PORTFOLIO   default portfolio name (optional)
@@ -23,13 +26,24 @@ import (
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
-func main() {
-	cfg := buildConfigFromEnv()
+// configSearchPaths lists TOML files to auto-discover (first match wins).
+var configSearchPaths = []string{
+	"vire-mcp.toml",
+	"config/vire-mcp.toml",
+}
 
-	// Logger writes to stderr only — stdout is reserved for stdio MCP transport.
+func main() {
+	cfg := loadConfig()
+
+	// Create logger from config. Console output goes to stderr (arbor default),
+	// so it won't interfere with stdout which is reserved for stdio MCP transport.
 	logger := common.NewLoggerFromConfig(common.LoggingConfig{
-		Level:   cfg.Logging.Level,
-		Outputs: []string{"console"},
+		Level:      cfg.Logging.Level,
+		Format:     cfg.Logging.Format,
+		Outputs:    cfg.Logging.Outputs,
+		FilePath:   cfg.Logging.FilePath,
+		MaxSizeMB:  cfg.Logging.MaxSizeMB,
+		MaxBackups: cfg.Logging.MaxBackups,
 	})
 
 	common.LoadVersionFromFile()
@@ -62,16 +76,27 @@ func main() {
 	}
 }
 
-// buildConfigFromEnv creates a config.Config from environment variables.
-func buildConfigFromEnv() *config.Config {
-	cfg := config.NewDefaultConfig()
+// loadConfig builds configuration with priority: defaults < TOML file < env vars.
+// Auto-discovers the TOML file from configSearchPaths.
+func loadConfig() *config.Config {
+	// Try to find and load a TOML config file.
+	for _, path := range configSearchPaths {
+		if _, err := os.Stat(path); err == nil {
+			cfg, err := config.LoadFromFile(path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to load %s: %v\n", path, err)
+				break
+			}
+			return cfg
+		}
+	}
 
-	// Override defaults for vire-mcp context.
+	// No TOML file found — build from defaults + env vars.
+	cfg := config.NewDefaultConfig()
 	cfg.API.URL = "http://localhost:4242"
 	cfg.Logging.Level = "warn"
 	cfg.Logging.Outputs = []string{"console"}
 
-	// Apply VIRE_* env overrides (reuses the same logic as the portal).
 	if v := os.Getenv("VIRE_API_URL"); v != "" {
 		cfg.API.URL = v
 	}
