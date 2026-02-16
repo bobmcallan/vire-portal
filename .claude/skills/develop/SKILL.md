@@ -283,6 +283,7 @@ When all tasks are complete:
 | Application | `internal/app/` |
 | API Client | `internal/client/` |
 | Configuration | `internal/config/` |
+| Auth / OAuth Discovery | `internal/auth/` |
 | HTTP Handlers | `internal/handlers/` |
 | MCP Server | `internal/mcp/` |
 | HTTP Server | `internal/server/` |
@@ -301,18 +302,23 @@ The portal is stateless -- all user data is managed by vire-server via REST API 
 
 | Route | Handler | Auth |
 |-------|---------|------|
+| `GET /.well-known/oauth-authorization-server` | OAuthServer | No |
+| `GET /.well-known/oauth-protected-resource` | OAuthServer | No |
+| `POST /register` | OAuthServer | No (RFC 7591 DCR) |
+| `GET /authorize` | OAuthServer | No (starts MCP OAuth flow) |
+| `POST /token` | OAuthServer | No (code exchange / refresh) |
 | `GET /` | PageHandler | No |
 | `GET /dashboard` | DashboardHandler | No |
 | `GET /static/*` | PageHandler | No |
-| `POST /mcp` | MCPHandler | No |
+| `POST /mcp` | MCPHandler | Bearer token or session cookie |
 | `GET /api/health` | HealthHandler | No |
 | `GET /api/server-health` | ServerHealthHandler | No |
 | `GET /api/version` | VersionHandler | No |
-| `POST /api/auth/dev` | AuthHandler | No (dev mode only, 404 in prod) |
+| `POST /api/auth/login` | AuthHandler | No (forwards to vire-server) |
 | `POST /api/auth/logout` | AuthHandler | No |
 | `GET /api/auth/login/google` | AuthHandler | No (redirects to vire-server) |
 | `GET /api/auth/login/github` | AuthHandler | No (redirects to vire-server) |
-| `GET /auth/callback` | AuthHandler | No (OAuth callback, sets session cookie) |
+| `GET /auth/callback` | AuthHandler | No (OAuth callback, sets session cookie or completes MCP flow) |
 | `POST /api/shutdown` | Server | No (dev mode only, 403 in prod) |
 | `GET /settings` | SettingsHandler | No |
 | `POST /settings` | SettingsHandler | No (requires session cookie) |
@@ -328,6 +334,7 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 | API URL | `VIRE_API_URL` | `http://localhost:8080` |
 | JWT secret | `VIRE_AUTH_JWT_SECRET` | `""` (empty = skip signature verification) |
 | OAuth callback URL | `VIRE_AUTH_CALLBACK_URL` | `http://localhost:4241/auth/callback` |
+| Portal URL | `VIRE_PORTAL_URL` | `""` (empty = derive from host:port) |
 | Default portfolio | `VIRE_DEFAULT_PORTFOLIO` | `""` |
 | Display currency | `VIRE_DISPLAY_CURRENCY` | `""` |
 | Environment | `VIRE_ENV` | `prod` |

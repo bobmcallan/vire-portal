@@ -14,6 +14,7 @@ func NewDefaultConfig() *Config {
 		Auth: AuthConfig{
 			JWTSecret:   "",
 			CallbackURL: "http://localhost:4241/auth/callback",
+			PortalURL:   "",
 		},
 		User: UserConfig{
 			Portfolios:      []string{},

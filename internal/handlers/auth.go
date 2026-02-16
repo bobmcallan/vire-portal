@@ -91,6 +91,12 @@ func IsLoggedIn(r *http.Request, secret []byte) (bool, *JWTClaims) {
 	return true, claims
 }
 
+// OAuthCompleter completes an MCP authorization session by exchanging a session ID
+// and user ID for a redirect URL with an authorization code.
+type OAuthCompleter interface {
+	CompleteAuthorization(sessionID string, userID string) (redirectURL string, err error)
+}
+
 // AuthHandler handles authentication-related requests.
 type AuthHandler struct {
 	logger      *common.Logger
@@ -98,6 +104,7 @@ type AuthHandler struct {
 	apiURL      string
 	callbackURL string
 	jwtSecret   []byte
+	oauthServer OAuthCompleter
 }
 
 // NewAuthHandler creates a new auth handler.
@@ -109,6 +116,11 @@ func NewAuthHandler(logger *common.Logger, devMode bool, apiURL string, callback
 		callbackURL: callbackURL,
 		jwtSecret:   jwtSecret,
 	}
+}
+
+// SetOAuthServer sets the OAuth server for MCP session completion.
+func (h *AuthHandler) SetOAuthServer(s OAuthCompleter) {
+	h.oauthServer = s
 }
 
 // HandleLogin handles email/password login.
@@ -175,6 +187,11 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check for MCP session — if present, complete the OAuth flow instead of normal login
+	if mcpRedirect := h.tryCompleteMCPSession(w, r, result.Data.Token); mcpRedirect != "" {
+		return
+	}
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     "vire_session",
 		Value:    result.Data.Token,
@@ -202,10 +219,16 @@ func (h *AuthHandler) HandleGitHubLogin(w http.ResponseWriter, r *http.Request) 
 
 // HandleOAuthCallback handles the OAuth callback from vire-server.
 // GET /auth/callback?token=<jwt> -> sets vire_session cookie, redirects to /dashboard.
+// If mcp_session_id cookie is present, completes the MCP OAuth flow instead.
 func (h *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		http.Redirect(w, r, "/?error=missing_token", http.StatusFound)
+		return
+	}
+
+	// Check for MCP session — if present, complete the OAuth flow
+	if mcpRedirect := h.tryCompleteMCPSession(w, r, token); mcpRedirect != "" {
 		return
 	}
 
@@ -220,6 +243,73 @@ func (h *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Request
 	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
+// tryCompleteMCPSession checks for an mcp_session_id cookie and, if present,
+// completes the MCP OAuth flow by exchanging the session for an auth code redirect.
+// Returns the redirect URL if MCP flow was completed, empty string otherwise.
+func (h *AuthHandler) tryCompleteMCPSession(w http.ResponseWriter, r *http.Request, token string) string {
+	if h.oauthServer == nil {
+		return ""
+	}
+
+	mcpCookie, err := r.Cookie("mcp_session_id")
+	if err != nil || mcpCookie.Value == "" {
+		return ""
+	}
+
+	// Extract user ID from the JWT token
+	sub := extractJWTSubFromToken(token)
+	if sub == "" {
+		if h.logger != nil {
+			h.logger.Error().Msg("MCP session: failed to extract user ID from token")
+		}
+		return ""
+	}
+
+	redirectURL, err := h.oauthServer.CompleteAuthorization(mcpCookie.Value, sub)
+	if err != nil {
+		if h.logger != nil {
+			h.logger.Error().Str("error", err.Error()).Msg("MCP session: failed to complete authorization")
+		}
+		return ""
+	}
+
+	// Clear the mcp_session_id cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "mcp_session_id",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+	return redirectURL
+}
+
+// extractJWTSubFromToken extracts the "sub" claim from a JWT without full validation.
+// Used during MCP flow to get user ID from vire-server token.
+func extractJWTSubFromToken(token string) string {
+	parts := strings.SplitN(token, ".", 3)
+	if len(parts) < 2 {
+		return ""
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+
+	var claims struct {
+		Sub string `json:"sub"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+
+	return claims.Sub
+}
+
 // HandleLogout clears the session cookie and redirects to the landing page.
 func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
@@ -228,6 +318,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
 	})
 	http.Redirect(w, r, "/", http.StatusFound)
 }

@@ -743,3 +743,73 @@ func TestDockerComposeNoServerPortEnv(t *testing.T) {
 		t.Error("docker-compose.yml should NOT set VIRE_SERVER_PORT — Go default is already 8080")
 	}
 }
+
+// --- BaseURL Tests ---
+
+func TestBaseURL_PortalURLSet(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Auth.PortalURL = "https://portal.vire.dev"
+
+	got := cfg.BaseURL()
+	if got != "https://portal.vire.dev" {
+		t.Errorf("expected BaseURL() = https://portal.vire.dev, got %s", got)
+	}
+}
+
+func TestBaseURL_PortalURLTrailingSlash(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Auth.PortalURL = "https://portal.vire.dev/"
+
+	got := cfg.BaseURL()
+	if got != "https://portal.vire.dev" {
+		t.Errorf("expected BaseURL() to strip trailing slash, got %s", got)
+	}
+}
+
+func TestBaseURL_DerivedFromHostPort(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Auth.PortalURL = ""
+	cfg.Server.Host = "localhost"
+	cfg.Server.Port = 4241
+
+	got := cfg.BaseURL()
+	if got != "http://localhost:4241" {
+		t.Errorf("expected BaseURL() = http://localhost:4241, got %s", got)
+	}
+}
+
+func TestBaseURL_DerivedFromAllZerosHost(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Auth.PortalURL = ""
+	cfg.Server.Host = "0.0.0.0"
+	cfg.Server.Port = 4241
+
+	got := cfg.BaseURL()
+	if got != "http://localhost:4241" {
+		t.Errorf("expected BaseURL() to substitute 0.0.0.0 with localhost, got %s", got)
+	}
+}
+
+func TestBaseURL_DerivedFromEmptyHost(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Auth.PortalURL = ""
+	cfg.Server.Host = ""
+	cfg.Server.Port = 4241
+
+	got := cfg.BaseURL()
+	if got != "http://localhost:4241" {
+		t.Errorf("expected BaseURL() to substitute empty host with localhost, got %s", got)
+	}
+}
+
+func TestApplyEnvOverrides_PortalURL(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_PORTAL_URL", "https://portal.example.com")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.Auth.PortalURL != "https://portal.example.com" {
+		t.Errorf("expected portal_url https://portal.example.com, got %s", cfg.Auth.PortalURL)
+	}
+}

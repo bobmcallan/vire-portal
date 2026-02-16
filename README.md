@@ -25,9 +25,15 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `GET /dashboard` | DashboardHandler | No | Dashboard (MCP config, tools, config status) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP transport, dynamic tools) |
+| `GET /.well-known/oauth-authorization-server` | OAuthServer | No | OAuth 2.1 authorization server metadata |
+| `GET /.well-known/oauth-protected-resource` | OAuthServer | No | OAuth 2.1 protected resource metadata |
+| `POST /register` | OAuthServer | No | Dynamic Client Registration (RFC 7591) |
+| `GET /authorize` | OAuthServer | No | OAuth authorization endpoint (PKCE S256) |
+| `POST /token` | OAuthServer | No | Token exchange (authorization_code + refresh_token) |
 | `GET /api/health` | HealthHandler | No | Health check (`{"status":"ok"}`) |
+| `GET /api/server-health` | ServerHealthHandler | No | Proxied vire-server health check |
 | `GET /api/version` | VersionHandler | No | Version info (JSON) |
-| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (calls vire-server, sets session, redirects to `/dashboard`; 404 in prod) |
+| `POST /api/auth/login` | AuthHandler | No | Email/password login (forwards to vire-server) |
 | `POST /api/auth/logout` | AuthHandler | No | Clears session cookie, redirects to `/` |
 | `GET /api/auth/login/google` | AuthHandler | No | Redirects to vire-server Google OAuth |
 | `GET /api/auth/login/github` | AuthHandler | No | Redirects to vire-server GitHub OAuth |
@@ -62,6 +68,9 @@ go test -v ./...
 
 # Vet for issues
 go vet ./...
+
+# Verify auth endpoints on a running server
+./scripts/verify-auth.sh
 ```
 
 The server runs on `http://localhost:8080` by default (Docker local dev overrides to 4241 via `docker/vire-portal.toml`).
@@ -700,7 +709,16 @@ vire-portal/
 │       └── tools.go                 # MCP tool definitions (25+ tools)
 ├── internal/
 │   ├── app/
-│   │   └── app.go                   # Dependency container (Config, Logger, Handlers)
+│   │   └── app.go                   # Dependency container (Config, Logger, Handlers, OAuthServer)
+│   ├── auth/
+│   │   ├── authorize.go             # GET /authorize handler (PKCE, session tracking, auto-register)
+│   │   ├── dcr.go                   # POST /register handler (RFC 7591 Dynamic Client Registration)
+│   │   ├── discovery.go             # .well-known OAuth discovery endpoints
+│   │   ├── pkce.go                  # PKCE S256 verification (constant-time compare)
+│   │   ├── server.go                # OAuthServer (central state, JWT minting, auth completion)
+│   │   ├── session.go               # SessionStore for pending MCP auth sessions (TTL 10 min)
+│   │   ├── store.go                 # ClientStore, CodeStore, TokenStore (in-memory, mutex-protected)
+│   │   └── token.go                 # POST /token handler (auth_code + refresh_token grants)
 │   ├── config/
 │   │   ├── config.go                # TOML loading with defaults -> file -> env -> CLI priority
 │   │   ├── config_test.go
@@ -710,6 +728,7 @@ vire-portal/
 │   ├── handlers/
 │   │   ├── auth.go                  # OAuth auth handlers (dev login, Google/GitHub redirects, callback, logout, JWT validation)
 │   │   ├── auth_test.go             # Auth handler tests (ValidateJWT, IsLoggedIn, OAuth flows)
+│   │   ├── auth_integration_test.go # Integration tests (full login round-trip, OAuth chains)
 │   │   ├── auth_stress_test.go      # Security stress tests (alg:none attack, tampering, timing, hostile inputs)
 │   │   ├── dashboard.go             # GET /dashboard (MCP config, tools, config status)
 │   │   ├── handlers_test.go
@@ -725,6 +744,8 @@ vire-portal/
 │   │   ├── catalog.go               # Dynamic tool catalog types, FetchCatalog, BuildMCPTool, GenericToolHandler
 │   │   ├── context.go               # UserContext (per-request user identity for proxy headers)
 │   │   ├── handler.go               # MCP HTTP handler (mcp-go StreamableHTTPServer, catalog fetch at startup)
+│   │   ├── handler_test.go          # Tests: withUserContext, extractJWTSub
+│   │   ├── handler_stress_test.go   # Stress tests: hostile cookies, concurrent access, binary garbage
 │   │   ├── handlers.go              # errorResult helper, resolvePortfolio
 │   │   ├── mcp_test.go              # Tests: catalog, validation, tools, handlers, proxy, integration
 │   │   ├── proxy.go                 # HTTP proxy to vire-server with X-Vire-* headers
@@ -765,10 +786,14 @@ vire-portal/
 │   └── README.md                     # Docker usage documentation
 ├── docs/
 │   ├── requirements.md               # API contracts and architecture
-│   └── architecture-comparison.md
+│   ├── architecture-comparison.md
+│   └── authentication/
+│       └── mcp-oauth-implementation-steps.md  # MCP OAuth implementation plan (Phase 1 complete)
 ├── scripts/
 │   ├── deploy.sh                     # Deploy orchestration (local/ghcr/down/prune)
 │   ├── build.sh                      # Docker image builder (--portal, --mcp, or both)
+│   ├── run.sh                        # Build + start/stop/restart server locally
+│   ├── verify-auth.sh                # Auth endpoint validation (health, login, OAuth, MCP)
 │   └── test-scripts.sh               # Validation suite for scripts and configs
 ├── .dockerignore
 ├── .version                          # Version metadata (source of truth)

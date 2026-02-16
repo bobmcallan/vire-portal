@@ -2,8 +2,11 @@ package mcp
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -19,6 +22,7 @@ type Handler struct {
 	streamable *mcpserver.StreamableHTTPServer
 	logger     *common.Logger
 	catalog    []CatalogTool
+	jwtSecret  []byte
 }
 
 // catalogRetryAttempts is the number of times to retry fetching the catalog.
@@ -84,6 +88,7 @@ func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 		streamable: streamable,
 		logger:     logger,
 		catalog:    validated,
+		jwtSecret:  []byte(cfg.Auth.JWTSecret),
 	}
 }
 
@@ -101,26 +106,105 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.streamable.ServeHTTP(w, r)
 }
 
-// withUserContext extracts the vire_session cookie, decodes the JWT sub claim,
-// and attaches UserContext to the request context.
+// withUserContext extracts user identity from Bearer token or vire_session cookie,
+// validates the JWT (signature + expiry), and attaches UserContext to the request context.
+// Bearer token takes priority (Claude CLI/Desktop), cookie is fallback (web dashboard).
 // If anything fails, the original request is returned unchanged.
 func (h *Handler) withUserContext(r *http.Request) *http.Request {
+	// Try Bearer token first (Claude CLI/Desktop)
+	if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		claims, err := validateJWT(token, h.jwtSecret)
+		if err == nil && claims.Sub != "" {
+			ctx := WithUserContext(r.Context(), UserContext{UserID: claims.Sub})
+			return r.WithContext(ctx)
+		}
+	}
+
+	// Fall back to cookie (web dashboard)
 	cookie, err := r.Cookie("vire_session")
 	if err != nil || cookie.Value == "" {
 		return r
 	}
 
-	sub := extractJWTSub(cookie.Value)
-	if sub == "" {
-		return r
+	// For cookie-based auth, use the same JWT validation.
+	// If jwtSecret is empty, signature check is skipped (dev mode backwards compat).
+	claims, err := validateJWT(cookie.Value, h.jwtSecret)
+	if err == nil && claims.Sub != "" {
+		ctx := WithUserContext(r.Context(), UserContext{UserID: claims.Sub})
+		return r.WithContext(ctx)
 	}
 
-	ctx := WithUserContext(r.Context(), UserContext{UserID: sub})
-	return r.WithContext(ctx)
+	// Legacy fallback: extract sub without validation when no JWT secret is configured.
+	// This preserves backwards compat for dev setups where vire-server issues
+	// tokens with a different or no secret.
+	if len(h.jwtSecret) == 0 {
+		sub := extractJWTSub(cookie.Value)
+		if sub != "" {
+			ctx := WithUserContext(r.Context(), UserContext{UserID: sub})
+			return r.WithContext(ctx)
+		}
+	}
+
+	return r
+}
+
+// jwtClaims holds decoded JWT payload claims for MCP Bearer token validation.
+type jwtClaims struct {
+	Sub      string `json:"sub"`
+	Exp      int64  `json:"exp"`
+	Iss      string `json:"iss"`
+	ClientID string `json:"client_id"`
+	Scope    string `json:"scope"`
+}
+
+// validateJWT validates a JWT token: checks format, verifies HMAC-SHA256 signature
+// (if secret is non-empty), and checks expiry. Returns claims on success.
+func validateJWT(token string, secret []byte) (*jwtClaims, error) {
+	parts := strings.SplitN(token, ".", 4)
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid JWT: expected 3 parts, got %d", len(parts))
+	}
+
+	// Verify signature if secret is non-empty
+	if len(secret) > 0 {
+		sigInput := parts[0] + "." + parts[1]
+		mac := hmac.New(sha256.New, secret)
+		mac.Write([]byte(sigInput))
+		expectedSig := mac.Sum(nil)
+
+		actualSig, err := base64.RawURLEncoding.DecodeString(parts[2])
+		if err != nil {
+			return nil, fmt.Errorf("invalid JWT signature encoding: %w", err)
+		}
+
+		if !hmac.Equal(expectedSig, actualSig) {
+			return nil, fmt.Errorf("invalid JWT signature")
+		}
+	}
+
+	// Decode payload
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid JWT payload: %w", err)
+	}
+
+	var claims jwtClaims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, fmt.Errorf("invalid JWT JSON: %w", err)
+	}
+
+	// Check expiry
+	if claims.Exp > 0 && claims.Exp < time.Now().Unix() {
+		return nil, fmt.Errorf("JWT expired")
+	}
+
+	return &claims, nil
 }
 
 // extractJWTSub base64url-decodes the JWT payload (middle segment)
 // and returns the "sub" claim. Returns empty string on any failure.
+// Used only as legacy fallback when no JWT secret is configured.
 func extractJWTSub(token string) string {
 	parts := strings.SplitN(token, ".", 3)
 	if len(parts) < 2 {

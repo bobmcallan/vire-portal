@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"github.com/bobmcallan/vire-portal/internal/auth"
 	"github.com/bobmcallan/vire-portal/internal/client"
 	"github.com/bobmcallan/vire-portal/internal/config"
 	"github.com/bobmcallan/vire-portal/internal/handlers"
@@ -44,6 +45,7 @@ type App struct {
 	SettingsHandler     *handlers.SettingsHandler
 	ServerHealthHandler *handlers.ServerHealthHandler
 	MCPHandler          *mcp.Handler
+	OAuthServer         *auth.OAuthServer
 }
 
 // New initializes the application with all dependencies.
@@ -108,6 +110,9 @@ func (a *App) initHandlers() {
 	a.DashboardHandler.SetConfigStatus(handlers.DashboardConfigStatus{
 		Portfolios: strings.Join(a.Config.User.Portfolios, ", "),
 	})
+
+	a.OAuthServer = auth.NewOAuthServer(a.Config.BaseURL(), jwtSecret, a.Logger)
+	a.AuthHandler.SetOAuthServer(a.OAuthServer)
 
 	a.Logger.Debug().Msg("HTTP handlers initialized")
 }

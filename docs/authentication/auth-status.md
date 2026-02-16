@@ -14,7 +14,7 @@ Email/password login is implemented. The portal forwards credentials to vire-ser
 | JWT validation | Done | Signature + expiry checked on every request via `IsLoggedIn` |
 | Google OAuth redirect | Stub | Portal redirects to vire-server; server-side exchange not yet wired |
 | GitHub OAuth redirect | Stub | Same pattern as Google |
-| MCP OAuth 2.1 | Not started | Required for Claude connector directory listing |
+| MCP OAuth 2.1 | Done | DCR, authorize, token endpoints; Bearer token on `/mcp`; in-memory stores |
 
 ## Architecture
 
@@ -115,11 +115,16 @@ When `jwt_secret` is empty (default), signature verification is skipped. This is
 
 | Method | Route | Handler | Description |
 |--------|-------|---------|-------------|
+| GET | `/.well-known/oauth-authorization-server` | OAuthServer | OAuth 2.1 authorization server metadata |
+| GET | `/.well-known/oauth-protected-resource` | OAuthServer | OAuth 2.1 protected resource metadata |
+| POST | `/register` | OAuthServer | Dynamic Client Registration (RFC 7591) |
+| GET | `/authorize` | OAuthServer | OAuth authorization endpoint (PKCE S256) |
+| POST | `/token` | OAuthServer | Token exchange (authorization_code + refresh_token) |
 | POST | `/api/auth/login` | AuthHandler | Email/password login (forwards to vire-server) |
 | POST | `/api/auth/logout` | AuthHandler | Clear session cookie |
 | GET | `/api/auth/login/google` | AuthHandler | Redirect to vire-server Google OAuth |
 | GET | `/api/auth/login/github` | AuthHandler | Redirect to vire-server GitHub OAuth |
-| GET | `/auth/callback` | AuthHandler | Receive JWT from vire-server, set cookie |
+| GET | `/auth/callback` | AuthHandler | Receive JWT from vire-server, set cookie (+ MCP session completion) |
 
 ## Configuration
 
@@ -161,9 +166,18 @@ Effects on auth:
 
 | File | Purpose |
 |------|---------|
-| `internal/handlers/auth.go` | JWT validation, `HandleLogin`, OAuth handlers |
+| `internal/auth/server.go` | OAuthServer (central state, JWT minting, auth completion) |
+| `internal/auth/store.go` | ClientStore, CodeStore, TokenStore (in-memory, mutex-protected) |
+| `internal/auth/session.go` | SessionStore for pending MCP auth sessions (TTL 10 min) |
+| `internal/auth/pkce.go` | PKCE S256 verification (constant-time compare) |
+| `internal/auth/dcr.go` | HandleRegister (POST /register, RFC 7591 DCR) |
+| `internal/auth/authorize.go` | HandleAuthorize (GET /authorize, PKCE + session + redirect) |
+| `internal/auth/token.go` | HandleToken (POST /token, auth_code + refresh_token grants) |
+| `internal/auth/discovery.go` | .well-known OAuth discovery endpoints |
+| `internal/handlers/auth.go` | JWT validation, `HandleLogin`, OAuth handlers, MCP session completion |
 | `internal/handlers/auth_test.go` | Auth unit tests |
 | `internal/handlers/settings.go` | Settings page (includes dev JWT debug) |
+| `internal/mcp/handler.go` | MCP handler (Bearer token + cookie auth, JWT validation) |
 | `internal/config/config.go` | AuthConfig struct, env overrides |
 | `internal/config/defaults.go` | Default auth values |
 | `internal/client/vire_client.go` | `ExchangeOAuth`, `GetUser`, `UpdateUser` |
@@ -171,17 +185,19 @@ Effects on auth:
 | `pages/settings.html` | Settings template with dev auth debug section |
 | `pages/landing.html` | Landing page with login buttons |
 
-## MCP OAuth 2.1 (Future)
+## MCP OAuth 2.1
 
-For Claude connector directory listing, vire-portal needs to implement OAuth 2.1 as an authorization server. This involves:
+The portal implements a complete MCP OAuth 2.1 Authorization Server for Claude CLI, Claude Desktop, and claude.ai. The flow is a two-hop OAuth: Claude authenticates with Vire (MCP OAuth 2.1), and Vire delegates user authentication to Google/GitHub (standard OAuth 2.0). See `docs/authentication/mcp-ouath.md` for the full specification and `docs/authentication/mcp-oauth-implementation-steps.md` for implementation details.
 
-- `/.well-known/oauth-authorization-server` metadata endpoint
-- `/register` for Dynamic Client Registration (RFC 7591)
-- `/authorize` endpoint with PKCE (S256)
-- `/token` endpoint for code exchange and refresh
-- Bearer token validation on the `/mcp` endpoint
+Implementation:
+- `/.well-known/oauth-authorization-server` -- OAuth metadata discovery
+- `/.well-known/oauth-protected-resource` -- Protected resource metadata
+- `POST /register` -- Dynamic Client Registration (RFC 7591, UUID client IDs, random secrets)
+- `GET /authorize` -- Authorization endpoint (PKCE S256, session tracking via `mcp_session_id` cookie, lenient auto-registration for unknown clients)
+- `POST /token` -- Token exchange (authorization_code grant with PKCE verification, refresh_token grant with token rotation)
+- Bearer token on `POST /mcp` -- JWT signature + expiry validation, cookie fallback for web dashboard
 
-The flow is a two-hop OAuth: Claude authenticates with Vire (MCP OAuth 2.1), and Vire delegates user authentication to Google/GitHub (standard OAuth 2.0). See `docs/authentication/mcp-ouath.md` for the full specification.
+Storage: in-memory stores with `sync.RWMutex` for clients, sessions (10 min TTL), auth codes (5 min TTL, single-use), and refresh tokens (7 day TTL). Production will need persistent storage.
 
 ## Phases
 
@@ -190,4 +206,6 @@ The flow is a two-hop OAuth: Claude authenticates with Vire (MCP OAuth 2.1), and
 | 1 | Email/password login + JWT signing/validation | Complete |
 | 2 | Google OAuth (server-side exchange) | Redirect stub in portal |
 | 3 | GitHub OAuth | Redirect stub in portal |
-| 4 | MCP OAuth 2.1 (Claude connector) | Not started |
+| 4 | MCP OAuth 2.1 discovery (`.well-known` endpoints) | Complete |
+| 5 | MCP OAuth 2.1 DCR (`POST /register`) | Complete |
+| 6 | MCP OAuth 2.1 authorize + token + Bearer | Complete |

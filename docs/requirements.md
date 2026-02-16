@@ -14,9 +14,15 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `GET /dashboard` | DashboardHandler | No | Dashboard (MCP config, tools, config status) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP, dynamic tools from vire-server catalog) |
+| `GET /.well-known/oauth-authorization-server` | OAuthServer | No | OAuth 2.1 authorization server metadata |
+| `GET /.well-known/oauth-protected-resource` | OAuthServer | No | OAuth 2.1 protected resource metadata |
+| `POST /register` | OAuthServer | No | Dynamic Client Registration (RFC 7591) |
+| `GET /authorize` | OAuthServer | No | OAuth authorization endpoint (PKCE S256) |
+| `POST /token` | OAuthServer | No | Token exchange (authorization_code + refresh_token) |
 | `GET /api/health` | HealthHandler | No | Health check (`{"status":"ok"}`) |
+| `GET /api/server-health` | ServerHealthHandler | No | Proxied vire-server health check |
 | `GET /api/version` | VersionHandler | No | Version info (JSON) |
-| `POST /api/auth/dev` | AuthHandler | No | Dev-only login (calls vire-server, sets session, redirects to `/dashboard`; 404 in prod) |
+| `POST /api/auth/login` | AuthHandler | No | Email/password login (forwards to vire-server) |
 | `POST /api/auth/logout` | AuthHandler | No | Clears session cookie, redirects to `/` |
 | `GET /api/auth/login/google` | AuthHandler | No | Redirects to vire-server Google OAuth |
 | `GET /api/auth/login/github` | AuthHandler | No | Redirects to vire-server GitHub OAuth |

@@ -13,6 +13,7 @@ import (
 type AuthConfig struct {
 	JWTSecret   string `toml:"jwt_secret"`
 	CallbackURL string `toml:"callback_url"`
+	PortalURL   string `toml:"portal_url"`
 }
 
 // Config represents the application configuration.
@@ -29,6 +30,19 @@ type Config struct {
 // Only the literal value "dev" enables dev mode. "development", "staging", etc. do not.
 func (c *Config) IsDevMode() bool {
 	return strings.ToLower(strings.TrimSpace(c.Environment)) == "dev"
+}
+
+// BaseURL returns the portal's external base URL.
+// Uses Auth.PortalURL if set, otherwise builds from server host and port.
+func (c *Config) BaseURL() string {
+	if c.Auth.PortalURL != "" {
+		return strings.TrimRight(c.Auth.PortalURL, "/")
+	}
+	host := c.Server.Host
+	if host == "" || host == "0.0.0.0" {
+		host = "localhost"
+	}
+	return fmt.Sprintf("http://%s:%d", host, c.Server.Port)
 }
 
 // APIConfig contains vire-server API connection settings.
@@ -130,6 +144,9 @@ func applyEnvOverrides(config *Config) {
 	}
 	if callbackURL := os.Getenv("VIRE_AUTH_CALLBACK_URL"); callbackURL != "" {
 		config.Auth.CallbackURL = callbackURL
+	}
+	if portalURL := os.Getenv("VIRE_PORTAL_URL"); portalURL != "" {
+		config.Auth.PortalURL = portalURL
 	}
 }
 

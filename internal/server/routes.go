@@ -9,6 +9,15 @@ import (
 func (s *Server) setupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 
+	// OAuth discovery endpoints
+	mux.HandleFunc("GET /.well-known/oauth-authorization-server", s.app.OAuthServer.HandleAuthorizationServer)
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource", s.app.OAuthServer.HandleProtectedResource)
+
+	// OAuth flow endpoints
+	mux.HandleFunc("POST /register", s.app.OAuthServer.HandleRegister)
+	mux.HandleFunc("GET /authorize", s.app.OAuthServer.HandleAuthorize)
+	mux.HandleFunc("POST /token", s.app.OAuthServer.HandleToken)
+
 	// UI page routes (HTML templates)
 	mux.HandleFunc("GET /dashboard", s.app.DashboardHandler.ServeHTTP)
 	mux.HandleFunc("/", s.app.PageHandler.ServePage("landing.html", "home"))

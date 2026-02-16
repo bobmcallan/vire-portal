@@ -683,6 +683,223 @@ func TestExchangeOAuth_StressHostileProviderNames(t *testing.T) {
 	}
 }
 
+// --- HandleLogout Cookie Security ---
+
+func TestLogout_StressCookieMissingSameSite(t *testing.T) {
+	// FINDING: HandleLogout clears the cookie without setting SameSite.
+	// The login and callback paths both set SameSite=Lax, but logout does not.
+	// While this is less critical (the cookie value is empty and MaxAge=-1),
+	// it's inconsistent and some browsers may treat missing SameSite differently.
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
+
+	req := httptest.NewRequest("POST", "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "some-token"})
+	w := httptest.NewRecorder()
+
+	handler.HandleLogout(w, req)
+
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "vire_session" {
+			if c.SameSite != http.SameSiteLaxMode && c.SameSite != http.SameSiteStrictMode {
+				t.Errorf("FINDING: logout cookie SameSite=%v, should be Lax or Strict for consistency with login/callback", c.SameSite)
+			}
+		}
+	}
+}
+
+// --- HandleOAuthCallback: Token Not Validated ---
+
+func TestOAuthCallback_StressArbitraryTokenStored(t *testing.T) {
+	// FINDING: HandleOAuthCallback stores whatever token string is provided
+	// as the session cookie WITHOUT validating it as a JWT. This means:
+	// 1. Expired tokens from vire-server are stored
+	// 2. Malformed strings are stored
+	// 3. The browser will send these back on subsequent requests
+	//
+	// Downstream consumers (IsLoggedIn, withUserContext) DO validate,
+	// so this is not directly exploitable -- but it means the user gets
+	// a cookie that appears to be "logged in" but is actually rejected
+	// on every protected page, creating a confusing UX.
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte("secret"))
+
+	// Store an expired JWT via callback
+	expiredToken := buildExpiredJWT("alice")
+	req := httptest.NewRequest("GET", "/auth/callback?token="+url.QueryEscape(expiredToken), nil)
+	w := httptest.NewRecorder()
+
+	handler.HandleOAuthCallback(w, req)
+
+	// The handler stores it without validation
+	var sessionCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "vire_session" {
+			sessionCookie = c
+			break
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("expected cookie to be set")
+	}
+
+	// Now verify that IsLoggedIn correctly rejects this expired token
+	req2 := httptest.NewRequest("GET", "/dashboard", nil)
+	req2.AddCookie(sessionCookie)
+	loggedIn, _ := IsLoggedIn(req2, []byte("secret"))
+	if loggedIn {
+		t.Error("SECURITY: expired token from callback is accepted by IsLoggedIn")
+	}
+
+	// Document: the callback stores unvalidated tokens. This is a UX issue,
+	// not a security vulnerability, because downstream validation catches it.
+	t.Log("FINDING: HandleOAuthCallback stores tokens without validation. Expired/malformed tokens are stored but rejected downstream by IsLoggedIn.")
+}
+
+// --- JWT Expiry Boundary ---
+
+func TestValidateJWT_StressExpJustExpired(t *testing.T) {
+	// Token that expired 1 second ago
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
+	claims, _ := json.Marshal(map[string]interface{}{
+		"sub": "alice",
+		"exp": time.Now().Unix() - 1,
+	})
+	payload := base64.RawURLEncoding.EncodeToString(claims)
+	token := header + "." + payload + "."
+
+	_, err := ValidateJWT(token, []byte{})
+	if err == nil {
+		t.Error("token expired 1 second ago should be rejected")
+	}
+}
+
+func TestValidateJWT_StressExpExactlyNow(t *testing.T) {
+	// Token expiring at current second -- this is a race but exp < now.Unix()
+	// means exp == now is still valid (not less than)
+	now := time.Now().Unix()
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
+	claims, _ := json.Marshal(map[string]interface{}{
+		"sub": "alice",
+		"exp": now,
+	})
+	payload := base64.RawURLEncoding.EncodeToString(claims)
+	token := header + "." + payload + "."
+
+	// exp == now: the check is `exp < now.Unix()`. If time hasn't advanced,
+	// exp == now means NOT less than, so it should be valid.
+	// But this is inherently racy. Just verify it doesn't panic.
+	_, _ = ValidateJWT(token, []byte{})
+}
+
+func TestValidateJWT_StressFutureIat(t *testing.T) {
+	// Token with iat in the future -- we don't validate iat, just exp.
+	// This is fine but worth documenting.
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
+	claims, _ := json.Marshal(map[string]interface{}{
+		"sub": "alice",
+		"iat": time.Now().Add(1 * time.Hour).Unix(),
+		"exp": time.Now().Add(2 * time.Hour).Unix(),
+	})
+	payload := base64.RawURLEncoding.EncodeToString(claims)
+	token := header + "." + payload + "."
+
+	result, err := ValidateJWT(token, []byte{})
+	if err != nil {
+		t.Fatalf("future iat should not cause rejection (we only check exp): %v", err)
+	}
+	if result.Sub != "alice" {
+		t.Errorf("expected sub alice, got %s", result.Sub)
+	}
+	t.Log("NOTE: ValidateJWT does not validate iat (issued-at). Tokens with future iat are accepted.")
+}
+
+func TestValidateJWT_StressVeryFarFutureExp(t *testing.T) {
+	// Token with exp set to year 9999 -- should still be accepted
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
+	claims, _ := json.Marshal(map[string]interface{}{
+		"sub": "alice",
+		"exp": 253402300799, // 9999-12-31T23:59:59Z
+	})
+	payload := base64.RawURLEncoding.EncodeToString(claims)
+	token := header + "." + payload + "."
+
+	result, err := ValidateJWT(token, []byte{})
+	if err != nil {
+		t.Fatalf("far-future exp should be accepted: %v", err)
+	}
+	if result.Sub != "alice" {
+		t.Errorf("expected sub alice, got %s", result.Sub)
+	}
+	t.Log("NOTE: No max-exp validation. Tokens can have arbitrarily far future expiry.")
+}
+
+// --- Login Oversized Form Body ---
+
+func TestLogin_StressOversizedFormBody(t *testing.T) {
+	// Go's ParseForm has a built-in 10MB limit for POST bodies.
+	// Verify the handler doesn't OOM on a very large form body.
+	handler := NewAuthHandler(nil, true, "http://127.0.0.1:1", "http://localhost:4241/auth/callback", []byte{})
+
+	// 5MB form body
+	largeBody := "username=" + strings.Repeat("x", 5<<20) + "&password=test"
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(largeBody))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	// Must not panic or OOM
+	handler.HandleLogin(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302, got %d", w.Code)
+	}
+}
+
+// --- HandleLogin: Credentials forwarded as JSON, not form data ---
+
+func TestLogin_StressSpecialCharsInCredentials(t *testing.T) {
+	// Verify that special characters in username/password are correctly
+	// marshaled as JSON when forwarded to vire-server.
+	var receivedBody map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&receivedBody)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
+
+	specialChars := []struct {
+		name     string
+		username string
+		password string
+	}{
+		{"quotes", `user"name`, `pass"word`},
+		{"backslash", `user\name`, `pass\word`},
+		{"unicode", `用户`, `密码`},
+		{"newlines", "user\nname", "pass\nword"},
+		{"angle brackets", `<user>`, `<pass>`},
+		{"ampersand", `user&name`, `pass&word`},
+	}
+
+	for _, tc := range specialChars {
+		t.Run(tc.name, func(t *testing.T) {
+			formData := "username=" + url.QueryEscape(tc.username) + "&password=" + url.QueryEscape(tc.password)
+			req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(formData))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+
+			handler.HandleLogin(w, req)
+
+			// Verify the credentials were correctly forwarded
+			if receivedBody["username"] != tc.username {
+				t.Errorf("username mangled: expected %q, got %q", tc.username, receivedBody["username"])
+			}
+			if receivedBody["password"] != tc.password {
+				t.Errorf("password mangled: expected %q, got %q", tc.password, receivedBody["password"])
+			}
+		})
+	}
+}
+
 func safeSubstring(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s

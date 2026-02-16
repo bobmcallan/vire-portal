@@ -16,6 +16,7 @@ url = "http://localhost:4242"
 [auth]
 jwt_secret = ""
 callback_url = "http://localhost:4241/auth/callback"
+portal_url = ""    # External URL (e.g. "https://portal.vire.dev"). Empty = derive from host:port.
 
 [user]
 # portfolios = ["SMSF", "Personal"]

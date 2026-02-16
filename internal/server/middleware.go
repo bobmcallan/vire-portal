@@ -171,8 +171,12 @@ func (s *Server) csrfMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Skip API routes (they use Bearer tokens) and MCP endpoint (JSON-RPC)
-		if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/mcp" {
+		// Skip API routes (Bearer tokens), MCP endpoint (JSON-RPC),
+		// and OAuth endpoints (called by external OAuth clients)
+		if strings.HasPrefix(r.URL.Path, "/api/") ||
+			r.URL.Path == "/mcp" ||
+			r.URL.Path == "/register" ||
+			r.URL.Path == "/token" {
 			next.ServeHTTP(w, r)
 			return
 		}
