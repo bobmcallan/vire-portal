@@ -135,7 +135,7 @@ type LoggingConfig struct {
 // NewDefaultConfig returns a Config with sensible defaults
 func NewDefaultConfig() *Config {
 	return &Config{
-		Environment:     "development",
+		Environment:     "prod",
 		DisplayCurrency: "AUD",
 		Server: ServerConfig{
 			Host: "0.0.0.0",
@@ -207,6 +207,9 @@ func LoadConfig(paths ...string) (*Config, error) {
 	// Apply environment overrides
 	applyEnvOverrides(config)
 
+	// Normalize environment aliases (development → dev, production → prod)
+	config.Environment = normalizeEnvironment(config.Environment)
+
 	// Validate display currency
 	validateDisplayCurrency(config)
 
@@ -259,10 +262,23 @@ func applyEnvOverrides(config *Config) {
 	}
 }
 
-// IsProduction returns true if running in production mode
+// IsProduction returns true if running in production mode.
+// The environment value is normalized at load time: "development" → "dev", "production" → "prod".
 func (c *Config) IsProduction() bool {
-	env := strings.ToLower(strings.TrimSpace(c.Environment))
-	return env == "production" || env == "prod"
+	return strings.ToLower(strings.TrimSpace(c.Environment)) == "prod"
+}
+
+// normalizeEnvironment maps environment aliases to their canonical short forms.
+// "development" → "dev", "production" → "prod". All other values pass through unchanged.
+func normalizeEnvironment(env string) string {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "development":
+		return "dev"
+	case "production":
+		return "prod"
+	default:
+		return env
+	}
 }
 
 // ResolveDefaultPortfolio resolves the default portfolio name.

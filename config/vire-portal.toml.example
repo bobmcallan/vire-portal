@@ -4,7 +4,7 @@
 # Copy to vire-portal.toml and edit:
 #   cp config/vire-portal.toml.example config/vire-portal.toml
 
-environment = "dev"
+environment = "dev"                # dev | development, prod | production (default: prod)
 
 [server]
 port = 4241

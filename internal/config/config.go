@@ -27,10 +27,23 @@ type Config struct {
 	Logging     LoggingConfig `toml:"logging"`
 }
 
-// IsDevMode returns true when the environment is set to "dev" (case-insensitive, trimmed).
-// Only the literal value "dev" enables dev mode. "development", "staging", etc. do not.
+// IsDevMode returns true when the environment is set to "dev" or "development" (case-insensitive, trimmed).
+// The environment value is normalized at load time: "development" → "dev", "production" → "prod".
 func (c *Config) IsDevMode() bool {
 	return strings.ToLower(strings.TrimSpace(c.Environment)) == "dev"
+}
+
+// normalizeEnvironment maps environment aliases to their canonical short forms.
+// "development" → "dev", "production" → "prod". All other values pass through unchanged.
+func normalizeEnvironment(env string) string {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "development":
+		return "dev"
+	case "production":
+		return "prod"
+	default:
+		return env
+	}
 }
 
 // BaseURL returns the portal's external base URL.
@@ -110,6 +123,7 @@ func LoadFromFiles(paths ...string) (*Config, error) {
 	}
 
 	applyEnvOverrides(config)
+	config.Environment = normalizeEnvironment(config.Environment)
 
 	return config, nil
 }

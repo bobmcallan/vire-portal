@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -380,10 +381,8 @@ func TestIsDevMode_Adversarial(t *testing.T) {
 		{"DEV", true},
 		{"Dev", true},
 		{" dev ", true},
-		{"development", false},
 		{"staging", false},
 		{"prod", false},
-		{"production", false},
 		{"", false},
 		{" ", false},
 		{"devv", false},
@@ -398,6 +397,93 @@ func TestIsDevMode_Adversarial(t *testing.T) {
 				t.Errorf("IsDevMode() for %q = %v, want %v", tc.env, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestNormalizeEnvironment(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{"dev", "dev"},
+		{"development", "dev"},
+		{"Development", "dev"},
+		{"DEVELOPMENT", "dev"},
+		{" development ", "dev"},
+		{"prod", "prod"},
+		{"production", "prod"},
+		{"Production", "prod"},
+		{"PRODUCTION", "prod"},
+		{" production ", "prod"},
+		{"staging", "staging"},
+		{"", ""},
+		{" ", " "},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.input, func(t *testing.T) {
+			if got := normalizeEnvironment(tc.input); got != tc.want {
+				t.Errorf("normalizeEnvironment(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadFromFiles_NormalizesEnvironment(t *testing.T) {
+	dir := t.TempDir()
+
+	tests := []struct {
+		name    string
+		tomlEnv string
+		wantEnv string
+		wantDev bool
+	}{
+		{"development_to_dev", "development", "dev", true},
+		{"production_to_prod", "production", "prod", false},
+		{"dev_unchanged", "dev", "dev", true},
+		{"prod_unchanged", "prod", "prod", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tomlPath := filepath.Join(dir, tc.name+".toml")
+			content := fmt.Sprintf("environment = %q\n", tc.tomlEnv)
+			if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			cfg, err := LoadFromFiles(tomlPath)
+			if err != nil {
+				t.Fatalf("LoadFromFiles failed: %v", err)
+			}
+
+			if cfg.Environment != tc.wantEnv {
+				t.Errorf("expected environment %q, got %q", tc.wantEnv, cfg.Environment)
+			}
+			if cfg.IsDevMode() != tc.wantDev {
+				t.Errorf("expected IsDevMode() = %v for %q", tc.wantDev, tc.tomlEnv)
+			}
+		})
+	}
+}
+
+func TestApplyEnvOverrides_NormalizesEnvironment(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_ENV", "development")
+
+	cfg2, err := LoadFromFiles() // triggers applyEnvOverrides + normalization
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
+	}
+	// Apply manually to simulate the flow
+	_ = cfg
+
+	if cfg2.Environment != "dev" {
+		t.Errorf("expected VIRE_ENV=development to normalize to dev, got %s", cfg2.Environment)
+	}
+	if !cfg2.IsDevMode() {
+		t.Error("expected IsDevMode() true after VIRE_ENV=development")
 	}
 }
 
