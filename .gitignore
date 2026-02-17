@@ -8,8 +8,10 @@
 /vire-mcp
 bin/
 
-# Test binary, built with `go test -c`
+# Test binary and output, built with `go test -c`
+browser-check
 *.test
+tests/results
 
 # Code coverage
 *.out
