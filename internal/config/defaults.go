@@ -12,11 +12,11 @@ func NewDefaultConfig() *Config {
 			URL: "http://localhost:8080",
 		},
 		Portal: PortalConfig{
-			URL: "http://localhost:4241",
+			URL: "http://localhost:8500",
 		},
 		Auth: AuthConfig{
 			JWTSecret:   "",
-			CallbackURL: "http://localhost:4241/auth/callback",
+			CallbackURL: "http://localhost:8500/auth/callback",
 			PortalURL:   "",
 		},
 		User: UserConfig{

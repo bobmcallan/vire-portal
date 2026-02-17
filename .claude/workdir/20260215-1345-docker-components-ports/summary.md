@@ -7,9 +7,9 @@
 
 | File | Change |
 |------|--------|
-| `docker/docker-compose.yml` | Changed project name `vire` to `vire-portal`, port mapping `4241:8080`, removed `VIRE_SERVER_PORT`, API URL to `http://vire-server:8080`, healthcheck to port 8080 |
-| `docker/docker-compose.ghcr.yml` | All services default to internal port 8080, portal `4241:8080`, mcp `4243:8080`, server `4242:8080`, API URLs updated |
-| `docker/Dockerfile` | `EXPOSE 8080` (was 4241) |
+| `docker/docker-compose.yml` | Changed project name `vire` to `vire-portal`, port mapping `8500:8080`, removed `VIRE_SERVER_PORT`, API URL to `http://vire-server:8080`, healthcheck to port 8080 |
+| `docker/docker-compose.ghcr.yml` | All services default to internal port 8080, portal `8500:8080`, mcp `4243:8080`, server `4242:8080`, API URLs updated |
+| `docker/Dockerfile` | `EXPOSE 8080` (was 8500) |
 | `docker/vire-portal.toml` | `port = 8080`, `url = "http://localhost:8080"` |
 | `internal/config/defaults.go` | API URL default: `http://localhost:8080` (was `http://localhost:4242`) |
 | `internal/config/config_test.go` | Updated `TestNewDefaultConfig_APIDefaults` to expect port 8080 |
@@ -32,7 +32,7 @@
 ## Tests
 - All Go tests pass (`go test ./...`)
 - Go vet clean
-- Docker container deployed and healthy on `localhost:4241` (mapped to internal port 8080)
+- Docker container deployed and healthy on `localhost:8500` (mapped to internal port 8080)
 - Config test updated for new API URL default
 - Stress tests added for race conditions, XSS in toast notifications, keyboard navigation
 
@@ -50,7 +50,7 @@
 
 ## Notes
 - Docker project name changed from `vire` to `vire-portal` — prevents `--remove-orphans` from killing vire-server
-- All services now default to port 8080 internally; external ports unchanged (4241 portal, 4242 server, 4243 mcp)
+- All services now default to port 8080 internally; external ports unchanged (8500 portal, 4242 server, 4243 mcp)
 - Component library CSS is the full `pages_ref/portal.css` plus vire-specific additions
 - common.js loads synchronously (no defer) so Alpine.data() registrations are ready before Alpine initializes
 - `pages_ref/` directory kept as reference — not deleted

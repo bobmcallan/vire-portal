@@ -95,7 +95,7 @@ func TestCompleteAuthorization_SessionExpired(t *testing.T) {
 func TestMintAccessToken_ValidJWT(t *testing.T) {
 	srv := newTestOAuthServer()
 
-	token, err := srv.mintAccessToken("user-42", "openid tools:invoke", "client-1", "http://localhost:4241")
+	token, err := srv.mintAccessToken("user-42", "openid tools:invoke", "client-1", "http://localhost:8500")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestMintAccessToken_ValidJWT(t *testing.T) {
 	if claims["client_id"] != "client-1" {
 		t.Errorf("expected client_id client-1, got %v", claims["client_id"])
 	}
-	if claims["iss"] != "http://localhost:4241" {
+	if claims["iss"] != "http://localhost:8500" {
 		t.Errorf("expected iss, got %v", claims["iss"])
 	}
 
@@ -138,15 +138,15 @@ func TestMintAccessToken_ValidJWT(t *testing.T) {
 }
 
 func TestNewOAuthServer_TrimsBaseURL(t *testing.T) {
-	srv := NewOAuthServer("  http://localhost:4241/  ", []byte("secret"), nil)
-	if srv.baseURL != "http://localhost:4241" {
+	srv := NewOAuthServer("  http://localhost:8500/  ", []byte("secret"), nil)
+	if srv.baseURL != "http://localhost:8500" {
 		t.Errorf("expected trimmed baseURL, got %q", srv.baseURL)
 	}
 }
 
 func TestOAuthServer_DiscoveryHandlers(t *testing.T) {
 	// Verify OAuthServer has HandleAuthorizationServer and HandleProtectedResource
-	srv := NewOAuthServer("http://localhost:4241", []byte("secret"), nil)
+	srv := NewOAuthServer("http://localhost:8500", []byte("secret"), nil)
 	if srv == nil {
 		t.Fatal("expected non-nil OAuthServer")
 	}

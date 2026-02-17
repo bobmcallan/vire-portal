@@ -54,7 +54,7 @@ func TestLoginIntegration_FullRoundTrip(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", secret)
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", secret)
 
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=testuser&password=testpass"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -106,7 +106,7 @@ func TestLoginIntegration_VireServerReturnsInvalidJSON(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=testuser&password=testpass"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -118,8 +118,8 @@ func TestLoginIntegration_VireServerReturnsInvalidJSON(t *testing.T) {
 		t.Fatalf("expected status 302, got %d", w.Code)
 	}
 	location := w.Header().Get("Location")
-	if location != "/?error=auth_failed" {
-		t.Errorf("expected redirect to /?error=auth_failed, got %s", location)
+	if location != "/error?reason=auth_failed" {
+		t.Errorf("expected redirect to /error?reason=auth_failed, got %s", location)
 	}
 }
 
@@ -135,7 +135,7 @@ func TestLoginIntegration_VireServerReturnsEmptyToken(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=testuser&password=testpass"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -147,8 +147,8 @@ func TestLoginIntegration_VireServerReturnsEmptyToken(t *testing.T) {
 		t.Fatalf("expected status 302, got %d", w.Code)
 	}
 	location := w.Header().Get("Location")
-	if location != "/?error=auth_failed" {
-		t.Errorf("expected redirect to /?error=auth_failed, got %s", location)
+	if location != "/error?reason=auth_failed" {
+		t.Errorf("expected redirect to /error?reason=auth_failed, got %s", location)
 	}
 }
 
@@ -156,7 +156,7 @@ func TestLoginIntegration_VireServerReturnsEmptyToken(t *testing.T) {
 
 func TestOAuthRedirect_GoogleCallbackChain(t *testing.T) {
 	apiURL := "http://localhost:4242"
-	callbackURL := "http://localhost:4241/auth/callback"
+	callbackURL := "http://localhost:8500/auth/callback"
 	handler := NewAuthHandler(nil, true, apiURL, callbackURL, []byte(""))
 
 	// Step 1: Verify HandleGoogleLogin builds correct redirect URL
@@ -204,7 +204,7 @@ func TestOAuthRedirect_GoogleCallbackChain(t *testing.T) {
 
 func TestOAuthRedirect_GitHubCallbackChain(t *testing.T) {
 	apiURL := "http://localhost:4242"
-	callbackURL := "http://localhost:4241/auth/callback"
+	callbackURL := "http://localhost:8500/auth/callback"
 	handler := NewAuthHandler(nil, true, apiURL, callbackURL, []byte(""))
 
 	// Step 1: Verify HandleGitHubLogin builds correct redirect URL

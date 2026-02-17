@@ -8,7 +8,7 @@
 **In scope:**
 - Verify portal login flow (email/password → vire-server → JWT cookie → dashboard)
 - Verify Google/GitHub OAuth redirect chains are correct
-- Ensure config is correct for local dev (port 4241 portal, port 4242 vire-server)
+- Ensure config is correct for local dev (port 8500 portal, port 4242 vire-server)
 - Fix the TOML config gap: `config/vire-portal.toml` is missing `[auth]` section (only the `.example` has it)
 - Add integration test that validates the full login round-trip against a mock vire-server
 - Verify MCP handler correctly extracts user context from JWT cookie

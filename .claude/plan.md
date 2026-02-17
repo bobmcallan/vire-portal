@@ -4,12 +4,12 @@
 
 Two deliverables:
 1. **Dashboard page** at `/dashboard` showing MCP connection config, available tools from catalog, and config status
-2. **README.md port fix** changing all stale `8080` references to `4241` (the actual default port in `defaults.go`)
+2. **README.md port fix** changing all stale `8080` references to `8500` (the actual default port in `defaults.go`)
 
 ## Analysis
 
 ### Current State
-- **Default port is 4241** (`internal/config/defaults.go:8`) but README.md references `8080` in 14 places
+- **Default port is 8500** (`internal/config/defaults.go:8`) but README.md references `8080` in 14 places
 - **MCP catalog is fetched at startup** in `handler.go:37-67` but the validated catalog is not stored on the `Handler` struct -- it's consumed by `RegisterToolsFromCatalog` and discarded
 - **PageHandler** uses `ServePage(templateName, pageName)` which passes a fixed `map[string]interface{}` with `Page` and `DevMode` keys -- no way to pass custom data like tools or config
 - **Template loading** uses `template.ParseGlob("*.html")` so any new `pages/dashboard.html` is auto-discovered
@@ -24,7 +24,7 @@ Two deliverables:
 
 4. **80s B&W aesthetic**: Dashboard uses same CSS file with new dashboard-specific classes. Terminal-style layout with bordered sections, monochrome only, IBM Plex Mono.
 
-5. **README port fix**: Context-aware -- local/default port references change to 4241, Cloud Run / Terraform / Dockerfile references stay at 8080.
+5. **README port fix**: Context-aware -- local/default port references change to 8500, Cloud Run / Terraform / Dockerfile references stay at 8080.
 
 ## Implementation Plan
 
@@ -142,16 +142,16 @@ All monochrome (#000, #fff, #888), no border-radius, no box-shadow.
 
 **File: `README.md`**
 
-Changes to `4241`:
-- Line 16: `**Port 4241**` (remove "required by Cloud Run" -- that's the override)
-- Line 60: `http://localhost:4241`
-- Line 100: Config table default `4241`
-- Line 132: `vire-portal (:4241)`
-- Line 154: `http://localhost:4241/mcp`
-- Line 803: `port 4241`
-- Line 806: `http://localhost:4241/mcp`
-- Line 847: `-p 4241:4241`
-- Line 922: `vire-portal (:4241)`
+Changes to `8500`:
+- Line 16: `**Port 8500**` (remove "required by Cloud Run" -- that's the override)
+- Line 60: `http://localhost:8500`
+- Line 100: Config table default `8500`
+- Line 132: `vire-portal (:8500)`
+- Line 154: `http://localhost:8500/mcp`
+- Line 803: `port 8500`
+- Line 806: `http://localhost:8500/mcp`
+- Line 847: `-p 8500:8500`
+- Line 922: `vire-portal (:8500)`
 
 Keep at `8080` (Cloud Run / Terraform / Docker internals):
 - Line 642: `EXPOSE 8080` (Dockerfile convention, Cloud Run override)
@@ -179,4 +179,4 @@ The `handlers` package cannot import `mcp` (would create coupling). Solution:
 | `pages/static/css/portal.css` | Modify: add dashboard styles |
 | `internal/app/app.go` | Modify: wire DashboardHandler |
 | `internal/server/routes.go` | Modify: add /dashboard route |
-| `README.md` | Modify: fix port 8080 -> 4241, add dashboard route |
+| `README.md` | Modify: fix port 8080 -> 8500, add dashboard route |

@@ -653,17 +653,17 @@ func TestNewDefaultConfig_APIDefaultMatchesServerPort(t *testing.T) {
 	}
 }
 
-func TestApplyEnvOverrides_LegacyServerPort4241(t *testing.T) {
-	// Edge case: If VIRE_SERVER_PORT is still set to 4241 (old default),
+func TestApplyEnvOverrides_LegacyServerPort8500(t *testing.T) {
+	// Edge case: If VIRE_SERVER_PORT is still set to 8500 (old default),
 	// the server should use it as an override. Verify it works.
 	cfg := NewDefaultConfig()
 
-	t.Setenv("VIRE_SERVER_PORT", "4241")
+	t.Setenv("VIRE_SERVER_PORT", "8500")
 
 	applyEnvOverrides(cfg)
 
-	if cfg.Server.Port != 4241 {
-		t.Errorf("expected overridden port 4241, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 8500 {
+		t.Errorf("expected overridden port 8500, got %d", cfg.Server.Port)
 	}
 	// API URL should remain at 8080 unless explicitly overridden
 	if cfg.API.URL != "http://localhost:8080" {
@@ -719,7 +719,7 @@ func TestApplyEnvOverrides_HostilePortValues(t *testing.T) {
 }
 
 func TestDockerfileExposePort(t *testing.T) {
-	// Verify Dockerfile EXPOSEs 8080, not 4241.
+	// Verify Dockerfile EXPOSEs 8080, not 8500.
 	dockerfilePath := filepath.Join("..", "..", "docker", "Dockerfile")
 	data, err := os.ReadFile(dockerfilePath)
 	if err != nil {
@@ -730,8 +730,8 @@ func TestDockerfileExposePort(t *testing.T) {
 	if !strings.Contains(content, "EXPOSE 8080") {
 		t.Error("Dockerfile should EXPOSE 8080 (internal default port)")
 	}
-	if strings.Contains(content, "EXPOSE 4241") {
-		t.Error("Dockerfile should NOT EXPOSE 4241 — internal port is now 8080")
+	if strings.Contains(content, "EXPOSE 8500") {
+		t.Error("Dockerfile should NOT EXPOSE 8500 — internal port is now 8080")
 	}
 }
 
@@ -747,8 +747,8 @@ func TestDockerComposeHealthcheck(t *testing.T) {
 	if !strings.Contains(content, "localhost:8080/api/health") {
 		t.Error("docker-compose healthcheck must use internal port 8080")
 	}
-	if strings.Contains(content, "localhost:4241/api/health") {
-		t.Error("docker-compose healthcheck must NOT use old port 4241")
+	if strings.Contains(content, "localhost:8500/api/health") {
+		t.Error("docker-compose healthcheck must NOT use old port 8500")
 	}
 }
 
@@ -760,8 +760,8 @@ func TestNewDefaultConfig_AuthDefaults(t *testing.T) {
 	if cfg.Auth.JWTSecret != "" {
 		t.Errorf("expected empty default jwt_secret, got %s", cfg.Auth.JWTSecret)
 	}
-	if cfg.Auth.CallbackURL != "http://localhost:4241/auth/callback" {
-		t.Errorf("expected default callback_url http://localhost:4241/auth/callback, got %s", cfg.Auth.CallbackURL)
+	if cfg.Auth.CallbackURL != "http://localhost:8500/auth/callback" {
+		t.Errorf("expected default callback_url http://localhost:8500/auth/callback, got %s", cfg.Auth.CallbackURL)
 	}
 }
 
@@ -780,12 +780,12 @@ func TestApplyEnvOverrides_AuthJWTSecret(t *testing.T) {
 func TestApplyEnvOverrides_AuthCallbackURL(t *testing.T) {
 	cfg := NewDefaultConfig()
 
-	t.Setenv("VIRE_AUTH_CALLBACK_URL", "http://myhost:4241/auth/callback")
+	t.Setenv("VIRE_AUTH_CALLBACK_URL", "http://myhost:8500/auth/callback")
 
 	applyEnvOverrides(cfg)
 
-	if cfg.Auth.CallbackURL != "http://myhost:4241/auth/callback" {
-		t.Errorf("expected callback_url http://myhost:4241/auth/callback, got %s", cfg.Auth.CallbackURL)
+	if cfg.Auth.CallbackURL != "http://myhost:8500/auth/callback" {
+		t.Errorf("expected callback_url http://myhost:8500/auth/callback, got %s", cfg.Auth.CallbackURL)
 	}
 }
 
@@ -856,11 +856,11 @@ func TestBaseURL_DerivedFromHostPort(t *testing.T) {
 	cfg := NewDefaultConfig()
 	cfg.Auth.PortalURL = ""
 	cfg.Server.Host = "localhost"
-	cfg.Server.Port = 4241
+	cfg.Server.Port = 8500
 
 	got := cfg.BaseURL()
-	if got != "http://localhost:4241" {
-		t.Errorf("expected BaseURL() = http://localhost:4241, got %s", got)
+	if got != "http://localhost:8500" {
+		t.Errorf("expected BaseURL() = http://localhost:8500, got %s", got)
 	}
 }
 
@@ -868,10 +868,10 @@ func TestBaseURL_DerivedFromAllZerosHost(t *testing.T) {
 	cfg := NewDefaultConfig()
 	cfg.Auth.PortalURL = ""
 	cfg.Server.Host = "0.0.0.0"
-	cfg.Server.Port = 4241
+	cfg.Server.Port = 8500
 
 	got := cfg.BaseURL()
-	if got != "http://localhost:4241" {
+	if got != "http://localhost:8500" {
 		t.Errorf("expected BaseURL() to substitute 0.0.0.0 with localhost, got %s", got)
 	}
 }
@@ -880,10 +880,10 @@ func TestBaseURL_DerivedFromEmptyHost(t *testing.T) {
 	cfg := NewDefaultConfig()
 	cfg.Auth.PortalURL = ""
 	cfg.Server.Host = ""
-	cfg.Server.Port = 4241
+	cfg.Server.Port = 8500
 
 	got := cfg.BaseURL()
-	if got != "http://localhost:4241" {
+	if got != "http://localhost:8500" {
 		t.Errorf("expected BaseURL() to substitute empty host with localhost, got %s", got)
 	}
 }

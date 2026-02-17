@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {{template "head.html" .}}
+    <title>VIRE — Error</title>
+</head>
+
+<body>
+
+    <main class="landing">
+        <div class="landing-inner">
+
+            <div class="landing-hero">
+                <h1 class="landing-title">VIRE</h1>
+                <p class="landing-tagline" x-data x-text="errorMessage()">
+                    Something went wrong.
+                </p>
+            </div>
+
+            <div class="landing-actions">
+                <a href="/" class="btn btn-primary">BACK TO HOME</a>
+                <button class="btn btn-secondary" onclick="location.reload()">RETRY</button>
+            </div>
+
+        </div>
+    </main>
+
+    {{template "footer.html" .}}
+
+    <script>
+    function errorMessage() {
+        var reason = new URLSearchParams(window.location.search).get('reason') || '';
+        var messages = {
+            'server_unavailable': 'The authentication server is unavailable. Please try again shortly.',
+            'auth_failed':        'Authentication failed. Please try again.',
+            'invalid_credentials':'Invalid username or password.',
+            'missing_credentials':'Please provide both username and password.',
+            'bad_request':        'Bad request. Please try again.'
+        };
+        return messages[reason] || 'Something went wrong. Please try again.';
+    }
+    </script>
+
+</body>
+
+</html>

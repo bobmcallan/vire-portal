@@ -10,33 +10,44 @@
 
     {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
 
-    <main class="landing">
+    <main class="landing" x-data="serverCheck()" x-init="check()">
         <div class="landing-inner">
 
             <div class="landing-hero">
                 <h1 class="landing-title">VIRE</h1>
-                <p class="landing-tagline">
+                <p class="landing-tagline" x-show="status !== 'down'">
                     Connect your stock portfolio to Claude via MCP.
+                </p>
+                <p class="landing-tagline" x-show="status === 'down'" x-cloak>
+                    The authentication server is unavailable.
                 </p>
             </div>
 
-            <div class="landing-actions">
-                <a href="/api/auth/login/google" class="btn btn-primary">
-                    SIGN IN WITH GOOGLE
-                </a>
-                <a href="/api/auth/login/github" class="btn btn-secondary">
-                    SIGN IN WITH GITHUB
-                </a>
-                {{if .DevMode}}
-                <form method="POST" action="/api/auth/login" class="landing-dev-login">
-                    <input type="hidden" name="username" value="dev_user">
-                    <input type="hidden" name="password" value="dev123">
-                    <button type="submit" class="btn btn-dev">DEV LOGIN</button>
-                </form>
-                {{end}}
-            </div>
+            <template x-if="status === 'down'">
+                <div class="landing-actions">
+                    <button class="btn btn-primary" @click="check()">RETRY</button>
+                </div>
+            </template>
 
-            <div class="landing-features">
+            <template x-if="status !== 'down'">
+                <div class="landing-actions">
+                    <a href="/api/auth/login/google" class="btn btn-primary">
+                        SIGN IN WITH GOOGLE
+                    </a>
+                    <a href="/api/auth/login/github" class="btn btn-secondary">
+                        SIGN IN WITH GITHUB
+                    </a>
+                    {{if .DevMode}}
+                    <form method="POST" action="/api/auth/login" class="landing-dev-login">
+                        <input type="hidden" name="username" value="dev_user">
+                        <input type="hidden" name="password" value="dev123">
+                        <button type="submit" class="btn btn-dev">DEV LOGIN</button>
+                    </form>
+                    {{end}}
+                </div>
+            </template>
+
+            <div class="landing-features" x-show="status !== 'down'">
                 <div class="feature-card">
                     <div class="feature-label">[01] API KEYS</div>
                     <p>Bring your own EODHD, Navexa, and Gemini API keys. Your data, your keys.</p>
@@ -55,6 +66,21 @@
     </main>
 
     {{template "footer.html" .}}
+
+    <script>
+    function serverCheck() {
+        return {
+            status: 'checking',
+            check() {
+                this.status = 'checking';
+                fetch('/api/server-health')
+                    .then(r => r.json())
+                    .then(d => { this.status = d.status === 'ok' ? 'ok' : 'down'; })
+                    .catch(() => { this.status = 'down'; });
+            }
+        };
+    }
+    </script>
 
 </body>
 

@@ -43,4 +43,4 @@
 - Server-side redirect pattern: portal redirects to vire-server for Google/GitHub login, receives JWT on callback
 - Dev login flows through same `/api/auth/oauth` endpoint as real OAuth (provider: "dev")
 - JWT validation is opt-in when jwt_secret is empty (backwards compat during migration)
-- Server is running on localhost:4241 with auth flows verified
+- Server is running on localhost:8500 with auth flows verified

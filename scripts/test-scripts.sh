@@ -462,10 +462,10 @@ if [ -f "$LOCAL_COMPOSE" ]; then
     fi
 
     # Check port mapping (may use PORTAL_PORT variable)
-    if grep -qE '4241' "$LOCAL_COMPOSE"; then
-        pass "docker-compose.yml maps port 4241"
+    if grep -qE '8500' "$LOCAL_COMPOSE"; then
+        pass "docker-compose.yml maps port 8500"
     else
-        fail "docker-compose.yml missing port 4241 mapping"
+        fail "docker-compose.yml missing port 8500 mapping"
     fi
 
     # Check VIRE_ environment vars

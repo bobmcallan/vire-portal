@@ -4,13 +4,13 @@
 // Claude Code calls this via skill after deploying changes.
 //
 // Usage:
-//   go run ./tests/browser-check -url http://localhost:4241/dashboard
-//   go run ./tests/browser-check -url http://localhost:4241/dashboard -login -screenshot /tmp/dash.png
-//   go run ./tests/browser-check -url http://localhost:4241/dashboard -check '.dropdown-menu|hidden' -check '.nav-brand|visible'
-//   go run ./tests/browser-check -url http://localhost:4241/dashboard -click '.dropdown-trigger' -check '.dropdown-menu|visible'
-//   go run ./tests/browser-check -url http://localhost:4241/dashboard -viewport 375x812 -check '.nav-links|hidden'
-//   go run ./tests/browser-check -url http://localhost:4241/dashboard -eval 'document.querySelectorAll(".panel").length > 0'
-//   go run ./tests/browser-check -url http://localhost:4241/dashboard -screenshot /tmp/dash.png
+//   go run ./tests/browser-check -url http://localhost:8500/dashboard
+//   go run ./tests/browser-check -url http://localhost:8500/dashboard -login -screenshot /tmp/dash.png
+//   go run ./tests/browser-check -url http://localhost:8500/dashboard -check '.dropdown-menu|hidden' -check '.nav-brand|visible'
+//   go run ./tests/browser-check -url http://localhost:8500/dashboard -click '.dropdown-trigger' -check '.dropdown-menu|visible'
+//   go run ./tests/browser-check -url http://localhost:8500/dashboard -viewport 375x812 -check '.nav-links|hidden'
+//   go run ./tests/browser-check -url http://localhost:8500/dashboard -eval 'document.querySelectorAll(".panel").length > 0'
+//   go run ./tests/browser-check -url http://localhost:8500/dashboard -screenshot /tmp/dash.png
 
 package main
 

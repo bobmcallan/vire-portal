@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$PROJECT_DIR/docker/docker-compose.yml"
 
-PORTAL_PORT="${PORTAL_PORT:-4241}"
+PORTAL_PORT="${PORTAL_PORT:-8500}"
 PORTAL_URL="http://localhost:$PORTAL_PORT"
 MAX_WAIT=60
 

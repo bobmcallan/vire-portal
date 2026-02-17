@@ -107,6 +107,12 @@ build_binaries() {
         rm -rf "$BIN_DIR/pages"
         cp -r "$PROJECT_ROOT/pages" "$BIN_DIR/pages"
     fi
+    if [[ "$BUILD_TARGET" == "all" || "$BUILD_TARGET" == "portal" ]]; then
+        if [ -d "$PROJECT_ROOT/import" ]; then
+            rm -rf "$BIN_DIR/import"
+            cp -r "$PROJECT_ROOT/import" "$BIN_DIR/import"
+        fi
+    fi
     if [[ "$BUILD_TARGET" == "all" || "$BUILD_TARGET" == "mcp" ]]; then
         [ -f "$CONFIG_DIR/vire-mcp.toml" ] && cp "$CONFIG_DIR/vire-mcp.toml" "$BIN_DIR/"
     fi

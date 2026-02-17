@@ -13,7 +13,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 - **Alpine.js** (CDN) for client-side interactivity
 - **Stateless** -- all user data managed by vire-server via REST API
 - **TOML** configuration with priority: defaults < file < env (VIRE_ prefix) < CLI flags
-- **Port 8080** -- default port; Docker local dev overrides to 4241 via `docker/vire-portal.toml`
+- **Port 8080** -- default port; Docker local dev overrides to 8500 via `docker/vire-portal.toml`
 - **80s B&W aesthetic** -- IBM Plex Mono, no border-radius, no box-shadow, monochrome only
 - **No Firebase Auth SDK** -- OAuth is handled via direct HTTP redirects and gateway API calls
 
@@ -73,7 +73,7 @@ go vet ./...
 ./scripts/verify-auth.sh
 ```
 
-The server runs on `http://localhost:8080` by default (Docker local dev overrides to 4241 via `docker/vire-portal.toml`).
+The server runs on `http://localhost:8080` by default (Docker local dev overrides to 8500 via `docker/vire-portal.toml`).
 
 ## Dev Mode
 
@@ -117,7 +117,7 @@ Configuration priority (highest wins): CLI flags > environment variables > TOML 
 | Server host | `server.host` | `VIRE_SERVER_HOST` | `-host` | `localhost` |
 | API URL | `api.url` | `VIRE_API_URL` | -- | `http://localhost:8080` |
 | JWT secret | `auth.jwt_secret` | `VIRE_AUTH_JWT_SECRET` | -- | `""` |
-| OAuth callback URL | `auth.callback_url` | `VIRE_AUTH_CALLBACK_URL` | -- | `http://localhost:4241/auth/callback` |
+| OAuth callback URL | `auth.callback_url` | `VIRE_AUTH_CALLBACK_URL` | -- | `http://localhost:8500/auth/callback` |
 | Portal URL | `auth.portal_url` | `VIRE_PORTAL_URL` | -- | `""` |
 | Environment | `environment` | `VIRE_ENV` | -- | `prod` |
 | Log level | `logging.level` | `VIRE_LOG_LEVEL` | -- | `info` |
@@ -146,7 +146,7 @@ Claude Code / CLI                Claude Desktop
   |                                |
   |                                | POST /mcp (HTTP + OAuth)
   v                                v
-vire-portal (:4241)
+vire-portal (:8500)
   |  internal/mcp/ package
   |  - Dynamic tool catalog from GET /api/mcp/tools
   |  - Generic proxy handler (path/query/body params)
@@ -165,8 +165,8 @@ All tool calls are proxied to vire-server. The portal does not parse or format r
 The portal serves MCP over Streamable HTTP at `POST /mcp` with OAuth 2.1 authentication. All tool logic, catalog management, and version handling live in vire-portal. Clients connect either directly via HTTP (Claude Code, Claude CLI) or via the `vire-mcp` stdio bridge (Claude Desktop).
 
 ```
-Claude Desktop → stdio → vire-mcp → HTTP + OAuth → vire-portal (:4241/mcp) → vire-server
-Claude CLI/Web → HTTP + OAuth → vire-portal (:4241/mcp) → vire-server
+Claude Desktop → stdio → vire-mcp → HTTP + OAuth → vire-portal (:8500/mcp) → vire-server
+Claude CLI/Web → HTTP + OAuth → vire-portal (:8500/mcp) → vire-server
 ```
 
 #### Transport Compatibility
@@ -188,7 +188,7 @@ Add to `~/.claude.json` (global) or project `.mcp.json` (per-project):
   "mcpServers": {
     "vire": {
       "type": "url",
-      "url": "http://localhost:4241/mcp"
+      "url": "http://localhost:8500/mcp"
     }
   }
 }
@@ -217,7 +217,7 @@ Claude Desktop requires stdio transport for local MCP servers. `vire-mcp` is a s
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `VIRE_PORTAL_URL` | `http://localhost:4241` | vire-portal URL |
+| `VIRE_PORTAL_URL` | `http://localhost:8500` | vire-portal URL |
 | `VIRE_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 
 **Option 1: Direct binary (recommended)**
@@ -259,7 +259,7 @@ With a remote portal:
       "args": [
         "run", "-i", "--rm",
         "--network", "host",
-        "-e", "VIRE_PORTAL_URL=http://localhost:4241",
+        "-e", "VIRE_PORTAL_URL=http://localhost:8500",
         "-v", "~/.vire:/root/.vire",
         "ghcr.io/bobmcallan/vire-mcp:latest"
       ]
@@ -955,12 +955,12 @@ The recommended deployment runs portal and vire-server together via docker-compo
 ```
 
 This starts:
-- **vire-portal** on port 4241 -- landing page + MCP endpoint (dev mode)
+- **vire-portal** on port 8500 -- landing page + MCP endpoint (dev mode)
 - **vire-server** on port 4242 -- backend API (pulled from GHCR)
 
 Local deploys automatically use `docker-compose.dev.yml` as a compose overlay, which sets `VIRE_ENV=dev` to enable dev mode (dev login, etc.). The base `docker-compose.yml` stays unchanged for prod-like builds.
 
-The portal connects to vire-server via `VIRE_API_URL=http://vire-server:8080` (Docker internal network). Claude Code connects to `http://localhost:4241/mcp` (portal). Claude Desktop uses `vire-mcp` via stdio (see Connecting Claude section above).
+The portal connects to vire-server via `VIRE_API_URL=http://vire-server:8080` (Docker internal network). Claude Code connects to `http://localhost:8500/mcp` (portal). Claude Desktop uses `vire-mcp` via stdio (see Connecting Claude section above).
 
 ### Portal Only
 
@@ -1000,8 +1000,8 @@ Or use docker directly:
 # Build the Docker image
 docker build -f docker/Dockerfile -t vire-portal:latest .
 
-# Run on host port 4241
-docker run -p 4241:8080 \
+# Run on host port 8500
+docker run -p 8500:8080 \
   -e VIRE_SERVER_HOST=0.0.0.0 \
   -e VIRE_API_URL=http://host.docker.internal:8080 \
   vire-portal:latest
@@ -1081,7 +1081,7 @@ The portal runs alongside vire-server in a Docker Compose stack. `vire-mcp` is a
              │                     │               └────────┬─────────┘
              │                     │                        │ HTTP + OAuth
     ┌────────┴─────────────────────┴────────────────────────┴─────────┐
-    │  vire-portal (:4241)                                            │
+    │  vire-portal (:8500)                                            │
     │  - Landing page, dashboard, settings                            │
     │  - MCP endpoint (Streamable HTTP at POST /mcp)                  │
     │  - OAuth 2.1 (DCR, PKCE, token exchange)                        │

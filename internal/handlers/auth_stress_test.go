@@ -265,7 +265,7 @@ func TestIsLoggedIn_StressConcurrentValidation(t *testing.T) {
 // --- OAuth Callback Security Tests ---
 
 func TestOAuthCallback_StressMissingTokenNoCookie(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
 
 	req := httptest.NewRequest("GET", "/auth/callback", nil)
 	w := httptest.NewRecorder()
@@ -281,7 +281,7 @@ func TestOAuthCallback_StressMissingTokenNoCookie(t *testing.T) {
 }
 
 func TestOAuthCallback_StressHostileTokenValues(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
 
 	hostileTokens := []struct {
 		name  string
@@ -314,7 +314,7 @@ func TestOAuthCallback_StressHostileTokenValues(t *testing.T) {
 }
 
 func TestOAuthCallback_StressOpenRedirectProtection(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
 
 	paths := []string{
 		"/auth/callback?token=x&redirect=https://evil.com",
@@ -337,20 +337,20 @@ func TestOAuthCallback_StressOpenRedirectProtection(t *testing.T) {
 
 func TestOAuthCallback_StressTokenInFragment(t *testing.T) {
 	// Fragment (#) not sent to server — verify handler reads from query only.
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
 
 	req := httptest.NewRequest("GET", "/auth/callback#token=evil", nil)
 	w := httptest.NewRecorder()
 	handler.HandleOAuthCallback(w, req)
 
 	location := w.Header().Get("Location")
-	if !strings.Contains(location, "error=missing_token") {
+	if !strings.Contains(location, "reason=auth_failed") {
 		t.Errorf("expected missing_token error when token only in fragment, got location=%s", location)
 	}
 }
 
 func TestOAuthCallback_StressConcurrentRequests(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
 
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
@@ -374,7 +374,7 @@ func TestOAuthCallback_StressConcurrentRequests(t *testing.T) {
 // --- OAuth Login Redirect Security ---
 
 func TestGoogleLogin_StressOpenRedirectProtection(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
 
 	paths := []string{
 		"/api/auth/login/google?redirect=https://evil.com",
@@ -398,7 +398,7 @@ func TestGoogleLogin_StressOpenRedirectProtection(t *testing.T) {
 }
 
 func TestGitHubLogin_StressOpenRedirectProtection(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
 
 	paths := []string{
 		"/api/auth/login/github?redirect=https://evil.com",
@@ -420,7 +420,7 @@ func TestGitHubLogin_StressOpenRedirectProtection(t *testing.T) {
 func TestOAuthLogin_StressCallbackURLNotEncoded(t *testing.T) {
 	// The callback URL is concatenated without url.QueryEscape.
 	// If callbackURL contains & or # chars, the redirect URL becomes ambiguous.
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback?extra=param&another=val", []byte{})
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback?extra=param&another=val", []byte{})
 
 	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
 	w := httptest.NewRecorder()
@@ -447,7 +447,7 @@ func TestLogin_StressServerReturnsInvalidJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	req := newLoginRequest("dev_user", "dev123")
 	w := httptest.NewRecorder()
@@ -455,7 +455,7 @@ func TestLogin_StressServerReturnsInvalidJSON(t *testing.T) {
 	handler.HandleLogin(w, req)
 
 	location := w.Header().Get("Location")
-	if !strings.Contains(location, "error=auth_failed") {
+	if !strings.Contains(location, "reason=auth_failed") {
 		t.Errorf("expected error redirect for invalid JSON, got %s", location)
 	}
 	// Must NOT set cookie
@@ -476,7 +476,7 @@ func TestLogin_StressServerReturnsEmptyToken(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	req := newLoginRequest("dev_user", "dev123")
 	w := httptest.NewRecorder()
@@ -484,13 +484,13 @@ func TestLogin_StressServerReturnsEmptyToken(t *testing.T) {
 	handler.HandleLogin(w, req)
 
 	location := w.Header().Get("Location")
-	if !strings.Contains(location, "error=auth_failed") {
+	if !strings.Contains(location, "reason=auth_failed") {
 		t.Errorf("expected error redirect for empty token, got %s", location)
 	}
 }
 
 func TestLogin_StressServerUnreachable(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://127.0.0.1:1", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, "http://127.0.0.1:1", "http://localhost:8500/auth/callback", []byte{})
 
 	req := newLoginRequest("dev_user", "dev123")
 	w := httptest.NewRecorder()
@@ -498,8 +498,8 @@ func TestLogin_StressServerUnreachable(t *testing.T) {
 	handler.HandleLogin(w, req)
 
 	location := w.Header().Get("Location")
-	if !strings.Contains(location, "error=auth_failed") {
-		t.Errorf("expected error redirect when server unreachable, got %s", location)
+	if !strings.Contains(location, "reason=server_unavailable") {
+		t.Errorf("expected server_unavailable error redirect when server unreachable, got %s", location)
 	}
 }
 
@@ -514,7 +514,7 @@ func TestLogin_StressServerLargeResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	req := newLoginRequest("dev_user", "dev123")
 	w := httptest.NewRecorder()
@@ -542,7 +542,7 @@ func TestAllAuthCookies_StressHttpOnlyFlag(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	scenarios := []struct {
 		name   string
@@ -597,7 +597,7 @@ func TestAllAuthCookies_StressSameSiteAttribute(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	// Login
 	req := newLoginRequest("dev_user", "dev123")
@@ -690,7 +690,7 @@ func TestLogout_StressCookieMissingSameSite(t *testing.T) {
 	// The login and callback paths both set SameSite=Lax, but logout does not.
 	// While this is less critical (the cookie value is empty and MaxAge=-1),
 	// it's inconsistent and some browsers may treat missing SameSite differently.
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
 
 	req := httptest.NewRequest("POST", "/api/auth/logout", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "some-token"})
@@ -720,7 +720,7 @@ func TestOAuthCallback_StressArbitraryTokenStored(t *testing.T) {
 	// so this is not directly exploitable -- but it means the user gets
 	// a cookie that appears to be "logged in" but is actually rejected
 	// on every protected page, creating a confusing UX.
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte("secret"))
+	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte("secret"))
 
 	// Store an expired JWT via callback
 	expiredToken := buildExpiredJWT("alice")
@@ -837,7 +837,7 @@ func TestValidateJWT_StressVeryFarFutureExp(t *testing.T) {
 func TestLogin_StressOversizedFormBody(t *testing.T) {
 	// Go's ParseForm has a built-in 10MB limit for POST bodies.
 	// Verify the handler doesn't OOM on a very large form body.
-	handler := NewAuthHandler(nil, true, "http://127.0.0.1:1", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, "http://127.0.0.1:1", "http://localhost:8500/auth/callback", []byte{})
 
 	// 5MB form body
 	largeBody := "username=" + strings.Repeat("x", 5<<20) + "&password=test"
@@ -865,7 +865,7 @@ func TestLogin_StressSpecialCharsInCredentials(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, srv.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	specialChars := []struct {
 		name     string

@@ -633,7 +633,7 @@ func TestRoutes_SettingsPostBlockedByCSRF(t *testing.T) {
 func TestREADME_PortConventions(t *testing.T) {
 	// Verify README documents the correct port conventions:
 	// - Code default: 8080 (Cloud Run standard)
-	// - Docker local dev: 4241 (via config override)
+	// - Docker local dev: 8500 (via config override)
 	readme, err := os.ReadFile("../../README.md")
 	if err != nil {
 		t.Skipf("could not read README.md: %v (test must run from project root or internal/server/)", err)
@@ -646,14 +646,14 @@ func TestREADME_PortConventions(t *testing.T) {
 		t.Error("expected README config table to show 8080 as default port")
 	}
 
-	// Docker local dev sections should reference 4241
-	if !containsString(content, "localhost:4241") {
-		t.Error("expected README to reference localhost:4241 for local dev")
+	// Docker local dev sections should reference 8500
+	if !containsString(content, "localhost:8500") {
+		t.Error("expected README to reference localhost:8500 for local dev")
 	}
 
-	// MCP config should show 4241 for local connection
-	if !containsString(content, "localhost:4241/mcp") {
-		t.Error("expected README MCP config to use localhost:4241/mcp for local dev")
+	// MCP config should show 8500 for local connection
+	if !containsString(content, "localhost:8500/mcp") {
+		t.Error("expected README MCP config to use localhost:8500/mcp for local dev")
 	}
 }
 

@@ -15,12 +15,12 @@ import (
 
 // serverURL returns the portal URL.
 // Set VIRE_TEST_URL when running via scripts/test-ui.sh against Docker.
-// Falls back to localhost:4241.
+// Falls back to localhost:8500.
 func serverURL() string {
 	if url := os.Getenv("VIRE_TEST_URL"); url != "" {
 		return url
 	}
-	return "http://localhost:4241"
+	return "http://localhost:8500"
 }
 
 // newBrowser creates a headless Chrome context with a 30s timeout.

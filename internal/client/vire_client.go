@@ -109,6 +109,41 @@ func (c *VireClient) ExchangeOAuth(provider, code, state string) (*OAuthResponse
 	return &result.Data, nil
 }
 
+// SeedUser holds the fields needed to create or update a user during dev seeding.
+type SeedUser struct {
+	Username  string `json:"username"`
+	Email     string `json:"email"`
+	Password  string `json:"password"`
+	Role      string `json:"role"`
+	NavexaKey string `json:"navexa_key"`
+}
+
+// UpsertUser creates or updates a user on vire-server.
+// POST /api/users/upsert with JSON body -> 200 or 201
+func (c *VireClient) UpsertUser(user SeedUser) error {
+	jsonData, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Post(c.baseURL+"/api/users/upsert", "application/json", bytes.NewReader(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to reach vire-server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 // UpdateUser updates user fields on vire-server.
 // PUT /api/users/{id} with JSON body -> { status: "ok", data: UserProfile }
 func (c *VireClient) UpdateUser(userID string, fields map[string]string) (*UserProfile, error) {

@@ -50,13 +50,13 @@
 
 ## Task 3: Port Defaults to 8080
 
-**Problem:** Docker uses port 4241 internally for vire-portal and 4242 for API URL. The Go default is already 8080 but Docker overrides it. User wants all services to default to 8080 internally, external ports unchanged.
+**Problem:** Docker uses port 8500 internally for vire-portal and 4242 for API URL. The Go default is already 8080 but Docker overrides it. User wants all services to default to 8080 internally, external ports unchanged.
 
 **Approach:**
 1. `internal/config/defaults.go`: Change API.URL from `http://localhost:4242` to `http://localhost:8080`
-2. `docker/docker-compose.yml`: Port mapping `4241:8080`, remove `VIRE_SERVER_PORT=4241` (default is 8080), change `VIRE_API_URL=http://vire-server:8080`, healthcheck to `http://localhost:8080/api/health`
+2. `docker/docker-compose.yml`: Port mapping `8500:8080`, remove `VIRE_SERVER_PORT=8500` (default is 8080), change `VIRE_API_URL=http://vire-server:8080`, healthcheck to `http://localhost:8080/api/health`
 3. `docker/docker-compose.ghcr.yml`: Same port/API changes for portal. vire-server mapping `4242:8080`. vire-mcp mapping stays but uses port 8080 internally if applicable
-4. `docker/vire-portal.toml`: Change port from 4241 to 8080, api.url to `http://localhost:8080`
+4. `docker/vire-portal.toml`: Change port from 8500 to 8080, api.url to `http://localhost:8080`
 5. `docker/Dockerfile`: EXPOSE 8080
 6. `internal/config/config_test.go`: Update `TestNewDefaultConfig_APIDefaults` to expect `http://localhost:8080`
 

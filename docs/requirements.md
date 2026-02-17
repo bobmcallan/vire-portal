@@ -48,7 +48,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 - **Alpine.js** (CDN) for client-side interactivity
 - **Stateless** -- all user data managed by vire-server via REST API
 - **TOML** configuration with priority: defaults < file < env (VIRE_ prefix) < CLI flags
-- **Port 8080** -- default port; Docker local dev overrides to 4241 via `docker/vire-portal.toml`
+- **Port 8080** -- default port; Docker local dev overrides to 8500 via `docker/vire-portal.toml`
 - **80s B&W aesthetic** -- IBM Plex Mono, no border-radius, no box-shadow, monochrome only
 - **No Firebase Auth SDK** -- OAuth is handled via direct HTTP redirects and gateway API calls
 
@@ -510,7 +510,7 @@ Configuration is handled via TOML file and environment variables with the `VIRE_
 | `VIRE_DEFAULT_PORTFOLIO` | `""` | Default portfolio name |
 | `VIRE_DISPLAY_CURRENCY` | `""` | Display currency (e.g., AUD, USD) |
 | `VIRE_AUTH_JWT_SECRET` | `""` | JWT signing secret (shared with vire-server) |
-| `VIRE_AUTH_CALLBACK_URL` | `http://localhost:4241/auth/callback` | OAuth callback URL |
+| `VIRE_AUTH_CALLBACK_URL` | `http://localhost:8500/auth/callback` | OAuth callback URL |
 | `VIRE_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 | `VIRE_LOG_FORMAT` | `text` | Log format (text, json) |
 | `VIRE_ENV` | `prod` | Environment (`prod` or `dev`; enables dev login when `dev`) |
@@ -774,7 +774,7 @@ go run ./cmd/vire-portal/ -p 9090
 go run ./cmd/vire-portal/ -c custom.toml
 ```
 
-The server runs on `http://localhost:8080` by default (Docker local dev overrides to 4241 via `docker/vire-portal.toml`).
+The server runs on `http://localhost:8080` by default (Docker local dev overrides to 8500 via `docker/vire-portal.toml`).
 
 ### Testing
 
@@ -795,8 +795,8 @@ go vet ./...
 # Build the Docker image
 docker build -f docker/Dockerfile -t vire-portal:latest .
 
-# Run on host port 4241
-docker run -p 4241:8080 \
+# Run on host port 8500
+docker run -p 8500:8080 \
   -e VIRE_SERVER_HOST=0.0.0.0 \
   -v portal-data:/app/data \
   vire-portal:latest

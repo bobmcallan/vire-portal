@@ -84,29 +84,29 @@ See `.claude/skills/browser-check/SKILL.md` for full `browser-check` syntax.
 - "Run chromedp UI test suite" — owner: implementer, blockedBy: [build task]
   Run against the deployed container:
   ```
-  VIRE_TEST_URL="http://localhost:${PORTAL_PORT:-4241}" go test ./tests/ -run "^TestUI" -v -count=1 -timeout 120s
+  VIRE_TEST_URL="http://localhost:${PORTAL_PORT:-8500}" go test ./tests/ -run "^TestUI" -v -count=1 -timeout 120s
   ```
 - "Browser-check validation" — owner: implementer, blockedBy: [build task]
   Run `go run ./tests/browser-check` against affected pages. Pick checks based on what changed:
   ```bash
   # Smoke test every affected page (catches JS errors)
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/
 
   # If nav changed (use -login to see authenticated nav)
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
     -check '.nav-brand|text=VIRE' \
     -check '.nav-hamburger|visible' \
     -check '.nav-dropdown|hidden'
 
   # If responsive/mobile changed
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
     -viewport 375x812 -check '.nav-links|hidden'
 
   # Save screenshots to the work directory (with -login for authenticated nav)
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
     -screenshot <workdir>/dashboard.png
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/ -login \
+  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/ -login \
     -screenshot <workdir>/landing.png
   ```
   Replace `<workdir>` with the actual work directory path (e.g. `.claude/workdir/20260214-1430-oauth-handler/`).
@@ -142,7 +142,7 @@ prompt: |
   For implement tasks: write tests first, then implement to pass them.
   For verify tasks: run go test ./..., go vet ./..., then build and restart:
     ./scripts/run.sh restart
-    curl -s http://localhost:${PORTAL_PORT:-4241}/api/health
+    curl -s http://localhost:${PORTAL_PORT:-8500}/api/health
     Leave the server running — subsequent tasks (UI verification, validation) need it.
   For UI verification tasks: run browser-check against the running server (see .claude/skills/browser-check/SKILL.md).
     Save screenshots to the work directory with -screenshot flag.
@@ -224,7 +224,7 @@ When all tasks are complete:
    - All tests pass (`go test ./...`)
    - Go vet is clean (`go vet ./...`)
    - Server builds and runs (`./scripts/run.sh restart`) — leave it running
-   - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-4241}/api/health`)
+   - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8500}/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
    - If web pages changed: chromedp UI tests pass (`go test ./tests/ -run "^TestUI"`)
    - If web pages changed: browser-check validation passed (`go run ./tests/browser-check`)
@@ -333,7 +333,7 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 | Server host | `VIRE_SERVER_HOST` | `localhost` |
 | API URL | `VIRE_API_URL` | `http://localhost:8080` |
 | JWT secret | `VIRE_AUTH_JWT_SECRET` | `""` (empty = skip signature verification) |
-| OAuth callback URL | `VIRE_AUTH_CALLBACK_URL` | `http://localhost:4241/auth/callback` |
+| OAuth callback URL | `VIRE_AUTH_CALLBACK_URL` | `http://localhost:8500/auth/callback` |
 | Portal URL | `VIRE_PORTAL_URL` | `""` (empty = derive from host:port) |
 | Default portfolio | `VIRE_DEFAULT_PORTFOLIO` | `""` |
 | Display currency | `VIRE_DISPLAY_CURRENCY` | `""` |

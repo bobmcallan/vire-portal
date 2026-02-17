@@ -13,7 +13,7 @@ import (
 // --- Method enforcement ---
 
 func TestAuthorizationServer_AllMethodsExceptGET(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	methods := []string{
 		http.MethodPost, http.MethodPut, http.MethodDelete,
 		http.MethodPatch, http.MethodOptions,
@@ -33,7 +33,7 @@ func TestAuthorizationServer_AllMethodsExceptGET(t *testing.T) {
 }
 
 func TestProtectedResource_AllMethodsExceptGET(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	methods := []string{
 		http.MethodPost, http.MethodPut, http.MethodDelete,
 		http.MethodPatch, http.MethodOptions,
@@ -56,7 +56,7 @@ func TestAuthorizationServer_HEADRequest(t *testing.T) {
 	// HEAD should be accepted by the handler since it is registered as "GET /..."
 	// on the mux, and Go's ServeMux routes HEAD requests to GET handlers.
 	// The handler must allow HEAD to avoid 405 when served through the mux.
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodHead, "/.well-known/oauth-authorization-server", nil)
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
@@ -73,7 +73,7 @@ func TestAuthorizationServer_DerivedFromHostHeader(t *testing.T) {
 	// A Host header with a port should produce the correct base URL.
 	h := NewDiscoveryHandler("http://ignored:9999")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
-	req.Host = "portal.example.com:4241"
+	req.Host = "portal.example.com:8500"
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
 
@@ -82,17 +82,17 @@ func TestAuthorizationServer_DerivedFromHostHeader(t *testing.T) {
 		t.Fatalf("JSON decode failed: %v", err)
 	}
 
-	if body["issuer"] != "http://portal.example.com:4241" {
+	if body["issuer"] != "http://portal.example.com:8500" {
 		t.Errorf("expected issuer from Host header, got %v", body["issuer"])
 	}
-	if body["authorization_endpoint"] != "http://portal.example.com:4241/authorize" {
+	if body["authorization_endpoint"] != "http://portal.example.com:8500/authorize" {
 		t.Errorf("expected endpoint from Host header, got %v", body["authorization_endpoint"])
 	}
 }
 
 func TestAuthorizationServer_XForwardedProtoHTTPS(t *testing.T) {
 	// When X-Forwarded-Proto is "https", the scheme should be https.
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
 	req.Host = "portal.vire.dev"
 	req.Header.Set("X-Forwarded-Proto", "https")
@@ -111,9 +111,9 @@ func TestAuthorizationServer_XForwardedProtoHTTPS(t *testing.T) {
 
 func TestAuthorizationServer_BaseURLWithQueryParams(t *testing.T) {
 	// A Host header should not contain query params, but verify safe behavior.
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
-	req.Host = "localhost:4241"
+	req.Host = "localhost:8500"
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
 
@@ -130,7 +130,7 @@ func TestAuthorizationServer_BaseURLWithQueryParams(t *testing.T) {
 
 func TestAuthorizationServer_BaseURLWithHTMLEntities(t *testing.T) {
 	// If Host header contains HTML, json.Encoder should escape it
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
 	req.Host = `example.com/<script>alert(1)</script>`
 	rec := httptest.NewRecorder()
@@ -150,9 +150,9 @@ func TestAuthorizationServer_BaseURLWithHTMLEntities(t *testing.T) {
 
 func TestAuthorizationServer_BaseURLTrailingSlash(t *testing.T) {
 	// Host header should not have trailing slash, but verify no double slash.
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
-	req.Host = "localhost:4241"
+	req.Host = "localhost:8500"
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
 
@@ -168,9 +168,9 @@ func TestAuthorizationServer_BaseURLTrailingSlash(t *testing.T) {
 }
 
 func TestAuthorizationServer_BaseURLWhitespace(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
-	req.Host = "localhost:4241"
+	req.Host = "localhost:8500"
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
 
@@ -192,7 +192,7 @@ func TestAuthorizationServer_LargeRequestBody(t *testing.T) {
 	// A client should not be able to OOM the server by sending a huge body
 	// on a GET request. The handler doesn't read the body, so this should
 	// be fine, but verify it doesn't panic or hang.
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	largeBody := bytes.NewReader(make([]byte, 10*1024*1024)) // 10MB
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", largeBody)
 	rec := httptest.NewRecorder()
@@ -205,7 +205,7 @@ func TestAuthorizationServer_LargeRequestBody(t *testing.T) {
 }
 
 func TestProtectedResource_LargeRequestBody(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	largeBody := bytes.NewReader(make([]byte, 10*1024*1024))
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", largeBody)
 	rec := httptest.NewRecorder()
@@ -220,7 +220,7 @@ func TestProtectedResource_LargeRequestBody(t *testing.T) {
 // --- Concurrent access ---
 
 func TestAuthorizationServer_ConcurrentAccess(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	const goroutines = 100
 
 	var wg sync.WaitGroup
@@ -232,7 +232,7 @@ func TestAuthorizationServer_ConcurrentAccess(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
-			req.Host = "localhost:4241"
+			req.Host = "localhost:8500"
 			rec := httptest.NewRecorder()
 			h.HandleAuthorizationServer(rec, req)
 
@@ -247,7 +247,7 @@ func TestAuthorizationServer_ConcurrentAccess(t *testing.T) {
 				return
 			}
 
-			if body["issuer"] != "http://localhost:4241" {
+			if body["issuer"] != "http://localhost:8500" {
 				errors <- "wrong issuer"
 			}
 		}()
@@ -262,7 +262,7 @@ func TestAuthorizationServer_ConcurrentAccess(t *testing.T) {
 }
 
 func TestProtectedResource_ConcurrentAccess(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	const goroutines = 100
 
 	var wg sync.WaitGroup
@@ -274,7 +274,7 @@ func TestProtectedResource_ConcurrentAccess(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
-			req.Host = "localhost:4241"
+			req.Host = "localhost:8500"
 			rec := httptest.NewRecorder()
 			h.HandleProtectedResource(rec, req)
 
@@ -289,7 +289,7 @@ func TestProtectedResource_ConcurrentAccess(t *testing.T) {
 				return
 			}
 
-			if body["resource"] != "http://localhost:4241" {
+			if body["resource"] != "http://localhost:8500" {
 				errors <- "wrong resource"
 			}
 		}()
@@ -306,7 +306,7 @@ func TestProtectedResource_ConcurrentAccess(t *testing.T) {
 // --- RFC 8414 field completeness ---
 
 func TestAuthorizationServer_RFC8414RequiredFields(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
@@ -347,7 +347,7 @@ func TestAuthorizationServer_RFC8414RequiredFields(t *testing.T) {
 }
 
 func TestProtectedResource_RFC9470RequiredFields(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
 	rec := httptest.NewRecorder()
 	h.HandleProtectedResource(rec, req)
@@ -373,7 +373,7 @@ func TestProtectedResource_RFC9470RequiredFields(t *testing.T) {
 // --- JSON validity and encoding ---
 
 func TestAuthorizationServer_ValidJSON(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
@@ -401,7 +401,7 @@ func TestAuthorizationServer_ValidJSON(t *testing.T) {
 }
 
 func TestProtectedResource_ValidJSON(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
 	rec := httptest.NewRecorder()
 	h.HandleProtectedResource(rec, req)
@@ -418,7 +418,7 @@ func TestProtectedResource_ValidJSON(t *testing.T) {
 func TestAuthorizationServer_405NoBody(t *testing.T) {
 	// 405 responses should ideally be empty or minimal.
 	// Verify the handler doesn't write a confusing body on 405.
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodPost, "/.well-known/oauth-authorization-server", nil)
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
@@ -439,7 +439,7 @@ func TestDiscovery_MuxIntegration(t *testing.T) {
 	// Test the endpoints as they would be registered on a real mux.
 	// The "GET /..." pattern means the mux rejects non-GET methods with 405
 	// before the handler even runs.
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", h.HandleAuthorizationServer)
@@ -487,7 +487,7 @@ func TestDiscovery_MuxIntegration(t *testing.T) {
 }
 
 func TestDiscovery_MuxIntegration_ProtectedResource(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource", h.HandleProtectedResource)
@@ -521,7 +521,7 @@ func TestDiscovery_MuxIntegration_ProtectedResource(t *testing.T) {
 
 func TestDiscovery_ScopeConsistency(t *testing.T) {
 	// Protected resource scopes should be a subset of authorization server scopes.
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 
 	// Get auth server scopes
 	authReq := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
@@ -560,7 +560,7 @@ func TestAuthorizationServer_JSONDeterministic(t *testing.T) {
 	// map[string]interface{} does NOT guarantee key order in Go.
 	// This test documents that repeated calls may produce different byte output.
 	// If cache-friendliness matters, the handler should use a struct instead.
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 
 	var outputs []string
 	for i := 0; i < 20; i++ {

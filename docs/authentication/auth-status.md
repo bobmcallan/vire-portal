@@ -19,7 +19,7 @@ Email/password login is implemented. The portal forwards credentials to vire-ser
 ## Architecture
 
 ```
-Browser                    Portal (:4241)              vire-server
+Browser                    Portal (:8500)              vire-server
   |                          |                            |
   |  POST /api/auth/login   |                            |
   |  { username, password }  |                            |
@@ -133,7 +133,7 @@ When `jwt_secret` is empty (default), signature verification is skipped. This is
 ```toml
 [auth]
 jwt_secret = ""                                    # shared with vire-server
-callback_url = "http://localhost:4241/auth/callback"
+callback_url = "http://localhost:8500/auth/callback"
 ```
 
 Environment overrides: `VIRE_AUTH_JWT_SECRET`, `VIRE_AUTH_CALLBACK_URL`

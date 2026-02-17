@@ -139,3 +139,85 @@ func TestUpdateUser_ServerError(t *testing.T) {
 		t.Fatal("expected error for server error")
 	}
 }
+
+func TestUpsertUser_Created(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/users/upsert" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.Header.Get("Content-Type") != "application/json" {
+			t.Errorf("expected application/json, got %s", r.Header.Get("Content-Type"))
+		}
+
+		var user SeedUser
+		if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if user.Username != "alice" {
+			t.Errorf("expected username alice, got %s", user.Username)
+		}
+		if user.Email != "alice@example.com" {
+			t.Errorf("expected email alice@example.com, got %s", user.Email)
+		}
+		if user.Password != "pass123" {
+			t.Errorf("expected password pass123, got %s", user.Password)
+		}
+		if user.Role != "admin" {
+			t.Errorf("expected role admin, got %s", user.Role)
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	err := c.UpsertUser(SeedUser{
+		Username: "alice",
+		Email:    "alice@example.com",
+		Password: "pass123",
+		Role:     "admin",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUpsertUser_Updated(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	err := c.UpsertUser(SeedUser{Username: "alice", Email: "alice@example.com", Password: "pass"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUpsertUser_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"db down"}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	err := c.UpsertUser(SeedUser{Username: "alice"})
+	if err == nil {
+		t.Fatal("expected error for server error")
+	}
+}
+
+func TestUpsertUser_Unreachable(t *testing.T) {
+	c := NewVireClient("http://127.0.0.1:1")
+	err := c.UpsertUser(SeedUser{Username: "alice"})
+	if err == nil {
+		t.Fatal("expected error for unreachable server")
+	}
+}

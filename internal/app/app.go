@@ -8,6 +8,7 @@ import (
 	"github.com/bobmcallan/vire-portal/internal/config"
 	"github.com/bobmcallan/vire-portal/internal/handlers"
 	"github.com/bobmcallan/vire-portal/internal/mcp"
+	"github.com/bobmcallan/vire-portal/internal/seed"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
@@ -66,6 +67,10 @@ func New(cfg *config.Config, logger *common.Logger) (*App, error) {
 	}
 
 	a.initHandlers()
+
+	if cfg.IsDevMode() {
+		go seed.DevUsers(cfg.API.URL, logger)
+	}
 
 	logger.Info().Msg("application initialization complete")
 

@@ -108,6 +108,6 @@ esac
 sleep 2
 docker ps --filter "name=vire" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
 echo ""
-PORTAL_PORT="${PORTAL_PORT:-4241}"
+PORTAL_PORT="${PORTAL_PORT:-8500}"
 echo "Logs: docker logs -f vire-portal"
 echo "Health: curl http://localhost:$PORTAL_PORT/api/health"

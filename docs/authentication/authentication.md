@@ -193,7 +193,7 @@ TOML config:
 ```toml
 [auth]
 jwt_secret = ""
-callback_url = "http://localhost:4241/auth/callback"
+callback_url = "http://localhost:8500/auth/callback"
 ```
 
 Environment overrides:
@@ -279,7 +279,7 @@ The server holds the OAuth client secrets and performs the code exchange. The po
 # Portal config — no OAuth secrets
 [auth]
 jwt_secret = "shared-secret"
-callback_url = "http://localhost:4241/auth/callback"
+callback_url = "http://localhost:8500/auth/callback"
 ```
 
 ```toml

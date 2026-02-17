@@ -6,7 +6,7 @@ After making portal UI changes (templates, CSS, JS, Alpine components), validate
 
 The tool is at `tests/browser-check/main.go`. It uses chromedp (Go + Chrome DevTools Protocol). Zero external deps beyond Chrome.
 
-The portal port is configured via `PORTAL_PORT` env var (default: `4241`). Examples below use the default.
+The portal port is configured via `PORTAL_PORT` env var (default: `8500`). Examples below use the default.
 
 Ensure the server is running:
 ```bash
@@ -15,7 +15,7 @@ Ensure the server is running:
 
 Wait for health:
 ```bash
-until curl -sf http://localhost:${PORTAL_PORT:-4241}/api/health > /dev/null; do sleep 1; done
+until curl -sf http://localhost:${PORTAL_PORT:-8500}/api/health > /dev/null; do sleep 1; done
 ```
 
 ## Usage
@@ -28,7 +28,7 @@ go run ./tests/browser-check -url <URL> [flags]
 
 | Flag | Description | Example |
 |---|---|---|
-| `-url` | URL to test (required) | `http://localhost:${PORTAL_PORT:-4241}/dashboard` |
+| `-url` | URL to test (required) | `http://localhost:${PORTAL_PORT:-8500}/dashboard` |
 | `-login` | Authenticate via `/api/auth/login` (dev_user) before checks | `-login` |
 | `-check` | `selector\|state` assertion (repeatable) | `-check '.nav-links\|visible'` |
 | `-click` | Click selector before checks (repeatable, ordered) | `-click '.nav-hamburger'` |
@@ -55,20 +55,20 @@ Pick checks based on what you changed. Examples:
 ### Changed nav/menu
 ```bash
 # Nav elements visible, dropdown hidden by default
-go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
   -check '.nav-brand|text=VIRE' \
   -check '.nav-hamburger|visible' \
   -check '.nav-dropdown|hidden'
 
 # Click hamburger to open dropdown
-go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
   -click '.nav-hamburger' \
   -check '.nav-dropdown|visible'
 ```
 
 ### Changed mobile menu
 ```bash
-go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard -login \
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
   -viewport 375x812 \
   -check '.nav-links|hidden' \
   -check '.nav-hamburger|visible' \
@@ -78,14 +78,14 @@ go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboar
 
 ### Changed panels/sections
 ```bash
-go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard \
   -check '.dashboard-section|count>=2' \
   -eval 'document.querySelector(".dashboard-title").textContent.includes("DASHBOARD")'
 ```
 
 ### Changed Alpine components
 ```bash
-go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard \
   -eval 'typeof Alpine !== "undefined"' \
   -check '.status-indicators|visible' \
   -check '.panel-collapse-body|hidden'
@@ -93,15 +93,15 @@ go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboar
 
 ### Changed CSS
 ```bash
-go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard \
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard \
   -eval '!Array.from(document.querySelectorAll("*")).some(e => getComputedStyle(e).borderRadius !== "0px")' \
   -eval '!Array.from(document.querySelectorAll("*")).some(e => { const s = getComputedStyle(e).boxShadow; return s && s !== "none" })'
 ```
 
 ### Quick smoke test (any change)
 ```bash
-go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/dashboard
-go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-4241}/
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard
+go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/
 ```
 
 This runs with zero -check flags and still catches JS errors on load.

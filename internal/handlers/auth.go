@@ -128,14 +128,14 @@ func (h *AuthHandler) SetOAuthServer(s OAuthCompleter) {
 // sets the returned JWT as a session cookie, and redirects to /dashboard.
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Redirect(w, r, "/?error=bad_request", http.StatusFound)
+		http.Redirect(w, r, "/error?reason=bad_request", http.StatusFound)
 		return
 	}
 
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := r.FormValue("password")
 	if username == "" || password == "" {
-		http.Redirect(w, r, "/?error=missing_credentials", http.StatusFound)
+		http.Redirect(w, r, "/error?reason=missing_credentials", http.StatusFound)
 		return
 	}
 
@@ -151,7 +151,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		if h.logger != nil {
 			h.logger.Error().Str("error", err.Error()).Msg("failed to reach vire-server for login")
 		}
-		http.Redirect(w, r, "/?error=auth_failed", http.StatusFound)
+		http.Redirect(w, r, "/error?reason=server_unavailable", http.StatusFound)
 		return
 	}
 	defer resp.Body.Close()
@@ -161,7 +161,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		if h.logger != nil {
 			h.logger.Error().Str("error", err.Error()).Msg("failed to read vire-server response")
 		}
-		http.Redirect(w, r, "/?error=auth_failed", http.StatusFound)
+		http.Redirect(w, r, "/error?reason=auth_failed", http.StatusFound)
 		return
 	}
 
@@ -169,7 +169,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		if h.logger != nil {
 			h.logger.Error().Int("status", resp.StatusCode).Str("body", string(respBody)).Msg("vire-server login failed")
 		}
-		http.Redirect(w, r, "/?error=invalid_credentials", http.StatusFound)
+		http.Redirect(w, r, "/error?reason=invalid_credentials", http.StatusFound)
 		return
 	}
 
@@ -183,7 +183,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		if h.logger != nil {
 			h.logger.Error().Str("error", fmt.Sprintf("parse error or empty token: %v", err)).Msg("invalid vire-server response")
 		}
-		http.Redirect(w, r, "/?error=auth_failed", http.StatusFound)
+		http.Redirect(w, r, "/error?reason=auth_failed", http.StatusFound)
 		return
 	}
 
@@ -223,7 +223,7 @@ func (h *AuthHandler) HandleGitHubLogin(w http.ResponseWriter, r *http.Request) 
 func (h *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		http.Redirect(w, r, "/?error=missing_token", http.StatusFound)
+		http.Redirect(w, r, "/error?reason=auth_failed", http.StatusFound)
 		return
 	}
 

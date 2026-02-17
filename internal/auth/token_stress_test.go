@@ -76,7 +76,7 @@ func setupCodeExchange(srv *OAuthServer, verifier string) (*AuthCode, *OAuthClie
 
 func postToken(srv *OAuthServer, params url.Values) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/token", strings.NewReader(params.Encode()))
-	req.Host = "localhost:4241"
+	req.Host = "localhost:8500"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 	srv.HandleToken(rec, req)
@@ -426,8 +426,8 @@ func TestToken_StressAccessTokenJWTStructure(t *testing.T) {
 	if claims["sub"] != "user-1" {
 		t.Errorf("expected sub=user-1, got %v", claims["sub"])
 	}
-	if claims["iss"] != "http://localhost:4241" {
-		t.Errorf("expected iss=http://localhost:4241, got %v", claims["iss"])
+	if claims["iss"] != "http://localhost:8500" {
+		t.Errorf("expected iss=http://localhost:8500, got %v", claims["iss"])
 	}
 }
 
@@ -614,9 +614,9 @@ func TestToken_StressMethodNotAllowed(t *testing.T) {
 func TestToken_StressEmptySecretMinting(t *testing.T) {
 	// If jwtSecret is empty, the access token is signed with an empty key.
 	// This means anyone can forge access tokens by signing with empty HMAC.
-	srv := NewOAuthServer("http://localhost:4241", []byte{}, nil)
+	srv := NewOAuthServer("http://localhost:8500", []byte{}, nil)
 
-	token, err := srv.mintAccessToken("user-1", "openid", "client-1", "http://localhost:4241")
+	token, err := srv.mintAccessToken("user-1", "openid", "client-1", "http://localhost:8500")
 	if err != nil {
 		t.Fatalf("minting failed: %v", err)
 	}

@@ -60,4 +60,4 @@
 - Lenient DCR mode auto-registers unknown client_ids on `/authorize` (for Claude Desktop compatibility).
 - The `mcp_session_id` cookie survives Google/GitHub OAuth redirect chains, enabling the two-hop flow.
 - No Cleanup goroutines are started automatically — expired entries are filtered on read. Manual `Cleanup()` methods exist for future use.
-- Ready for Phase 7 testing with Claude CLI: `claude mcp add --transport http vire http://localhost:4241/mcp`
+- Ready for Phase 7 testing with Claude CLI: `claude mcp add --transport http vire http://localhost:8500/mcp`

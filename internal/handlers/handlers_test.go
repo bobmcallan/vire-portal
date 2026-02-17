@@ -185,7 +185,7 @@ func TestLoginHandler_ValidCredentials(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -231,7 +231,7 @@ func TestLoginHandler_ValidCredentials(t *testing.T) {
 }
 
 func TestLoginHandler_MissingCredentials(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
 
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(""))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -269,7 +269,7 @@ func TestDashboardHandler_Returns200(t *testing.T) {
 	}
 	catalogFn := func() []DashboardTool { return tools }
 
-	handler := NewDashboardHandler(nil, true, 4241, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	w := httptest.NewRecorder()
@@ -293,7 +293,7 @@ func TestDashboardHandler_ContainsToolCatalog(t *testing.T) {
 	}
 	catalogFn := func() []DashboardTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 4241, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	w := httptest.NewRecorder()
@@ -319,7 +319,7 @@ func TestDashboardHandler_ContainsToolCatalog(t *testing.T) {
 func TestDashboardHandler_ContainsMCPConnectionConfig(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
 
-	handler := NewDashboardHandler(nil, false, 4241, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	w := httptest.NewRecorder()
@@ -339,15 +339,15 @@ func TestDashboardHandler_ContainsMCPConnectionConfig(t *testing.T) {
 	}
 
 	// Should contain the port in the endpoint URL
-	if !strings.Contains(body, "4241") {
-		t.Error("expected dashboard to contain port 4241 in MCP endpoint")
+	if !strings.Contains(body, "8500") {
+		t.Error("expected dashboard to contain port 8500 in MCP endpoint")
 	}
 }
 
 func TestDashboardHandler_ShowsEmptyToolsMessage(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
 
-	handler := NewDashboardHandler(nil, false, 4241, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	w := httptest.NewRecorder()
@@ -368,7 +368,7 @@ func TestDashboardHandler_XSSEscaping(t *testing.T) {
 	}
 	catalogFn := func() []DashboardTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 4241, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	w := httptest.NewRecorder()
@@ -399,7 +399,7 @@ func TestDashboardHandler_ToolCount(t *testing.T) {
 	}
 	catalogFn := func() []DashboardTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 4241, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	w := httptest.NewRecorder()
@@ -429,7 +429,7 @@ func TestLoginHandler_RedirectIsHardcoded(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	// Try various hostile redirect parameters
 	paths := []string{
@@ -464,7 +464,7 @@ func TestLoginHandler_CookieAttributes(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -512,7 +512,7 @@ func TestLoginHandler_TokenFromVireServer(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -643,7 +643,7 @@ func TestLoginHandler_ConcurrentRequests(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte{})
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	done := make(chan bool, 50)
 	for i := 0; i < 50; i++ {
@@ -995,7 +995,7 @@ func TestDashboardHandler_NavexaKeyMissing_WhenEmpty(t *testing.T) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 4241, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
 
 	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1019,7 +1019,7 @@ func TestDashboardHandler_NavexaKeyMissing_WhenSet(t *testing.T) {
 		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: "ekey"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 4241, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
 
 	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1040,7 +1040,7 @@ func TestDashboardHandler_NavexaKeyMissing_NotLoggedIn(t *testing.T) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 4241, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
 
 	// No cookie
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1457,7 +1457,7 @@ func TestDashboardHandler_NavexaKeyMissing_LookupFailure(t *testing.T) {
 		return nil, fmt.Errorf("database unavailable")
 	}
 
-	handler := NewDashboardHandler(nil, true, 4241, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
 
 	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1484,7 +1484,7 @@ func TestDashboardHandler_NavexaKeyMissing_GarbageCookie(t *testing.T) {
 		return &client.UserProfile{Username: userID}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 4241, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "garbage-not-jwt"})
@@ -1606,7 +1606,7 @@ func TestNavTemplate_NotRenderedWhenLoggedOut(t *testing.T) {
 func TestNavTemplate_ActiveStateForDashboard(t *testing.T) {
 	// Verify Dashboard link gets "active" class when Page="dashboard".
 	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 4241, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildTestJWT("dev_user")})
@@ -1702,7 +1702,7 @@ func TestXCloakStyle_InCSS(t *testing.T) {
 
 func TestDashboardHandler_PageIdentifier(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 4241, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildTestJWT("dev_user")})
@@ -1770,7 +1770,7 @@ func TestDashboardHandler_ToolTableUseComponentLibraryClasses(t *testing.T) {
 	}
 	catalogFn := func() []DashboardTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 4241, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	w := httptest.NewRecorder()
@@ -1890,7 +1890,7 @@ func TestDashboardHandler_WarningBannerCSS(t *testing.T) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 4241, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
 
 	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/dashboard", nil)

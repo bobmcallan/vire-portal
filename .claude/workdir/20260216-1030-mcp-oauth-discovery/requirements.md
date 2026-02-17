@@ -23,7 +23,7 @@
 
 Create a new `internal/auth/` package with a `DiscoveryHandler` struct that holds the base URL (portal URL) and exposes two HTTP handler methods. The base URL is derived from config:
 - If `VIRE_PORTAL_URL` env var is set, use that (for tunneling, production)
-- Otherwise compute from `Server.Host` and `Server.Port` (e.g. `http://localhost:4241`)
+- Otherwise compute from `Server.Host` and `Server.Port` (e.g. `http://localhost:8500`)
 
 The discovery handler is a simple struct — no dependencies on database, vire-server, or other services. It just returns static JSON based on the configured base URL.
 

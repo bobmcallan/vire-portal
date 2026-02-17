@@ -339,7 +339,7 @@ func TestHandleLogin_CallsVireServer(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -379,7 +379,7 @@ func TestHandleLogin_CallsVireServer(t *testing.T) {
 }
 
 func TestHandleLogin_MissingCredentials(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte("secret"))
+	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte("secret"))
 
 	tests := []struct {
 		name string
@@ -417,7 +417,7 @@ func TestHandleLogin_VireServerError(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=wrong"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -436,7 +436,7 @@ func TestHandleLogin_VireServerError(t *testing.T) {
 }
 
 func TestHandleLogin_VireServerUnreachable(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://127.0.0.1:19999", "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, "http://127.0.0.1:19999", "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader("username=dev_user&password=dev123"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -456,7 +456,7 @@ func TestHandleLogin_VireServerUnreachable(t *testing.T) {
 // --- HandleOAuthCallback Tests ---
 
 func TestHandleOAuthCallback_WithToken(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte(""))
 
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.sig"
 	req := httptest.NewRequest("GET", "/auth/callback?token="+token, nil)
@@ -492,7 +492,7 @@ func TestHandleOAuthCallback_WithToken(t *testing.T) {
 }
 
 func TestHandleOAuthCallback_NoToken(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("GET", "/auth/callback", nil)
 	w := httptest.NewRecorder()
@@ -510,7 +510,7 @@ func TestHandleOAuthCallback_NoToken(t *testing.T) {
 }
 
 func TestHandleOAuthCallback_EmptyToken(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("GET", "/auth/callback?token=", nil)
 	w := httptest.NewRecorder()
@@ -529,7 +529,7 @@ func TestHandleOAuthCallback_EmptyToken(t *testing.T) {
 // --- HandleGoogleLogin / HandleGitHubLogin Tests ---
 
 func TestHandleGoogleLogin_RedirectsToVireServer(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:4242", "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, "http://localhost:4242", "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
 	w := httptest.NewRecorder()
@@ -541,14 +541,14 @@ func TestHandleGoogleLogin_RedirectsToVireServer(t *testing.T) {
 	}
 
 	location := w.Header().Get("Location")
-	expected := "http://localhost:4242/api/auth/login/google?callback=http://localhost:4241/auth/callback"
+	expected := "http://localhost:4242/api/auth/login/google?callback=http://localhost:8500/auth/callback"
 	if location != expected {
 		t.Errorf("expected redirect to %s, got %s", expected, location)
 	}
 }
 
 func TestHandleGitHubLogin_RedirectsToVireServer(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:4242", "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, "http://localhost:4242", "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("GET", "/api/auth/login/github", nil)
 	w := httptest.NewRecorder()
@@ -560,7 +560,7 @@ func TestHandleGitHubLogin_RedirectsToVireServer(t *testing.T) {
 	}
 
 	location := w.Header().Get("Location")
-	expected := "http://localhost:4242/api/auth/login/github?callback=http://localhost:4241/auth/callback"
+	expected := "http://localhost:4242/api/auth/login/github?callback=http://localhost:8500/auth/callback"
 	if location != expected {
 		t.Errorf("expected redirect to %s, got %s", expected, location)
 	}
@@ -582,7 +582,7 @@ func TestHandleLogin_RedirectIsHardcoded(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte(""))
 
 	// Try hostile redirect parameters
 	paths := []string{
@@ -605,7 +605,7 @@ func TestHandleLogin_RedirectIsHardcoded(t *testing.T) {
 }
 
 func TestHandleOAuthCallback_RedirectIsHardcoded(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte(""))
 
 	paths := []string{
 		"/auth/callback?token=tok&redirect=https://evil.com",
@@ -627,7 +627,7 @@ func TestHandleOAuthCallback_RedirectIsHardcoded(t *testing.T) {
 // --- Cookie Attributes ---
 
 func TestHandleOAuthCallback_CookieAttributes(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("GET", "/auth/callback?token=valid-token", nil)
 	w := httptest.NewRecorder()
@@ -658,7 +658,7 @@ func TestHandleOAuthCallback_CookieAttributes(t *testing.T) {
 // --- Logout still works with new constructor ---
 
 func TestLogoutHandler_WorksWithNewConstructor(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("POST", "/api/auth/logout", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "some-token"})
@@ -688,7 +688,7 @@ func TestHandleLogin_ConcurrentRequests(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:4241/auth/callback", []byte(""))
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte(""))
 
 	done := make(chan bool, 50)
 	for i := 0; i < 50; i++ {

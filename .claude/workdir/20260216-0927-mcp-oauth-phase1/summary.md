@@ -36,4 +36,4 @@
 
 - The portal login flow depends on vire-server being reachable at `localhost:4242`. All unit/integration tests mock this dependency.
 - `scripts/verify-auth.sh` can be run against a live deployment to manually validate all auth endpoints. Some checks will report "vire-server may not be running" if vire-server is down.
-- Server is left running on `localhost:4241` after this phase.
+- Server is left running on `localhost:8500` after this phase.

@@ -8,9 +8,9 @@ import (
 )
 
 func TestHandleAuthorizationServer_ReturnsCorrectMetadata(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
-	req.Host = "localhost:4241"
+	req.Host = "localhost:8500"
 	rec := httptest.NewRecorder()
 
 	h.HandleAuthorizationServer(rec, req)
@@ -31,17 +31,17 @@ func TestHandleAuthorizationServer_ReturnsCorrectMetadata(t *testing.T) {
 		t.Fatalf("failed to decode JSON: %v", err)
 	}
 
-	if body["issuer"] != "http://localhost:4241" {
-		t.Errorf("expected issuer http://localhost:4241, got %v", body["issuer"])
+	if body["issuer"] != "http://localhost:8500" {
+		t.Errorf("expected issuer http://localhost:8500, got %v", body["issuer"])
 	}
-	if body["authorization_endpoint"] != "http://localhost:4241/authorize" {
-		t.Errorf("expected authorization_endpoint http://localhost:4241/authorize, got %v", body["authorization_endpoint"])
+	if body["authorization_endpoint"] != "http://localhost:8500/authorize" {
+		t.Errorf("expected authorization_endpoint http://localhost:8500/authorize, got %v", body["authorization_endpoint"])
 	}
-	if body["token_endpoint"] != "http://localhost:4241/token" {
-		t.Errorf("expected token_endpoint http://localhost:4241/token, got %v", body["token_endpoint"])
+	if body["token_endpoint"] != "http://localhost:8500/token" {
+		t.Errorf("expected token_endpoint http://localhost:8500/token, got %v", body["token_endpoint"])
 	}
-	if body["registration_endpoint"] != "http://localhost:4241/register" {
-		t.Errorf("expected registration_endpoint http://localhost:4241/register, got %v", body["registration_endpoint"])
+	if body["registration_endpoint"] != "http://localhost:8500/register" {
+		t.Errorf("expected registration_endpoint http://localhost:8500/register, got %v", body["registration_endpoint"])
 	}
 
 	assertStringSlice(t, body, "response_types_supported", []string{"code"})
@@ -87,7 +87,7 @@ func TestHandleAuthorizationServer_DifferentBaseURL(t *testing.T) {
 }
 
 func TestHandleAuthorizationServer_MethodNotAllowed(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodPost, "/.well-known/oauth-authorization-server", nil)
 	rec := httptest.NewRecorder()
 
@@ -99,9 +99,9 @@ func TestHandleAuthorizationServer_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleProtectedResource_ReturnsCorrectMetadata(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
-	req.Host = "localhost:4241"
+	req.Host = "localhost:8500"
 	rec := httptest.NewRecorder()
 
 	h.HandleProtectedResource(rec, req)
@@ -122,16 +122,16 @@ func TestHandleProtectedResource_ReturnsCorrectMetadata(t *testing.T) {
 		t.Fatalf("failed to decode JSON: %v", err)
 	}
 
-	if body["resource"] != "http://localhost:4241" {
-		t.Errorf("expected resource http://localhost:4241, got %v", body["resource"])
+	if body["resource"] != "http://localhost:8500" {
+		t.Errorf("expected resource http://localhost:8500, got %v", body["resource"])
 	}
 
-	assertStringSlice(t, body, "authorization_servers", []string{"http://localhost:4241"})
+	assertStringSlice(t, body, "authorization_servers", []string{"http://localhost:8500"})
 	assertStringSlice(t, body, "scopes_supported", []string{"portfolio:read", "portfolio:write", "tools:invoke"})
 }
 
 func TestHandleProtectedResource_MethodNotAllowed(t *testing.T) {
-	h := NewDiscoveryHandler("http://localhost:4241")
+	h := NewDiscoveryHandler("http://localhost:8500")
 	req := httptest.NewRequest(http.MethodPost, "/.well-known/oauth-protected-resource", nil)
 	rec := httptest.NewRecorder()
 

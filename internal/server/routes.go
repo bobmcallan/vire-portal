@@ -27,6 +27,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 
 	// UI page routes (HTML templates)
 	mux.HandleFunc("GET /dashboard", s.app.DashboardHandler.ServeHTTP)
+	mux.HandleFunc("GET /error", s.app.PageHandler.ServePage("error.html", "error"))
 	mux.HandleFunc("/", s.app.PageHandler.ServePage("landing.html", "home"))
 
 	// Static files (CSS, JS, images)

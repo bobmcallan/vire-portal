@@ -8,7 +8,7 @@
 ## Current State (after Phase 6)
 
 **What exists today:**
-- Portal (`localhost:4241`) with email/password login and Google/GitHub OAuth redirects via vire-server
+- Portal (`localhost:8500`) with email/password login and Google/GitHub OAuth redirects via vire-server
 - vire-server (`localhost:4242`) handles actual auth and issues JWTs
 - MCP endpoint at `POST /mcp` that reads Bearer token or `vire_session` cookie for user identity
 - JWT validation (HMAC-SHA256, optional signature check when `VIRE_AUTH_JWT_SECRET` is set)
@@ -40,8 +40,8 @@ Goal: Verify the existing email/password and OAuth login flows work locally with
 
 ### 1.2 Confirm portal login flow
 
-- [x] Start portal on `localhost:4241`
-- [x] Hit `http://localhost:4241` — should render login page
+- [x] Start portal on `localhost:8500`
+- [x] Hit `http://localhost:8500` — should render login page
 - [x] Submit email/password via the form — should POST to `/api/auth/login`, which forwards to vire-server
 - [x] Verify `vire_session` cookie is set with a valid JWT
 - [x] Verify redirect to `/dashboard` works and dashboard loads with user context
@@ -58,7 +58,7 @@ Goal: Verify the existing email/password and OAuth login flows work locally with
 
 - [x] Config: Added missing `[auth]` section to `config/vire-portal.toml` (was only in `.toml.example`)
 - [x] If `VIRE_AUTH_JWT_SECRET` is empty, JWT signature verification is skipped — acceptable for dev mode
-- [x] Ensure vire-server's callback redirects back to `http://localhost:4241/auth/callback?token=<jwt>`
+- [x] Ensure vire-server's callback redirects back to `http://localhost:8500/auth/callback?token=<jwt>`
 - [x] HandleLogout cookie now sets `SameSite=Lax` for consistency with login/callback paths
 
 ### 1.5 Tests added
@@ -92,10 +92,10 @@ Goal: Claude CLI and Desktop need to discover Vire's OAuth capabilities.
 Return JSON metadata:
 ```json
 {
-  "issuer": "http://localhost:4241",
-  "authorization_endpoint": "http://localhost:4241/authorize",
-  "token_endpoint": "http://localhost:4241/token",
-  "registration_endpoint": "http://localhost:4241/register",
+  "issuer": "http://localhost:8500",
+  "authorization_endpoint": "http://localhost:8500/authorize",
+  "token_endpoint": "http://localhost:8500/token",
+  "registration_endpoint": "http://localhost:8500/register",
   "response_types_supported": ["code"],
   "grant_types_supported": ["authorization_code", "refresh_token"],
   "code_challenge_methods_supported": ["S256"],
@@ -104,7 +104,7 @@ Return JSON metadata:
 }
 ```
 
-For local dev, `issuer` is `http://localhost:4241`. In production it becomes `https://portal.vire.dev`.
+For local dev, `issuer` is `http://localhost:8500`. In production it becomes `https://portal.vire.dev`.
 
 ### 2.2 Add `/.well-known/oauth-protected-resource`
 
@@ -113,8 +113,8 @@ For local dev, `issuer` is `http://localhost:4241`. In production it becomes `ht
 Return:
 ```json
 {
-  "resource": "http://localhost:4241",
-  "authorization_servers": ["http://localhost:4241"],
+  "resource": "http://localhost:8500",
+  "authorization_servers": ["http://localhost:8500"],
   "scopes_supported": ["portfolio:read", "portfolio:write", "tools:invoke"]
 }
 ```
@@ -346,23 +346,23 @@ Update `extractUserContext()` to check Bearer token first, then cookie as fallba
 npx @modelcontextprotocol/inspector
 ```
 - Transport: Streamable HTTP
-- URL: `http://localhost:4241/mcp`
+- URL: `http://localhost:8500/mcp`
 - Open Auth Settings → Quick OAuth Flow
 - Complete login, verify tools appear
 
 ### 7.2 Add Vire as MCP server in Claude CLI
 
 ```bash
-claude mcp add --transport http vire http://localhost:4241/mcp
+claude mcp add --transport http vire http://localhost:8500/mcp
 ```
 
 What happens:
-1. Claude fetches `http://localhost:4241/.well-known/oauth-authorization-server`
-2. Claude calls `POST http://localhost:4241/register` (DCR)
-3. Claude opens browser to `http://localhost:4241/authorize?client_id=...&redirect_uri=http://localhost:PORT/callback&code_challenge=...&state=...`
+1. Claude fetches `http://localhost:8500/.well-known/oauth-authorization-server`
+2. Claude calls `POST http://localhost:8500/register` (DCR)
+3. Claude opens browser to `http://localhost:8500/authorize?client_id=...&redirect_uri=http://localhost:PORT/callback&code_challenge=...&state=...`
 4. User logs in via Vire Portal
 5. Portal redirects to Claude's local callback with auth code
-6. Claude exchanges code for token via `POST http://localhost:4241/token`
+6. Claude exchanges code for token via `POST http://localhost:8500/token`
 7. Claude stores token in `~/.claude.json`
 
 ### 7.3 Verify
@@ -379,7 +379,7 @@ claude "Show me my SMSF portfolio"       # should invoke Vire tools
 ### 8.1 Add as custom connector
 
 Claude Desktop → Settings → Connectors → Add custom connector:
-- URL: `http://localhost:4241/mcp`
+- URL: `http://localhost:8500/mcp`
 - Complete OAuth flow in browser popup
 
 ### 8.2 Known issues to handle
@@ -398,13 +398,13 @@ If you need Claude Desktop (not CLI) to connect to local services:
 
 ```bash
 # Option A: ngrok
-ngrok http 4241
+ngrok http 8500
 
 # Option B: Cloudflare Tunnel
-cloudflared tunnel --url http://localhost:4241
+cloudflared tunnel --url http://localhost:8500
 
 # Option C: localtunnel
-npx localtunnel --port 4241
+npx localtunnel --port 8500
 ```
 
 This gives you a public URL like `https://abc123.ngrok.io` that Claude Desktop can reach.

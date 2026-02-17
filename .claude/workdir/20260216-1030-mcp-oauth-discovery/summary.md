@@ -40,7 +40,7 @@
 
 - Discovery endpoints are stateless — no database or external service dependencies
 - `BaseURL()` derives from `PortalURL` if set, otherwise from `Server.Host:Port`
-- For local dev, `BaseURL()` returns `http://localhost:4241` automatically
+- For local dev, `BaseURL()` returns `http://localhost:8500` automatically
 - For tunneling/production, set `VIRE_PORTAL_URL=https://portal.vire.dev`
 - Cache-Control header set to 1 hour — metadata is stable
 - The `internal/auth/` package is established and will be extended in Phases 3-5 with DCR, authorize, and token handlers
