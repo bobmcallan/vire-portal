@@ -163,7 +163,12 @@ func startCallbackServer(port int, ch chan<- callbackResult) *http.Server {
 
 // openBrowser opens the given URL in the user's default browser.
 // Inside WSL it shells out to cmd.exe so the Windows browser opens.
+// Inside Docker containers it returns an error (no browser available).
 func openBrowser(url string) error {
+	if isDocker() {
+		return fmt.Errorf("running inside Docker container, no browser available")
+	}
+
 	switch runtime.GOOS {
 	case "linux":
 		if isWSL() {
@@ -177,6 +182,14 @@ func openBrowser(url string) error {
 	default:
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
+}
+
+// isDocker reports whether the process is running inside a Docker container.
+func isDocker() bool {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	return false
 }
 
 // isWSL reports whether the process is running inside Windows Subsystem for Linux.
