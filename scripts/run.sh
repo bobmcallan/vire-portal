@@ -4,14 +4,34 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BIN_DIR="$PROJECT_DIR/bin"
+CONFIG_DIR="$PROJECT_DIR/config"
 PID_FILE="$BIN_DIR/vire-portal.pid"
+NGINX_CONF="$CONFIG_DIR/nginx.conf"
+NGINX_PID_FILE="/tmp/vire-nginx.pid"
+NGINX_HASH_FILE="/tmp/vire-nginx.hash"
 
 # Read port from config or default
 PORT="${VIRE_SERVER_PORT:-8500}"
 
+# Calculate config hash
+get_nginx_hash() {
+    md5sum "$NGINX_CONF" 2>/dev/null | awk '{print $1}'
+}
+
+# Check if nginx config changed
+nginx_config_changed() {
+    if [ ! -f "$NGINX_HASH_FILE" ]; then
+        return 0
+    fi
+    local current_hash
+    current_hash=$(get_nginx_hash)
+    local saved_hash
+    saved_hash=$(cat "$NGINX_HASH_FILE")
+    [ "$current_hash" != "$saved_hash" ]
+}
+
 stop_server() {
     if [ ! -f "$PID_FILE" ]; then
-        echo "No PID file found."
         return 0
     fi
 
@@ -40,8 +60,45 @@ stop_server() {
     rm -f "$PID_FILE"
 }
 
+stop_nginx() {
+    if [ ! -f "$NGINX_PID_FILE" ]; then
+        return 0
+    fi
+
+    PID=$(cat "$NGINX_PID_FILE")
+    if kill -0 "$PID" 2>/dev/null; then
+        echo "Stopping nginx (PID $PID)..."
+        kill "$PID" 2>/dev/null || true
+        rm -f "$NGINX_PID_FILE"
+        sleep 1
+    fi
+}
+
+start_nginx() {
+    if [ -f "$NGINX_PID_FILE" ]; then
+        PID=$(cat "$NGINX_PID_FILE")
+        if kill -0 "$PID" 2>/dev/null; then
+            if nginx_config_changed; then
+                echo "Nginx config changed, restarting..."
+                stop_nginx
+            else
+                echo "Nginx already running, config unchanged"
+                return 0
+            fi
+        fi
+    fi
+
+    echo "Starting nginx..."
+    nginx -c "$NGINX_CONF"
+    get_nginx_hash > "$NGINX_HASH_FILE"
+    echo "Nginx started on port 8881"
+}
+
 case "${1:-start}" in
   start)
+    # Start nginx first
+    start_nginx
+
     # Stop existing instance
     stop_server
 
@@ -56,10 +113,16 @@ case "${1:-start}" in
 
     sleep 1
     if kill -0 "$SERVER_PID" 2>/dev/null; then
+        echo ""
         echo "vire-portal running (PID $SERVER_PID)"
         echo "  http://localhost:$PORT"
         echo "  http://localhost:$PORT/api/health"
-        echo "  Stop: ./scripts/run.sh stop"
+        echo ""
+        echo "Access via nginx:"
+        echo "  http://localhost:8881/"
+        echo "  http://localhost:8881/api/"
+        echo ""
+        echo "Stop: ./scripts/run.sh stop"
     else
         echo "vire-portal failed to start"
         rm -f "$PID_FILE"
@@ -68,6 +131,8 @@ case "${1:-start}" in
     ;;
   stop)
     stop_server
+    stop_nginx
+    echo "Stopped"
     ;;
   restart)
     stop_server
@@ -80,6 +145,12 @@ case "${1:-start}" in
     else
         echo "vire-portal not running"
         rm -f "$PID_FILE" 2>/dev/null
+    fi
+
+    if [ -f "$NGINX_PID_FILE" ] && kill -0 "$(cat "$NGINX_PID_FILE")" 2>/dev/null; then
+        echo "nginx running (PID $(cat "$NGINX_PID_FILE"))"
+    else
+        echo "nginx not running"
     fi
     ;;
   *)

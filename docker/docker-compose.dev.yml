@@ -1,7 +1,0 @@
-# Dev environment overrides for local development
-# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-
-services:
-  vire-portal:
-    environment:
-      - VIRE_ENV=dev
