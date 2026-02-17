@@ -76,7 +76,7 @@ func TestRoutes_VersionEndpoint(t *testing.T) {
 	}
 }
 
-func TestRoutes_APINotFound(t *testing.T) {
+func TestRoutes_APIProxy_Unavailable(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
@@ -85,8 +85,8 @@ func TestRoutes_APINotFound(t *testing.T) {
 
 	srv.Handler().ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected status 404, got %d", w.Code)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503 (API server unavailable in test), got %d", w.Code)
 	}
 }
 

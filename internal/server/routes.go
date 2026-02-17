@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io"
 	"net/http"
 	"time"
 )
@@ -55,8 +56,8 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.HandleFunc("/api/version", s.app.VersionHandler.ServeHTTP)
 	mux.HandleFunc("POST /api/shutdown", s.handleShutdown)
 
-	// 404 handler for unmatched API routes
-	mux.HandleFunc("/api/", s.handleNotFound)
+	// Proxy unmatched API routes to vire-server
+	mux.HandleFunc("/api/", s.handleAPIProxy)
 
 	return mux
 }
@@ -87,11 +88,47 @@ func (s *Server) handleShutdown(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleNotFound returns a JSON 404 for unmatched API routes.
-func (s *Server) handleNotFound(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotFound)
-	w.Write([]byte(`{"error":"Not Found","message":"The requested endpoint does not exist"}`))
+func (s *Server) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
+	apiURL := s.app.Config.API.URL
+	if apiURL == "" {
+		http.Error(w, `{"error":"API server not configured"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	targetURL := apiURL + r.URL.Path
+	if r.URL.RawQuery != "" {
+		targetURL += "?" + r.URL.RawQuery
+	}
+
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body)
+	if err != nil {
+		http.Error(w, `{"error":"Failed to create proxy request"}`, http.StatusInternalServerError)
+		return
+	}
+
+	for key, values := range r.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(key, value)
+		}
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		s.logger.Warn().Err(err).Str("path", r.URL.Path).Msg("API proxy request failed")
+		http.Error(w, `{"error":"API server unavailable"}`, http.StatusServiceUnavailable)
+		return
+	}
+	defer resp.Body.Close()
+
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }
 
 // handleWellKnownNotFound returns 404 for unregistered .well-known paths.
