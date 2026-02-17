@@ -18,10 +18,6 @@ jwt_secret = ""
 callback_url = "http://localhost:4241/auth/callback"
 portal_url = ""    # Leave empty for local dev (derived from host:port). Set for tunnel/prod.
 
-[user]
-# portfolios = ["SMSF", "Personal"]
-# display_currency = "AUD"
-
 [logging]
 level = "info"              # debug, info, warn, error
 format = "text"             # text, json

@@ -10,6 +10,7 @@ import (
 func TestHandleAuthorizationServer_ReturnsCorrectMetadata(t *testing.T) {
 	h := NewDiscoveryHandler("http://localhost:4241")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+	req.Host = "localhost:4241"
 	rec := httptest.NewRecorder()
 
 	h.HandleAuthorizationServer(rec, req)
@@ -60,6 +61,8 @@ func TestHandleAuthorizationServer_ReturnsCorrectMetadata(t *testing.T) {
 func TestHandleAuthorizationServer_DifferentBaseURL(t *testing.T) {
 	h := NewDiscoveryHandler("https://portal.vire.dev")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+	req.Host = "portal.vire.dev"
+	req.Header.Set("X-Forwarded-Proto", "https")
 	rec := httptest.NewRecorder()
 
 	h.HandleAuthorizationServer(rec, req)
@@ -98,6 +101,7 @@ func TestHandleAuthorizationServer_MethodNotAllowed(t *testing.T) {
 func TestHandleProtectedResource_ReturnsCorrectMetadata(t *testing.T) {
 	h := NewDiscoveryHandler("http://localhost:4241")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
+	req.Host = "localhost:4241"
 	rec := httptest.NewRecorder()
 
 	h.HandleProtectedResource(rec, req)

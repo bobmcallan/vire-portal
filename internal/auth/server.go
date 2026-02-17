@@ -77,7 +77,8 @@ func (s *OAuthServer) CompleteAuthorization(sessionID, userID string) (string, e
 }
 
 // mintAccessToken creates a signed JWT access token.
-func (s *OAuthServer) mintAccessToken(userID, scope, clientID string) (string, error) {
+// issuer is the token issuer URL, derived from the request's Host header.
+func (s *OAuthServer) mintAccessToken(userID, scope, clientID, issuer string) (string, error) {
 	now := time.Now()
 
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
@@ -86,7 +87,7 @@ func (s *OAuthServer) mintAccessToken(userID, scope, clientID string) (string, e
 		"sub":       userID,
 		"scope":     scope,
 		"client_id": clientID,
-		"iss":       s.baseURL,
+		"iss":       issuer,
 		"iat":       now.Unix(),
 		"exp":       now.Add(1 * time.Hour).Unix(),
 	}

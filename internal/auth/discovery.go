@@ -6,6 +6,17 @@ import (
 	"strings"
 )
 
+// baseURLFromRequest derives the portal's external base URL from the incoming
+// request's Host header and scheme. This allows OAuth metadata to return correct
+// URLs regardless of port mapping, reverse proxy, or container networking.
+func baseURLFromRequest(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
 // DiscoveryHandler serves OAuth 2.0 discovery metadata endpoints.
 // Deprecated: Use OAuthServer.HandleAuthorizationServer and OAuthServer.HandleProtectedResource instead.
 type DiscoveryHandler struct {
@@ -20,22 +31,22 @@ func NewDiscoveryHandler(baseURL string) *DiscoveryHandler {
 
 // HandleAuthorizationServer serves GET /.well-known/oauth-authorization-server.
 func (h *DiscoveryHandler) HandleAuthorizationServer(w http.ResponseWriter, r *http.Request) {
-	handleAuthorizationServer(w, r, h.baseURL)
+	handleAuthorizationServer(w, r, baseURLFromRequest(r))
 }
 
 // HandleProtectedResource serves GET /.well-known/oauth-protected-resource.
 func (h *DiscoveryHandler) HandleProtectedResource(w http.ResponseWriter, r *http.Request) {
-	handleProtectedResource(w, r, h.baseURL)
+	handleProtectedResource(w, r, baseURLFromRequest(r))
 }
 
 // HandleAuthorizationServer serves GET /.well-known/oauth-authorization-server.
 func (s *OAuthServer) HandleAuthorizationServer(w http.ResponseWriter, r *http.Request) {
-	handleAuthorizationServer(w, r, s.baseURL)
+	handleAuthorizationServer(w, r, baseURLFromRequest(r))
 }
 
 // HandleProtectedResource serves GET /.well-known/oauth-protected-resource.
 func (s *OAuthServer) HandleProtectedResource(w http.ResponseWriter, r *http.Request) {
-	handleProtectedResource(w, r, s.baseURL)
+	handleProtectedResource(w, r, baseURLFromRequest(r))
 }
 
 func handleAuthorizationServer(w http.ResponseWriter, r *http.Request, baseURL string) {

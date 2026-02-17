@@ -118,8 +118,7 @@ Configuration priority (highest wins): CLI flags > environment variables > TOML 
 | API URL | `api.url` | `VIRE_API_URL` | -- | `http://localhost:8080` |
 | JWT secret | `auth.jwt_secret` | `VIRE_AUTH_JWT_SECRET` | -- | `""` |
 | OAuth callback URL | `auth.callback_url` | `VIRE_AUTH_CALLBACK_URL` | -- | `http://localhost:4241/auth/callback` |
-| Portfolios | `user.portfolios` | `VIRE_DEFAULT_PORTFOLIO` | -- | `[]` |
-| Display currency | `user.display_currency` | `VIRE_DISPLAY_CURRENCY` | -- | `""` |
+| Portal URL | `auth.portal_url` | `VIRE_PORTAL_URL` | -- | `""` |
 | Environment | `environment` | `VIRE_ENV` | -- | `prod` |
 | Log level | `logging.level` | `VIRE_LOG_LEVEL` | -- | `info` |
 | Log format | `logging.format` | `VIRE_LOG_FORMAT` | -- | `text` |
@@ -130,7 +129,7 @@ Configuration priority (highest wins): CLI flags > environment variables > TOML 
 
 The config file is auto-discovered from `vire-portal.toml` or `docker/vire-portal.toml`. Specify explicitly with `-c path/to/config.toml`.
 
-The `[api]` and `[user]` sections configure the MCP proxy. `api.url` points to the vire-server instance. User context is injected as X-Vire-* headers on every proxied request. All user data is managed by vire-server.
+The `[api]` section configures the MCP proxy. `api.url` points to the vire-server instance. User context is injected as X-Vire-* headers on every proxied request. All user data is managed by vire-server.
 
 ## MCP Endpoint
 
@@ -260,6 +259,7 @@ With a remote portal:
       "args": [
         "run", "-i", "--rm",
         "--network", "host",
+        "-e", "VIRE_PORTAL_URL=http://localhost:4241",
         "-v", "~/.vire:/root/.vire",
         "ghcr.io/bobmcallan/vire-mcp:latest"
       ]
@@ -268,7 +268,7 @@ With a remote portal:
 }
 ```
 
-The `-v ~/.vire:/root/.vire` mount persists OAuth credentials across container runs. Without it, the browser OAuth flow runs on every launch.
+`VIRE_PORTAL_URL` tells the container where to find vire-portal. The `-v ~/.vire:/root/.vire` mount persists OAuth credentials across container runs. Without it, the browser OAuth flow runs on every launch.
 
 #### Claude Desktop (production via Connectors)
 
@@ -318,11 +318,11 @@ The proxy injects these headers on every request to vire-server:
 
 | Header | Source | Description |
 |--------|--------|-------------|
-| `X-Vire-Portfolios` | Config (`user.portfolios`) | Comma-separated portfolio names |
-| `X-Vire-Display-Currency` | Config (`user.display_currency`) | Currency for display values |
+| `X-Vire-Portfolios` | `VIRE_DEFAULT_PORTFOLIO` env var | Comma-separated portfolio names |
+| `X-Vire-Display-Currency` | `VIRE_DISPLAY_CURRENCY` env var | Currency for display values |
 | `X-Vire-User-ID` | Session cookie (per-request) | Username from JWT sub claim |
 
-Static headers are set from config on every request. Per-request headers are set when a `vire_session` cookie is present -- the handler decodes the JWT sub claim and injects the user ID. vire-server resolves the user's navexa key internally from the user ID.
+Static headers are set from environment variables on every request. Per-request headers are set when a `vire_session` cookie is present -- the handler decodes the JWT sub claim and injects the user ID. vire-server resolves the user's navexa key internally from the user ID.
 
 ## Authentication Flow
 

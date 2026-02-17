@@ -76,6 +76,7 @@ func setupCodeExchange(srv *OAuthServer, verifier string) (*AuthCode, *OAuthClie
 
 func postToken(srv *OAuthServer, params url.Values) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/token", strings.NewReader(params.Encode()))
+	req.Host = "localhost:4241"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 	srv.HandleToken(rec, req)
@@ -615,7 +616,7 @@ func TestToken_StressEmptySecretMinting(t *testing.T) {
 	// This means anyone can forge access tokens by signing with empty HMAC.
 	srv := NewOAuthServer("http://localhost:4241", []byte{}, nil)
 
-	token, err := srv.mintAccessToken("user-1", "openid", "client-1")
+	token, err := srv.mintAccessToken("user-1", "openid", "client-1", "http://localhost:4241")
 	if err != nil {
 		t.Fatalf("minting failed: %v", err)
 	}

@@ -80,9 +80,11 @@ curl http://localhost:4241/api/health
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `VIRE_ENV` | `prod` | Environment: dev \| development, prod \| production |
 | `VIRE_SERVER_HOST` | `localhost` | Server bind address |
 | `VIRE_SERVER_PORT` | `8080` | Server port |
 | `VIRE_API_URL` | `http://localhost:8080` | vire-server URL for MCP proxy |
+| `VIRE_PORTAL_URL` | `http://localhost:4241` | Portal URL (required for vire-mcp container) |
 | `VIRE_DEFAULT_PORTFOLIO` | `""` | Default portfolio name |
 | `VIRE_DISPLAY_CURRENCY` | `""` | Display currency (e.g., AUD, USD) |
 | `EODHD_API_KEY` | `""` | EODHD market data API key |

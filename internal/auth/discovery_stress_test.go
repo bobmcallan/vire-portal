@@ -66,40 +66,54 @@ func TestAuthorizationServer_HEADRequest(t *testing.T) {
 	}
 }
 
-// --- URL injection via baseURL ---
+// --- baseURL derived from request Host header ---
 
-func TestAuthorizationServer_MaliciousBaseURL_JavascriptProtocol(t *testing.T) {
-	// If VIRE_PORTAL_URL is set to a javascript: URI, the JSON response
-	// should contain it verbatim. This isn't a direct XSS vector (it's JSON,
-	// not HTML), but document that the value passes through unvalidated.
-	h := NewDiscoveryHandler("javascript:alert(1)")
+func TestAuthorizationServer_DerivedFromHostHeader(t *testing.T) {
+	// baseURL is now derived from the request's Host header, not from config.
+	// A Host header with a port should produce the correct base URL.
+	h := NewDiscoveryHandler("http://ignored:9999")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+	req.Host = "portal.example.com:4241"
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
 
 	var body map[string]interface{}
 	if err := json.NewDecoder(rec.Result().Body).Decode(&body); err != nil {
 		t.Fatalf("JSON decode failed: %v", err)
 	}
 
-	// The issuer should contain the injected value verbatim —
-	// this test documents the behavior so we can add validation later if needed.
-	if body["issuer"] != "javascript:alert(1)" {
-		t.Errorf("expected injected issuer verbatim, got %v", body["issuer"])
+	if body["issuer"] != "http://portal.example.com:4241" {
+		t.Errorf("expected issuer from Host header, got %v", body["issuer"])
 	}
-	if body["authorization_endpoint"] != "javascript:alert(1)/authorize" {
-		t.Errorf("expected injected endpoint, got %v", body["authorization_endpoint"])
+	if body["authorization_endpoint"] != "http://portal.example.com:4241/authorize" {
+		t.Errorf("expected endpoint from Host header, got %v", body["authorization_endpoint"])
+	}
+}
+
+func TestAuthorizationServer_XForwardedProtoHTTPS(t *testing.T) {
+	// When X-Forwarded-Proto is "https", the scheme should be https.
+	h := NewDiscoveryHandler("http://localhost:4241")
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+	req.Host = "portal.vire.dev"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rec := httptest.NewRecorder()
+	h.HandleAuthorizationServer(rec, req)
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(rec.Result().Body).Decode(&body); err != nil {
+		t.Fatalf("JSON decode failed: %v", err)
+	}
+
+	if body["issuer"] != "https://portal.vire.dev" {
+		t.Errorf("expected https issuer, got %v", body["issuer"])
 	}
 }
 
 func TestAuthorizationServer_BaseURLWithQueryParams(t *testing.T) {
-	// A baseURL containing query params could create malformed endpoint URLs.
-	h := NewDiscoveryHandler("http://evil.com?redirect=http://attacker.com")
+	// A Host header should not contain query params, but verify safe behavior.
+	h := NewDiscoveryHandler("http://localhost:4241")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+	req.Host = "localhost:4241"
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
 
@@ -108,53 +122,17 @@ func TestAuthorizationServer_BaseURLWithQueryParams(t *testing.T) {
 		t.Fatalf("JSON decode failed: %v", err)
 	}
 
-	// The endpoint becomes "http://evil.com?redirect=http://attacker.com/authorize"
-	// which is malformed (path after query). Document this behavior.
 	endpoint := body["authorization_endpoint"].(string)
 	if !strings.Contains(endpoint, "/authorize") {
-		t.Errorf("endpoint should still contain /authorize suffix, got %s", endpoint)
-	}
-}
-
-func TestAuthorizationServer_BaseURLWithFragment(t *testing.T) {
-	h := NewDiscoveryHandler("http://example.com#fragment")
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
-	rec := httptest.NewRecorder()
-	h.HandleAuthorizationServer(rec, req)
-
-	var body map[string]interface{}
-	if err := json.NewDecoder(rec.Result().Body).Decode(&body); err != nil {
-		t.Fatalf("JSON decode failed: %v", err)
-	}
-
-	// "/authorize" is appended after the fragment, which is malformed
-	endpoint := body["authorization_endpoint"].(string)
-	if endpoint != "http://example.com#fragment/authorize" {
-		t.Errorf("unexpected endpoint: %s", endpoint)
-	}
-}
-
-func TestAuthorizationServer_BaseURLWithUserinfo(t *testing.T) {
-	// Userinfo in URL: http://admin:password@host — should pass through
-	h := NewDiscoveryHandler("http://admin:password@example.com")
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
-	rec := httptest.NewRecorder()
-	h.HandleAuthorizationServer(rec, req)
-
-	var body map[string]interface{}
-	if err := json.NewDecoder(rec.Result().Body).Decode(&body); err != nil {
-		t.Fatalf("JSON decode failed: %v", err)
-	}
-
-	if body["issuer"] != "http://admin:password@example.com" {
-		t.Errorf("expected userinfo to pass through, got %v", body["issuer"])
+		t.Errorf("endpoint should contain /authorize suffix, got %s", endpoint)
 	}
 }
 
 func TestAuthorizationServer_BaseURLWithHTMLEntities(t *testing.T) {
-	// If someone sets baseURL to contain HTML, json.Encoder should escape it
-	h := NewDiscoveryHandler(`http://example.com/<script>alert(1)</script>`)
+	// If Host header contains HTML, json.Encoder should escape it
+	h := NewDiscoveryHandler("http://localhost:4241")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+	req.Host = `example.com/<script>alert(1)</script>`
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
 
@@ -170,58 +148,11 @@ func TestAuthorizationServer_BaseURLWithHTMLEntities(t *testing.T) {
 	}
 }
 
-// --- Empty / degenerate baseURL ---
-
-func TestAuthorizationServer_EmptyBaseURL(t *testing.T) {
-	h := NewDiscoveryHandler("")
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
-	rec := httptest.NewRecorder()
-	h.HandleAuthorizationServer(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-
-	var body map[string]interface{}
-	if err := json.NewDecoder(rec.Result().Body).Decode(&body); err != nil {
-		t.Fatalf("JSON decode failed: %v", err)
-	}
-
-	// Empty baseURL means endpoints become "/authorize", "/token", etc.
-	if body["issuer"] != "" {
-		t.Errorf("expected empty issuer, got %v", body["issuer"])
-	}
-	if body["authorization_endpoint"] != "/authorize" {
-		t.Errorf("expected /authorize, got %v", body["authorization_endpoint"])
-	}
-}
-
-func TestProtectedResource_EmptyBaseURL(t *testing.T) {
-	h := NewDiscoveryHandler("")
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
-	rec := httptest.NewRecorder()
-	h.HandleProtectedResource(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-
-	var body map[string]interface{}
-	if err := json.NewDecoder(rec.Result().Body).Decode(&body); err != nil {
-		t.Fatalf("JSON decode failed: %v", err)
-	}
-
-	if body["resource"] != "" {
-		t.Errorf("expected empty resource, got %v", body["resource"])
-	}
-}
-
 func TestAuthorizationServer_BaseURLTrailingSlash(t *testing.T) {
-	// If BaseURL() doesn't strip trailing slash, endpoints become
-	// "http://localhost:4241//authorize" (double slash).
-	// BaseURL() is supposed to TrimRight("/") but test the handler directly.
-	h := NewDiscoveryHandler("http://localhost:4241/")
+	// Host header should not have trailing slash, but verify no double slash.
+	h := NewDiscoveryHandler("http://localhost:4241")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+	req.Host = "localhost:4241"
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
 
@@ -230,17 +161,16 @@ func TestAuthorizationServer_BaseURLTrailingSlash(t *testing.T) {
 		t.Fatalf("JSON decode failed: %v", err)
 	}
 
-	// Double slash is incorrect — this documents the handler's behavior.
-	// The fix belongs in BaseURL() or NewDiscoveryHandler.
 	endpoint := body["authorization_endpoint"].(string)
 	if strings.Contains(endpoint, "//authorize") {
-		t.Errorf("trailing slash in baseURL creates double-slash endpoint: %s", endpoint)
+		t.Errorf("double-slash in endpoint: %s", endpoint)
 	}
 }
 
 func TestAuthorizationServer_BaseURLWhitespace(t *testing.T) {
-	h := NewDiscoveryHandler("  http://localhost:4241  ")
+	h := NewDiscoveryHandler("http://localhost:4241")
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+	req.Host = "localhost:4241"
 	rec := httptest.NewRecorder()
 	h.HandleAuthorizationServer(rec, req)
 
@@ -249,7 +179,7 @@ func TestAuthorizationServer_BaseURLWhitespace(t *testing.T) {
 		t.Fatalf("JSON decode failed: %v", err)
 	}
 
-	// Whitespace in issuer is incorrect per RFC 8414
+	// Issuer should not have leading/trailing whitespace
 	issuer := body["issuer"].(string)
 	if strings.TrimSpace(issuer) != issuer {
 		t.Errorf("issuer has leading/trailing whitespace: %q", issuer)
@@ -302,6 +232,7 @@ func TestAuthorizationServer_ConcurrentAccess(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+			req.Host = "localhost:4241"
 			rec := httptest.NewRecorder()
 			h.HandleAuthorizationServer(rec, req)
 
@@ -343,6 +274,7 @@ func TestProtectedResource_ConcurrentAccess(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
+			req.Host = "localhost:4241"
 			rec := httptest.NewRecorder()
 			h.HandleProtectedResource(rec, req)
 
@@ -578,8 +510,10 @@ func TestDiscovery_MuxIntegration_ProtectedResource(t *testing.T) {
 		t.Fatalf("JSON decode failed: %v", err)
 	}
 
-	if body["resource"] != "http://localhost:4241" {
-		t.Errorf("expected resource http://localhost:4241, got %v", body["resource"])
+	// URL is derived from request Host header (test server's address)
+	resource := body["resource"].(string)
+	if !strings.HasPrefix(resource, "http://127.0.0.1:") {
+		t.Errorf("expected resource from test server host, got %v", resource)
 	}
 }
 

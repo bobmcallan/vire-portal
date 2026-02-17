@@ -95,7 +95,7 @@ func TestCompleteAuthorization_SessionExpired(t *testing.T) {
 func TestMintAccessToken_ValidJWT(t *testing.T) {
 	srv := newTestOAuthServer()
 
-	token, err := srv.mintAccessToken("user-42", "openid tools:invoke", "client-1")
+	token, err := srv.mintAccessToken("user-42", "openid tools:invoke", "client-1", "http://localhost:4241")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

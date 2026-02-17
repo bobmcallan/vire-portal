@@ -69,7 +69,8 @@ func (s *OAuthServer) handleAuthCodeGrant(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	accessToken, err := s.mintAccessToken(authCode.UserID, authCode.Scope, authCode.ClientID)
+	issuer := baseURLFromRequest(r)
+	accessToken, err := s.mintAccessToken(authCode.UserID, authCode.Scope, authCode.ClientID, issuer)
 	if err != nil {
 		writeOAuthError(w, http.StatusInternalServerError, "server_error", "failed to mint access token")
 		return
@@ -123,7 +124,7 @@ func (s *OAuthServer) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Req
 	// Rotate: delete old, create new
 	s.tokens.Delete(refreshTokenStr)
 
-	accessToken, err := s.mintAccessToken(refreshToken.UserID, refreshToken.Scope, refreshToken.ClientID)
+	accessToken, err := s.mintAccessToken(refreshToken.UserID, refreshToken.Scope, refreshToken.ClientID, baseURLFromRequest(r))
 	if err != nil {
 		writeOAuthError(w, http.StatusInternalServerError, "server_error", "failed to mint access token")
 		return
