@@ -52,6 +52,7 @@ func main() {
 		login      bool
 		checks     multiFlag
 		clicks     multiFlag
+		clicknavs  multiFlag
 		evals      multiFlag
 	)
 
@@ -62,6 +63,7 @@ func main() {
 	flag.BoolVar(&login, "login", false, "Authenticate via /api/auth/login (dev_user) before testing")
 	flag.Var(&checks, "check", "selector|state  (state: visible, hidden, text=X, count>N)")
 	flag.Var(&clicks, "click", "CSS selector to click (in order, before -check)")
+	flag.Var(&clicknavs, "clicknav", "CSS selector to click and wait for navigation (in order, before -check)")
 	flag.Var(&evals, "eval", "JS expression that must return truthy")
 	flag.Parse()
 
@@ -215,6 +217,27 @@ func main() {
 		} else {
 			results = append(results, result{
 				name:   fmt.Sprintf("click(%s)", sel),
+				pass:   true,
+				detail: "ok",
+			})
+		}
+	}
+
+	for _, sel := range clicknavs {
+		err := chromedp.Run(ctx,
+			chromedp.Click(sel, chromedp.ByQuery),
+			chromedp.WaitReady("body", chromedp.ByQuery),
+			chromedp.Sleep(time.Duration(waitMs)*time.Millisecond),
+		)
+		if err != nil {
+			results = append(results, result{
+				name:   fmt.Sprintf("clicknav(%s)", sel),
+				pass:   false,
+				detail: err.Error(),
+			})
+		} else {
+			results = append(results, result{
+				name:   fmt.Sprintf("clicknav(%s)", sel),
 				pass:   true,
 				detail: "ok",
 			})
