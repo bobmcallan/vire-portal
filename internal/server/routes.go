@@ -50,6 +50,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 
 	// Auth routes
 	mux.HandleFunc("POST /api/auth/login", s.app.AuthHandler.HandleLogin)
+	mux.HandleFunc("POST /api/auth/test-login", s.app.AuthHandler.HandleTestLogin) // Dev-mode only: returns JSON for browser tests
 	mux.HandleFunc("POST /api/auth/logout", s.app.AuthHandler.HandleLogout)
 	mux.HandleFunc("GET /api/auth/login/google", s.app.AuthHandler.HandleGoogleLogin)
 	mux.HandleFunc("GET /api/auth/login/github", s.app.AuthHandler.HandleGitHubLogin)

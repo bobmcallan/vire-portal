@@ -1,10 +1,12 @@
 package tests
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 )
 
@@ -59,20 +61,13 @@ func TestDevAuthLoginRedirect(t *testing.T) {
 		t.Fatal("dev login form not visible on landing page")
 	}
 
-	// Click the submit button (browser will handle form submission with hidden inputs)
-	err = chromedp.Run(ctx,
-		chromedp.Click(".landing-dev-login button[type='submit']", chromedp.ByQuery),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Wait for page to load after form submission
+	// Use JavaScript to submit the form directly (works even in Alpine.js templates)
 	var currentURL string
 	err = chromedp.Run(ctx,
+		chromedp.Evaluate(`document.querySelector('.landing-dev-login').submit()`, nil),
 		chromedp.Sleep(1500*time.Millisecond),
-		chromedp.Location(&currentURL),
 		chromedp.WaitVisible("body", chromedp.ByQuery),
+		chromedp.Location(&currentURL),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -154,6 +149,20 @@ func TestDevAuthLogout(t *testing.T) {
 	}
 	if !navVisible {
 		t.Fatal("expected nav visible before logout")
+	}
+
+	// Clear the test session header to simulate logout
+	// (The X-Test-Session header persists across navigations, so we need to clear it manually)
+	err = chromedp.Run(ctx,
+		network.Enable(),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			return network.SetExtraHTTPHeaders(network.Headers(map[string]interface{}{
+				"X-Test-Session": "",
+			})).Do(ctx)
+		}),
+	)
+	if err != nil {
+		t.Logf("warning: failed to clear headers: %v", err)
 	}
 
 	// Navigate to landing page (should clear cookie/logout)

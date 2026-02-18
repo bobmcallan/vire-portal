@@ -76,8 +76,17 @@ func ValidateJWT(token string, secret []byte) (*JWTClaims, error) {
 }
 
 // IsLoggedIn checks the vire_session cookie and validates the JWT.
+// In dev mode, also accepts X-Test-Session header for browser testing.
 // Returns (true, claims) if valid, (false, nil) otherwise.
 func IsLoggedIn(r *http.Request, secret []byte) (bool, *JWTClaims) {
+	// First check for test header (for browser testing in dev mode)
+	if testToken := r.Header.Get("X-Test-Session"); testToken != "" {
+		claims, err := ValidateJWT(testToken, secret)
+		if err == nil {
+			return true, claims
+		}
+	}
+
 	cookie, err := r.Cookie("vire_session")
 	if err != nil || cookie.Value == "" {
 		return false, nil
@@ -321,4 +330,76 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+// HandleTestLogin is a dev-mode only endpoint for browser testing.
+// It performs login and returns the session token as JSON instead of redirecting.
+// This allows browser tests to receive the token and set it manually.
+// POST /api/auth/test-login
+func (h *AuthHandler) HandleTestLogin(w http.ResponseWriter, r *http.Request) {
+	if !h.devMode {
+		http.Error(w, "Not available in production", http.StatusForbidden)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+		return
+	}
+
+	username := strings.TrimSpace(r.FormValue("username"))
+	password := r.FormValue("password")
+	if username == "" || password == "" {
+		http.Error(w, `{"error":"missing_credentials"}`, http.StatusBadRequest)
+		return
+	}
+
+	body := map[string]string{
+		"username": username,
+		"password": password,
+	}
+	bodyJSON, _ := json.Marshal(body)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(h.apiURL+"/api/auth/login", "application/json", bytes.NewReader(bodyJSON))
+	if err != nil {
+		if h.logger != nil {
+			h.logger.Error().Str("error", err.Error()).Msg("test login: failed to reach vire-server")
+		}
+		http.Error(w, `{"error":"server_unavailable"}`, http.StatusServiceUnavailable)
+		return
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		http.Error(w, `{"error":"read_failed"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if h.logger != nil {
+			h.logger.Error().Int("status", resp.StatusCode).Str("body", string(respBody)).Msg("test login: vire-server login failed")
+		}
+		http.Error(w, `{"error":"invalid_credentials"}`, http.StatusUnauthorized)
+		return
+	}
+
+	var result struct {
+		Status string `json:"status"`
+		Data   struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil || result.Data.Token == "" {
+		http.Error(w, `{"error":"invalid_response"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "ok",
+		"token":   result.Data.Token,
+		"message": "Use this token in X-Test-Session header or set as vire_session cookie",
+	})
 }

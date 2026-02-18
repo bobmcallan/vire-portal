@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
@@ -130,20 +131,73 @@ func LoginAndNavigate(ctx context.Context, targetURL string, waitMs int) error {
 	if waitMs == 0 {
 		waitMs = 800
 	}
-	var currentURL string
-	return chromedp.Run(ctx,
+
+	var loginResult struct {
+		Token string `json:"token"`
+		Error string `json:"error"`
+	}
+
+	// Step 1: Enable network domain and get session token from test-login endpoint
+	err := chromedp.Run(ctx,
+		network.Enable(),
 		chromedp.Navigate(base+"/"),
 		chromedp.WaitVisible("body", chromedp.ByQuery),
-		// Submit the dev login form by clicking the submit button
-		chromedp.Click(".landing-dev-login button[type='submit']", chromedp.ByQuery),
-		// Wait for navigation to complete
 		chromedp.Sleep(500*time.Millisecond),
-		chromedp.Location(&currentURL),
-		// Now navigate to the target URL
+
+		// Call test-login endpoint synchronously using XMLHttpRequest
+		// Return parsed JSON object directly (chromedp will unmarshal it)
+		chromedp.Evaluate(`
+			(() => {
+				try {
+					var xhr = new XMLHttpRequest();
+					xhr.open('POST', '/api/auth/test-login', false);
+					xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+					xhr.send('username=dev_user&password=dev123');
+					if (xhr.status === 200) {
+						return JSON.parse(xhr.responseText);
+					} else {
+						return {error: 'HTTP ' + xhr.status};
+					}
+				} catch(e) {
+					return {error: e.message};
+				}
+			})()
+		`, &loginResult),
+	)
+
+	if err != nil {
+		return fmt.Errorf("login request failed: %w", err)
+	}
+
+	if loginResult.Error != "" {
+		return fmt.Errorf("login error: %s", loginResult.Error)
+	}
+
+	if loginResult.Token == "" {
+		return fmt.Errorf("failed to get session token from test-login")
+	}
+
+	// Step 2: Set extra HTTP headers to include the test session
+	err = chromedp.Run(ctx,
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			return network.SetExtraHTTPHeaders(network.Headers(map[string]interface{}{
+				"X-Test-Session": loginResult.Token,
+			})).Do(ctx)
+		}),
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to set extra headers: %w", err)
+	}
+
+	// Step 3: Navigate to target URL (headers will be included)
+	err = chromedp.Run(ctx,
 		chromedp.Navigate(targetURL),
 		chromedp.WaitVisible("body", chromedp.ByQuery),
 		chromedp.Sleep(time.Duration(waitMs)*time.Millisecond),
 	)
+
+	return err
 }
 
 func SetViewport(ctx context.Context, width, height int64) error {

@@ -1,17 +1,45 @@
 package server
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/app"
 	"github.com/bobmcallan/vire-portal/internal/config"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
+
+// createTestJWT creates a signed JWT token for testing authenticated routes.
+func createTestJWT(userID, secret string) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+
+	payload := map[string]interface{}{
+		"sub":      userID,
+		"email":    "test@example.com",
+		"name":     "Test User",
+		"provider": "test",
+		"iss":      "vire-portal",
+		"iat":      time.Now().Unix(),
+		"exp":      time.Now().Add(1 * time.Hour).Unix(),
+	}
+	payloadJSON, _ := json.Marshal(payload)
+	payloadB64 := base64.RawURLEncoding.EncodeToString(payloadJSON)
+
+	sigInput := header + "." + payloadB64
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(sigInput))
+	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+
+	return sigInput + "." + signature
+}
 
 func newTestApp(t *testing.T) *app.App {
 	t.Helper()
@@ -390,7 +418,11 @@ func TestRoutes_DashboardPage(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
+	// Create a valid test JWT token for authentication
+	testToken := createTestJWT("test-user-123", application.Config.Auth.JWTSecret)
+
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: testToken})
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
@@ -420,7 +452,11 @@ func TestRoutes_DashboardContainsMCPConfig(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
+	// Create a valid test JWT token for authentication
+	testToken := createTestJWT("test-user-123", application.Config.Auth.JWTSecret)
+
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: testToken})
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
@@ -446,7 +482,11 @@ func TestRoutes_DashboardContainsToolSection(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
+	// Create a valid test JWT token for authentication
+	testToken := createTestJWT("test-user-123", application.Config.Auth.JWTSecret)
+
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: testToken})
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
@@ -469,7 +509,11 @@ func TestRoutes_DashboardContainsConfigStatus(t *testing.T) {
 	application := newTestAppWithConfig(t, cfg)
 	srv := New(application)
 
+	// Create a valid test JWT token for authentication
+	testToken := createTestJWT("test-user-123", application.Config.Auth.JWTSecret)
+
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: testToken})
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
@@ -495,7 +539,11 @@ func TestRoutes_DashboardXSSEscape(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
+	// Create a valid test JWT token for authentication
+	testToken := createTestJWT("test-user-123", application.Config.Auth.JWTSecret)
+
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: testToken})
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
@@ -516,7 +564,11 @@ func TestRoutes_DashboardHasMiddleware(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
+	// Create a valid test JWT token for authentication
+	testToken := createTestJWT("test-user-123", application.Config.Auth.JWTSecret)
+
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: testToken})
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
@@ -578,7 +630,11 @@ func TestRoutes_SettingsPage(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
+	// Create a valid test JWT token for authentication
+	testToken := createTestJWT("test-user-123", application.Config.Auth.JWTSecret)
+
 	req := httptest.NewRequest("GET", "/settings", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: testToken})
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)

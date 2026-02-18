@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -16,6 +18,39 @@ import (
 
 	"github.com/bobmcallan/vire-portal/internal/client"
 )
+
+// testJWTSecret is the secret used for signing test JWTs
+const testJWTSecret = "test-secret-for-handler-tests-32ch!"
+
+// createTestJWT creates a signed JWT token for testing authenticated handlers.
+func createTestJWT(userID string) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+
+	payload := map[string]interface{}{
+		"sub":      userID,
+		"email":    "test@example.com",
+		"name":     "Test User",
+		"provider": "test",
+		"iss":      "vire-portal",
+		"iat":      time.Now().Unix(),
+		"exp":      time.Now().Add(1 * time.Hour).Unix(),
+	}
+	payloadJSON, _ := json.Marshal(payload)
+	payloadB64 := base64.RawURLEncoding.EncodeToString(payloadJSON)
+
+	sigInput := header + "." + payloadB64
+	mac := hmac.New(sha256.New, []byte(testJWTSecret))
+	mac.Write([]byte(sigInput))
+	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+
+	return sigInput + "." + signature
+}
+
+// addAuthCookie adds a valid session cookie to the request.
+func addAuthCookie(req *http.Request, userID string) {
+	token := createTestJWT(userID)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+}
 
 func TestHealthHandler_ReturnsOK(t *testing.T) {
 	handler := NewHealthHandler(nil)
@@ -269,9 +304,10 @@ func TestDashboardHandler_Returns200(t *testing.T) {
 	}
 	catalogFn := func() []DashboardTool { return tools }
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -293,9 +329,10 @@ func TestDashboardHandler_ContainsToolCatalog(t *testing.T) {
 	}
 	catalogFn := func() []DashboardTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -319,9 +356,10 @@ func TestDashboardHandler_ContainsToolCatalog(t *testing.T) {
 func TestDashboardHandler_ContainsMCPConnectionConfig(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -347,9 +385,10 @@ func TestDashboardHandler_ContainsMCPConnectionConfig(t *testing.T) {
 func TestDashboardHandler_ShowsEmptyToolsMessage(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -368,9 +407,10 @@ func TestDashboardHandler_XSSEscaping(t *testing.T) {
 	}
 	catalogFn := func() []DashboardTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -399,9 +439,10 @@ func TestDashboardHandler_ToolCount(t *testing.T) {
 	}
 	catalogFn := func() []DashboardTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -594,14 +635,16 @@ func TestLogoutHandler_WorksWithoutExistingCookie(t *testing.T) {
 // --- ServePage LoggedIn Tests ---
 
 func TestServePage_LoggedIn_WithCookie(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte{})
+	// Note: Landing page auto-logouts, so nav is never rendered even with valid cookie.
+	// Use DashboardHandler to test logged-in nav rendering.
+	catalogFn := func() []DashboardTool { return nil }
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
-	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.ServePage("landing.html", "home")(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", w.Code)
@@ -948,7 +991,7 @@ func TestSettingsHandler_GET_NoCookie(t *testing.T) {
 	}
 	saveFn := func(userID string, fields map[string]string) error { return nil }
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewSettingsHandler(nil, true, []byte(testJWTSecret), lookupFn, saveFn)
 
 	req := httptest.NewRequest("GET", "/settings", nil)
 	// No cookie
@@ -956,13 +999,14 @@ func TestSettingsHandler_GET_NoCookie(t *testing.T) {
 
 	handler.HandleSettings(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
+	// Settings now requires authentication - redirects to landing page
+	if w.Code != http.StatusFound {
+		t.Errorf("expected status 302 redirect, got %d", w.Code)
 	}
 
-	body := w.Body.String()
-	if !strings.Contains(body, "sign in") {
-		t.Error("expected sign-in message when not logged in")
+	redirect := w.Header().Get("Location")
+	if redirect != "/" {
+		t.Errorf("expected redirect to /, got %s", redirect)
 	}
 }
 
@@ -995,11 +1039,10 @@ func TestDashboardHandler_NavexaKeyMissing_WhenEmpty(t *testing.T) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
 
-	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/dashboard", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	addAuthCookie(req, "dev_user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -1019,11 +1062,10 @@ func TestDashboardHandler_NavexaKeyMissing_WhenSet(t *testing.T) {
 		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: "ekey"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
 
-	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/dashboard", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	addAuthCookie(req, "dev_user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -1040,7 +1082,7 @@ func TestDashboardHandler_NavexaKeyMissing_NotLoggedIn(t *testing.T) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
 
 	// No cookie
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1457,11 +1499,10 @@ func TestDashboardHandler_NavexaKeyMissing_LookupFailure(t *testing.T) {
 		return nil, fmt.Errorf("database unavailable")
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
 
-	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/dashboard", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	addAuthCookie(req, "dev_user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -1477,6 +1518,7 @@ func TestDashboardHandler_NavexaKeyMissing_LookupFailure(t *testing.T) {
 }
 
 func TestDashboardHandler_NavexaKeyMissing_GarbageCookie(t *testing.T) {
+	// With authentication, a garbage JWT should result in redirect to landing
 	catalogFn := func() []DashboardTool { return nil }
 	lookupCalled := false
 	lookupFn := func(userID string) (*client.UserProfile, error) {
@@ -1484,7 +1526,7 @@ func TestDashboardHandler_NavexaKeyMissing_GarbageCookie(t *testing.T) {
 		return &client.UserProfile{Username: userID}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "garbage-not-jwt"})
@@ -1492,14 +1534,13 @@ func TestDashboardHandler_NavexaKeyMissing_GarbageCookie(t *testing.T) {
 
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
+	// With a garbage JWT, the handler should redirect to landing page
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302 redirect with garbage cookie, got %d", w.Code)
 	}
 
-	// With a garbage JWT, ExtractJWTSub returns "" so lookup should not be called
-	// OR if called with "", it shouldn't show the warning
-	body := w.Body.String()
-	if strings.Contains(body, "WARNING") && lookupCalled {
+	// Lookup should not be called since JWT validation fails first
+	if lookupCalled {
 		t.Error("warning should not show when JWT is invalid")
 	}
 }
@@ -1509,13 +1550,15 @@ func TestDashboardHandler_NavexaKeyMissing_GarbageCookie(t *testing.T) {
 func TestNavTemplate_ContainsLogoutPostForm(t *testing.T) {
 	// The logout must be a POST form (not a GET link) for CSRF protection.
 	// A GET link would be vulnerable to CSRF via <img src="/api/auth/logout">.
-	handler := NewPageHandler(nil, true, []byte{})
+	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
+	catalogFn := func() []DashboardTool { return nil }
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
-	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildTestJWT("dev_user")})
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.ServePage("landing.html", "home")(w, req)
+	handler.ServeHTTP(w, req)
 
 	body := w.Body.String()
 
@@ -1530,13 +1573,15 @@ func TestNavTemplate_ContainsLogoutPostForm(t *testing.T) {
 
 func TestNavTemplate_MobileMenuPresent(t *testing.T) {
 	// Verify mobile menu elements exist when logged in, using navMenu() component.
-	handler := NewPageHandler(nil, true, []byte{})
+	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
+	catalogFn := func() []DashboardTool { return nil }
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
-	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildTestJWT("dev_user")})
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.ServePage("landing.html", "home")(w, req)
+	handler.ServeHTTP(w, req)
 
 	body := w.Body.String()
 
@@ -1556,13 +1601,15 @@ func TestNavTemplate_MobileMenuPresent(t *testing.T) {
 
 func TestNavTemplate_HamburgerDropdownPresent(t *testing.T) {
 	// Verify nav uses navMenu() component and has a dropdown with Settings + Logout.
-	handler := NewPageHandler(nil, true, []byte{})
+	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
+	catalogFn := func() []DashboardTool { return nil }
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
-	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildTestJWT("dev_user")})
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.ServePage("landing.html", "home")(w, req)
+	handler.ServeHTTP(w, req)
 
 	body := w.Body.String()
 
@@ -1606,10 +1653,10 @@ func TestNavTemplate_NotRenderedWhenLoggedOut(t *testing.T) {
 func TestNavTemplate_ActiveStateForDashboard(t *testing.T) {
 	// Verify Dashboard link gets "active" class when Page="dashboard".
 	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildTestJWT("dev_user")})
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -1702,10 +1749,10 @@ func TestXCloakStyle_InCSS(t *testing.T) {
 
 func TestDashboardHandler_PageIdentifier(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildTestJWT("dev_user")})
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -1721,11 +1768,10 @@ func TestSettingsHandler_PageIdentifier(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewSettingsHandler(nil, true, []byte(testJWTSecret), lookupFn, func(userID string, fields map[string]string) error { return nil })
 
-	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/settings", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.HandleSettings(w, req)
@@ -1770,9 +1816,10 @@ func TestDashboardHandler_ToolTableUseComponentLibraryClasses(t *testing.T) {
 	}
 	catalogFn := func() []DashboardTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -1844,8 +1891,9 @@ func TestDashboardHandler_PortInMCPEndpoint(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
 
 	// Test with default port 8080
-	handler := NewDashboardHandler(nil, false, 8080, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 8080, []byte(testJWTSecret), catalogFn, nil)
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -1859,8 +1907,9 @@ func TestDashboardHandler_PortZero(t *testing.T) {
 	// Edge case: port 0 should still render without crashing
 	catalogFn := func() []DashboardTool { return nil }
 
-	handler := NewDashboardHandler(nil, false, 0, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, 0, []byte(testJWTSecret), catalogFn, nil)
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -1873,8 +1922,9 @@ func TestDashboardHandler_PortNegative(t *testing.T) {
 	// Edge case: negative port should render without crashing
 	catalogFn := func() []DashboardTool { return nil }
 
-	handler := NewDashboardHandler(nil, false, -1, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, false, -1, []byte(testJWTSecret), catalogFn, nil)
 	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -1890,11 +1940,10 @@ func TestDashboardHandler_WarningBannerCSS(t *testing.T) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
 
-	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/dashboard", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -1909,11 +1958,10 @@ func TestSettingsHandler_SuccessBannerCSS(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewSettingsHandler(nil, true, []byte(testJWTSecret), lookupFn, func(userID string, fields map[string]string) error { return nil })
 
-	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/settings?saved=1", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.HandleSettings(w, req)
@@ -2353,13 +2401,15 @@ func TestStatusIndicatorCSS_DotBorderRadius(t *testing.T) {
 
 func TestNavTemplate_StatusIndicatorsPresent(t *testing.T) {
 	// Verify status indicators appear in the nav when logged in.
-	handler := NewPageHandler(nil, true, []byte{})
+	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
+	catalogFn := func() []DashboardTool { return nil }
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
-	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildTestJWT("dev_user")})
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.ServePage("landing.html", "home")(w, req)
+	handler.ServeHTTP(w, req)
 
 	body := w.Body.String()
 
@@ -2382,13 +2432,15 @@ func TestNavTemplate_StatusIndicatorsXSSInClassBinding(t *testing.T) {
 	// Verify the template doesn't inject user-controlled values into the class.
 	// In this implementation, portal/server are only set to 'startup', 'up', or 'down'
 	// so no XSS is possible. This test verifies the class binding pattern is safe.
-	handler := NewPageHandler(nil, true, []byte{})
+	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
+	catalogFn := func() []DashboardTool { return nil }
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
-	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildTestJWT("dev_user")})
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.ServePage("landing.html", "home")(w, req)
+	handler.ServeHTTP(w, req)
 
 	body := w.Body.String()
 
@@ -2550,11 +2602,10 @@ func TestServePage_ContainsServerVersion(t *testing.T) {
 func TestDashboardHandler_ContainsVersionFooter(t *testing.T) {
 	catalogFn := func() []DashboardTool { return nil }
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
-	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/dashboard", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -2572,11 +2623,10 @@ func TestSettingsHandler_ContainsVersionFooter(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewSettingsHandler(nil, true, []byte(testJWTSecret), lookupFn, func(userID string, fields map[string]string) error { return nil })
 
-	token := buildTestJWT("dev_user")
 	req := httptest.NewRequest("GET", "/settings", nil)
-	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
 	handler.HandleSettings(w, req)
