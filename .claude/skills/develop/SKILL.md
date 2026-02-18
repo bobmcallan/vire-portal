@@ -79,35 +79,28 @@ Use 3 phases for backend-only changes. Add **Phase 2b** when the feature touches
 
 **Phase 2b — UI Verification** (only if web pages changed; blockedBy: build task):
 Applies when the feature touches: `pages/`, `pages/static/`, `pages/partials/`, HTML templates, CSS, or JS files.
-See `.claude/skills/browser-check/SKILL.md` for full `browser-check` syntax.
+See `.claude/skills/ui-test/SKILL.md` for full test syntax.
 
-- "Run chromedp UI test suite" — owner: implementer, blockedBy: [build task]
-  Run against the deployed container:
-  ```
-  VIRE_TEST_URL="http://localhost:${PORTAL_PORT:-8500}" go test ./tests/ -run "^TestUI" -v -count=1 -timeout 120s
-  ```
-- "Browser-check validation" — owner: implementer, blockedBy: [build task]
-  Run `go run ./tests/browser-check` against affected pages. Pick checks based on what changed:
+- "Run UI test suite" — owner: implementer, blockedBy: [build task]
+  Run against the running server:
   ```bash
-  # Smoke test every affected page (catches JS errors)
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/
+  # Run smoke tests (default)
+  go test -v ./tests/ui -run "^TestSmoke" -timeout 120s
 
-  # If nav changed (use -login to see authenticated nav)
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
-    -check '.nav-brand|text=VIRE' \
-    -check '.nav-hamburger|visible' \
-    -check '.nav-dropdown|hidden'
+  # Run specific suite based on what changed
+  go test -v ./tests/ui -run "^TestDashboard" -timeout 120s
+  go test -v ./tests/ui -run "^TestNav" -timeout 120s
+  go test -v ./tests/ui -run "^TestAuth" -timeout 120s
 
-  # If responsive/mobile changed
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
-    -viewport 375x812 -check '.nav-links|hidden'
-
-  # Save screenshots to the work directory (with -login for authenticated nav)
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
-    -screenshot <workdir>/dashboard.png
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/ -login \
-    -screenshot <workdir>/landing.png
+  # Run all tests
+  go test -v ./tests/ui -timeout 120s
+  ```
+- "Review test results" — owner: implementer, blockedBy: [build task]
+  Check results in `tests/results/{timestamp}/`:
+  ```bash
+  LATEST=$(ls -td tests/results/*/ | head -1)
+  cat "$LATEST/summary.md"
+  ls -la "$LATEST"  # View screenshots
   ```
   Replace `<workdir>` with the actual work directory path (e.g. `.claude/workdir/20260214-1430-oauth-handler/`).
   If checks fail, fix before proceeding to Phase 3.
@@ -144,8 +137,8 @@ prompt: |
     ./scripts/run.sh restart
     curl -s http://localhost:${PORTAL_PORT:-8500}/api/health
     Leave the server running — subsequent tasks (UI verification, validation) need it.
-  For UI verification tasks: run browser-check against the running server (see .claude/skills/browser-check/SKILL.md).
-    Save screenshots to the work directory with -screenshot flag.
+  For UI verification tasks: run UI tests against the running server (see .claude/skills/ui-test/SKILL.md).
+    Check results in tests/results/{timestamp}/ for screenshots and summary.
   For documentation tasks: update affected files in docs/, README.md, and .claude/skills/.
 
   Do NOT send status messages. Only message teammates for: blocking issues, review findings, or questions.
@@ -156,7 +149,7 @@ prompt: |
 ```
 name: "reviewer"
 subagent_type: "general-purpose"
-model: "haiku"
+model: "sonnet"
 team_name: "vire-portal-develop"
 run_in_background: true
 prompt: |
@@ -226,8 +219,7 @@ When all tasks are complete:
    - Server builds and runs (`./scripts/run.sh restart`) — leave it running
    - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8500}/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
-   - If web pages changed: chromedp UI tests pass (`go test ./tests/ -run "^TestUI"`)
-   - If web pages changed: browser-check validation passed (`go run ./tests/browser-check`)
+   - If web pages changed: UI tests pass (`go test -v ./tests/ui -timeout 120s`)
    - README.md updated if user-facing behaviour changed
    - API contract documentation matches implementation
    - Devils-advocate has signed off

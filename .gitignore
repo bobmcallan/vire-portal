@@ -54,3 +54,6 @@ config/*.toml
 !config/*.toml.example
 !config/*.toml.docker
 docker/*.tomlbrowser-check
+
+# AI models
+.claude/settings.json

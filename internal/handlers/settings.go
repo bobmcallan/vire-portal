@@ -13,12 +13,13 @@ import (
 
 // SettingsHandler serves the settings page and handles settings updates.
 type SettingsHandler struct {
-	logger       *common.Logger
-	templates    *template.Template
-	devMode      bool
-	jwtSecret    []byte
-	userLookupFn func(string) (*client.UserProfile, error)
-	userSaveFn   func(string, map[string]string) error
+	logger         *common.Logger
+	templates      *template.Template
+	devMode        bool
+	jwtSecret      []byte
+	userLookupFn   func(string) (*client.UserProfile, error)
+	userSaveFn     func(string, map[string]string) error
+	devMCPEndpoint func(userID string) string
 }
 
 // NewSettingsHandler creates a new settings handler.
@@ -36,6 +37,11 @@ func NewSettingsHandler(logger *common.Logger, devMode bool, jwtSecret []byte, u
 		userLookupFn: userLookupFn,
 		userSaveFn:   userSaveFn,
 	}
+}
+
+// SetDevMCPEndpointFn sets the function to generate dev-mode MCP endpoints.
+func (h *SettingsHandler) SetDevMCPEndpointFn(fn func(userID string) string) {
+	h.devMCPEndpoint = fn
 }
 
 // HandleSettings serves GET /settings.
@@ -83,6 +89,11 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 		data["JWTIssuedAt"] = time.Unix(claims.Iat, 0).UTC().Format(time.RFC3339)
 		data["JWTExpires"] = time.Unix(claims.Exp, 0).UTC().Format(time.RFC3339)
 		data["JWTExpired"] = claims.Exp < time.Now().Unix()
+
+		// Generate dev MCP endpoint if function is available
+		if h.devMCPEndpoint != nil && claims.Sub != "" {
+			data["DevMCPEndpoint"] = h.devMCPEndpoint(claims.Sub)
+		}
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "settings.html", data); err != nil {

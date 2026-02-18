@@ -89,6 +89,17 @@ func InitResultsDir() string {
 }
 
 func GetResultsDir() string {
+	// First check if wrapper script set the results directory
+	if dir := os.Getenv("VIRE_TEST_RESULTS_DIR"); dir != "" {
+		// Make absolute if not already
+		if !filepath.IsAbs(dir) {
+			if absDir, err := filepath.Abs(dir); err == nil {
+				return absDir
+			}
+		}
+		return dir
+	}
+	// Fall back to creating our own
 	if resultsDir == "" {
 		return InitResultsDir()
 	}

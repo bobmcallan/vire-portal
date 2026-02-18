@@ -91,6 +91,13 @@
                     </form>
                 </div>
             </section>
+            {{if .DevMCPEndpoint}}
+            <section class="dashboard-section" style="border-color:#c90">
+                <h2 class="section-title" style="color:#c90">DEV MCP ENDPOINT</h2>
+                <p class="settings-key-status">Use this URL to connect Claude Desktop to your Vire instance:</p>
+                <div class="code-block" style="word-break:break-all;white-space:pre-wrap;font-size:0.8rem">{{.DevMCPEndpoint}}</div>
+            </section>
+            {{end}}
             {{end}}
 
             {{else}}

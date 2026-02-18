@@ -136,9 +136,12 @@ func LoginAndNavigate(ctx context.Context, targetURL string, waitMs int) error {
 		chromedp.WaitVisible("body", chromedp.ByQuery),
 		// Submit the dev login form by clicking the submit button
 		chromedp.Click(".landing-dev-login button[type='submit']", chromedp.ByQuery),
-		// Wait for navigation to complete (URL should change to dashboard)
+		// Wait for navigation to complete
 		chromedp.Sleep(500*time.Millisecond),
 		chromedp.Location(&currentURL),
+		// Now navigate to the target URL
+		chromedp.Navigate(targetURL),
+		chromedp.WaitVisible("body", chromedp.ByQuery),
 		chromedp.Sleep(time.Duration(waitMs)*time.Millisecond),
 	)
 }

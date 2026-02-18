@@ -125,6 +125,7 @@ func (a *App) initHandlers() {
 	})
 	if a.MCPDevHandler != nil {
 		a.DashboardHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
+		a.SettingsHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
 	}
 
 	a.OAuthServer = auth.NewOAuthServer(a.Config.BaseURL(), jwtSecret, a.Logger)

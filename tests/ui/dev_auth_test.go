@@ -189,3 +189,129 @@ func TestDevAuthLogout(t *testing.T) {
 		t.Error("expected login buttons visible after logout")
 	}
 }
+
+// TestDevAuthSettingsMCPEndpoint verifies the DEV MCP section appears in settings
+func TestDevAuthSettingsMCPEndpoint(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	// Login first
+	err := loginAndNavigate(ctx, serverURL()+"/settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "dev-auth", "settings-mcp-page.png")
+
+	// Verify DEV MCP section is present (contains the title)
+	var mcpSectionText string
+	err = chromedp.Run(ctx,
+		chromedp.Evaluate(`
+			(() => {
+				const sections = document.querySelectorAll('.dashboard-section');
+				for (const section of sections) {
+					const title = section.querySelector('.section-title');
+					if (title && title.textContent.includes('DEV MCP')) {
+						return section.innerText;
+					}
+				}
+				return '';
+			})()
+		`, &mcpSectionText),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if mcpSectionText == "" {
+		// Debug: log all section titles
+		var allTitles string
+		chromedp.Run(ctx,
+			chromedp.Evaluate(`
+				(() => {
+					const titles = document.querySelectorAll('.section-title');
+					return Array.from(titles).map(t => t.textContent).join(', ');
+				})()
+			`, &allTitles),
+		)
+		t.Fatalf("DEV MCP ENDPOINT section not found. Available sections: %s", allTitles)
+	}
+
+	t.Logf("Found DEV MCP section: %s", truncate(mcpSectionText, 200))
+}
+
+// TestDevAuthSettingsMCPURL validates the MCP URL format
+func TestDevAuthSettingsMCPURL(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	// Login first
+	err := loginAndNavigate(ctx, serverURL()+"/settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "dev-auth", "settings-mcp-url.png")
+
+	// Extract the MCP URL from the code block
+	var mcpURL string
+	err = chromedp.Run(ctx,
+		chromedp.Evaluate(`
+			(() => {
+				const sections = document.querySelectorAll('.dashboard-section');
+				for (const section of sections) {
+					const title = section.querySelector('.section-title');
+					if (title && title.textContent.includes('DEV MCP')) {
+						const codeBlock = section.querySelector('.code-block');
+						return codeBlock ? codeBlock.textContent.trim() : '';
+					}
+				}
+				return '';
+			})()
+		`, &mcpURL),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if mcpURL == "" {
+		t.Fatal("MCP URL not found in DEV MCP section")
+	}
+
+	t.Logf("Found MCP URL: %s", mcpURL)
+
+	// Validate URL format: should contain /mcp/ and be a valid URL
+	if !strings.Contains(mcpURL, "/mcp/") {
+		t.Errorf("MCP URL should contain '/mcp/', got: %s", mcpURL)
+	}
+
+	if !strings.HasPrefix(mcpURL, "http://") && !strings.HasPrefix(mcpURL, "https://") {
+		t.Errorf("MCP URL should start with http:// or https://, got: %s", mcpURL)
+	}
+
+	// The encrypted UID should be a base64url-encoded string after /mcp/
+	parts := strings.Split(mcpURL, "/mcp/")
+	if len(parts) != 2 {
+		t.Fatalf("MCP URL should have exactly one '/mcp/' segment, got: %s", mcpURL)
+	}
+
+	encryptedUID := parts[1]
+	if len(encryptedUID) < 10 {
+		t.Errorf("Encrypted UID seems too short, got: %s (length: %d)", encryptedUID, len(encryptedUID))
+	}
+
+	// Verify it contains only base64url characters (A-Za-z0-9_-)
+	for i, c := range encryptedUID {
+		if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-') {
+			t.Errorf("Encrypted UID contains invalid character at position %d: %c", i, c)
+			break
+		}
+	}
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
+}
