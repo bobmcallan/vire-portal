@@ -32,6 +32,47 @@ Local deploys use `docker-compose.dev.yml` as a compose overlay, which sets `VIR
 
 This starts vire-portal on port 8500, vire-mcp on port 4243, and vire-server on port 4242. Claude connects to `http://localhost:8500/mcp` (portal) or `http://localhost:4243/mcp` (standalone mcp).
 
+### vire-mcp Docker (Claude Desktop)
+
+`vire-mcp` is a stdio-to-HTTP bridge for Claude Desktop. Run it in Docker with direct mode (no OAuth, ephemeral):
+
+```bash
+# Direct mode - use encrypted MCP URL from vire-portal dashboard
+docker run -i --rm \
+  --network host \
+  -e VIRE_MCP_URL=http://localhost:8500/mcp/YOUR_ENCRYPTED_UID \
+  -e VIRE_LOG_LEVEL=error \
+  ghcr.io/bobmcallan/vire-mcp:latest
+```
+
+For Claude Desktop `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "vire": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "host",
+        "-e", "VIRE_MCP_URL=http://localhost:8500/mcp/YOUR_ENCRYPTED_UID",
+        "-e", "VIRE_LOG_LEVEL=error",
+        "ghcr.io/bobmcallan/vire-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+**Mode comparison:**
+
+| Mode | Variable | Auth | Volume Required |
+|------|----------|------|-----------------|
+| Direct | `VIRE_MCP_URL` | Encrypted UID in URL | No |
+| OAuth | `VIRE_PORTAL_URL` | Browser flow | Yes (`~/.vire:/root/.vire`) |
+
+Direct mode is recommended for Docker - no credential persistence needed, completely ephemeral.
+
 ### Portal Only
 
 ```bash
@@ -84,7 +125,8 @@ curl http://localhost:8500/api/health
 | `VIRE_SERVER_HOST` | `localhost` | Server bind address |
 | `VIRE_SERVER_PORT` | `8080` | Server port |
 | `VIRE_API_URL` | `http://localhost:8080` | vire-server URL for MCP proxy |
-| `VIRE_PORTAL_URL` | `http://localhost:8500` | Portal URL (required for vire-mcp container) |
+| `VIRE_PORTAL_URL` | `http://localhost:8500` | Portal URL (OAuth mode for vire-mcp) |
+| `VIRE_MCP_URL` | — | Full MCP endpoint URL with encrypted UID (direct mode, bypasses OAuth) |
 | `VIRE_DEFAULT_PORTFOLIO` | `""` | Default portfolio name |
 | `VIRE_DISPLAY_CURRENCY` | `""` | Display currency (e.g., AUD, USD) |
 | `EODHD_API_KEY` | `""` | EODHD market data API key |

@@ -3,7 +3,7 @@
 // discovers available tools, and re-exposes them over stdio for Claude Desktop.
 //
 // All tool logic, catalog management, and version handling live in vire-portal.
-// vire-mcp is a pure transport adapter: stdio ↔ HTTP with OAuth 2.1.
+// vire-mcp is a pure transport adapter: stdio ↔ HTTP (with optional OAuth 2.1).
 //
 // Configuration priority: defaults < TOML file < environment variables (VIRE_*).
 // The TOML file is auto-discovered from vire-mcp.toml or config/vire-mcp.toml.
@@ -11,7 +11,12 @@
 // Environment variables:
 //
 //	VIRE_PORTAL_URL  vire-portal URL (default: http://localhost:8500)
+//	VIRE_MCP_URL     full MCP endpoint URL with encrypted UID (bypasses OAuth)
 //	VIRE_LOG_LEVEL   log level       (default: info)
+//
+// When VIRE_MCP_URL is set to a full endpoint URL (e.g., http://host/mcp/encrypted_uid),
+// OAuth is bypassed and the connection uses the embedded user identity. This is useful
+// for Docker containers, CI/CD, or environments without browser access.
 package main
 
 import (
@@ -90,42 +95,79 @@ func main() {
 		MaxBackups: cfg.Logging.MaxBackups,
 	})
 
-	portalURL := strings.TrimRight(cfg.Portal.URL, "/")
-	logger.Info().Str("portal_url", portalURL).Msg("loaded configuration")
+	// Check for direct MCP URL (bypasses OAuth) or portal URL (with OAuth)
+	mcpURL := os.Getenv("VIRE_MCP_URL")
+	var portalURL string
+	var directMode bool
 
-	// Allocate port for OAuth callback server.
-	callbackPort, err := findFreePort()
-	if err != nil {
-		logger.Error().Str("error", err.Error()).Msg("failed to allocate OAuth callback port")
-		os.Exit(1)
+	if mcpURL != "" {
+		// Direct mode: full MCP endpoint URL with encrypted UID
+		mcpURL = strings.TrimRight(mcpURL, "/")
+		directMode = true
+		// Extract portal URL for logging
+		if idx := strings.Index(mcpURL, "/mcp/"); idx > 0 {
+			portalURL = mcpURL[:idx]
+		} else {
+			portalURL = mcpURL
+		}
+		logger.Info().Str("mcp_url", mcpURL).Bool("direct_mode", true).Msg("loaded configuration")
+	} else {
+		portalURL = strings.TrimRight(cfg.Portal.URL, "/")
+		logger.Info().Str("portal_url", portalURL).Bool("direct_mode", false).Msg("loaded configuration")
 	}
-	redirectURI := fmt.Sprintf("http://127.0.0.1:%d/callback", callbackPort)
 
-	tokenStore := NewFileTokenStore(filepath.Join(homeDir(), ".vire", "credentials.json"))
+	var httpTransport *transport.StreamableHTTP
+	var err error
 
-	// Connect to vire-portal's Streamable HTTP MCP endpoint with OAuth.
-	// AuthServerMetadataURL is set explicitly to skip the openid-configuration
-	// probe, which can fail when a catch-all route returns HTML instead of 404.
-	httpTransport, err := transport.NewStreamableHTTP(
-		portalURL+"/mcp",
-		transport.WithHTTPOAuth(transport.OAuthConfig{
-			RedirectURI:           redirectURI,
-			TokenStore:            tokenStore,
-			PKCEEnabled:           true,
-			AuthServerMetadataURL: portalURL + "/.well-known/oauth-authorization-server",
-		}),
-	)
-	if err != nil {
-		logger.Error().Str("error", err.Error()).Msg("failed to create HTTP transport")
-		os.Exit(1)
+	if directMode {
+		// Direct mode: connect without OAuth
+		httpTransport, err = transport.NewStreamableHTTP(mcpURL)
+		if err != nil {
+			logger.Error().Str("error", err.Error()).Msg("failed to create HTTP transport")
+			os.Exit(1)
+		}
+	} else {
+		// OAuth mode: allocate port for callback server
+		callbackPort, err := findFreePort()
+		if err != nil {
+			logger.Error().Str("error", err.Error()).Msg("failed to allocate OAuth callback port")
+			os.Exit(1)
+		}
+
+		tokenStore := NewFileTokenStore(filepath.Join(homeDir(), ".vire", "credentials.json"))
+
+		// Connect to vire-portal's Streamable HTTP MCP endpoint with OAuth.
+		httpTransport, err = transport.NewStreamableHTTP(
+			portalURL+"/mcp",
+			transport.WithHTTPOAuth(transport.OAuthConfig{
+				RedirectURI:           fmt.Sprintf("http://127.0.0.1:%d/callback", callbackPort),
+				TokenStore:            tokenStore,
+				PKCEEnabled:           true,
+				AuthServerMetadataURL: portalURL + "/.well-known/oauth-authorization-server",
+			}),
+		)
+		if err != nil {
+			logger.Error().Str("error", err.Error()).Msg("failed to create HTTP transport")
+			os.Exit(1)
+		}
 	}
 
 	mcpClient := client.NewClient(httpTransport)
 
 	ctx := context.Background()
-	if err := connectWithOAuth(ctx, mcpClient, callbackPort, logger); err != nil {
-		logger.Error().Str("error", err.Error()).Msg("failed to connect to vire-portal")
-		os.Exit(1)
+	if directMode {
+		// Direct mode: simple connect without OAuth
+		if err := connectDirect(ctx, mcpClient, logger); err != nil {
+			logger.Error().Str("error", err.Error()).Msg("failed to connect to vire-portal")
+			os.Exit(1)
+		}
+	} else {
+		// OAuth mode: connect with OAuth flow
+		callbackPort, _ := findFreePort()
+		if err := connectWithOAuth(ctx, mcpClient, callbackPort, logger); err != nil {
+			logger.Error().Str("error", err.Error()).Msg("failed to connect to vire-portal")
+			os.Exit(1)
+		}
 	}
 	defer mcpClient.Close()
 
@@ -144,7 +186,7 @@ func main() {
 	mcpSrv := server.NewMCPServer("vire", common.GetVersion(), server.WithToolCapabilities(true))
 	for _, tool := range tools {
 		t := tool // capture for closure
-		mcpSrv.AddTool(t, proxyHandler(mcpClient, t.Name, callbackPort, logger))
+		mcpSrv.AddTool(t, simpleProxyHandler(mcpClient, t.Name, logger))
 	}
 
 	logger.Info().Int("tools", len(tools)).Str("portal_url", portalURL).Msg("vire-mcp ready")
@@ -152,6 +194,33 @@ func main() {
 	if err := server.ServeStdio(mcpSrv); err != nil {
 		fmt.Fprintf(os.Stderr, "stdio server error: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+// connectDirect starts the MCP client and initializes the session without OAuth.
+func connectDirect(ctx context.Context, c *client.Client, logger *common.Logger) error {
+	// Start transport.
+	if err := c.Start(ctx); err != nil {
+		return fmt.Errorf("start: %w", err)
+	}
+
+	// Initialize MCP session.
+	initReq := mcp.InitializeRequest{}
+	initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+	initReq.Params.ClientInfo = mcp.Implementation{Name: "vire-mcp", Version: common.GetVersion()}
+	if _, err := c.Initialize(ctx, initReq); err != nil {
+		return fmt.Errorf("initialize: %w", err)
+	}
+
+	logger.Info().Msg("connected to vire-portal (direct mode)")
+	return nil
+}
+
+// simpleProxyHandler returns a tool handler that forwards calls without OAuth retry.
+func simpleProxyHandler(c *client.Client, toolName string, logger *common.Logger) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		req.Params.Name = toolName
+		return c.CallTool(ctx, req)
 	}
 }
 

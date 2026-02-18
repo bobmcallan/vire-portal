@@ -240,7 +240,14 @@ For a deployed portal with HTTPS:
 
 #### Claude Desktop (local dev via vire-mcp)
 
-Claude Desktop requires stdio transport for local MCP servers. `vire-mcp` is a stdio-to-HTTP bridge — it connects to vire-portal as an MCP client, discovers tools, and re-exposes them over stdio. On first launch it runs an OAuth browser flow for authentication; tokens are cached in `~/.vire/credentials.json`.
+Claude Desktop requires stdio transport for local MCP servers. `vire-mcp` is a stdio-to-HTTP bridge — it connects to vire-portal as an MCP client, discovers tools, and re-exposes them over stdio.
+
+**Two connection modes:**
+
+| Mode | Environment Variable | Auth | Use Case |
+|------|---------------------|------|----------|
+| **OAuth** | `VIRE_PORTAL_URL` | Browser OAuth flow, tokens cached | Local dev with interactive login |
+| **Direct** | `VIRE_MCP_URL` | Encrypted UID in URL (no browser) | Docker, CI/CD, headless environments |
 
 **Configuration:**
 
@@ -248,30 +255,20 @@ Claude Desktop requires stdio transport for local MCP servers. `vire-mcp` is a s
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `VIRE_PORTAL_URL` | `http://localhost:8500` | vire-portal URL |
+| `VIRE_PORTAL_URL` | `http://localhost:8500` | vire-portal URL (OAuth mode) |
+| `VIRE_MCP_URL` | — | Full MCP endpoint URL with encrypted UID (direct mode, bypasses OAuth) |
 | `VIRE_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 
-Logs are written to `bin/logs/vire-mcp.log` (relative to the binary). The startup log shows the resolved `portal_url` for troubleshooting:
+Logs are written to `bin/logs/vire-mcp.log` (relative to the binary). The startup log shows the resolved URL and mode:
 
 ```
-level=INF message="loaded configuration" portal_url="http://localhost:8880"
+level=INF message="loaded configuration" direct_mode=true mcp_url="http://localhost:8500/mcp/abc123..."
+level=INF message="loaded configuration" direct_mode=false portal_url="http://localhost:8500"
 ```
 
-**Option 1: Direct binary (recommended)**
+**Direct Mode (Recommended for Docker/WSL)**
 
-Build with `scripts/build.sh --mcp`, then add to `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "vire": {
-      "command": "/path/to/bin/vire-mcp"
-    }
-  }
-}
-```
-
-With a custom portal URL (non-default port, remote server, etc.):
+Direct mode uses an encrypted MCP endpoint URL that embeds user identity, bypassing OAuth entirely. Get your unique endpoint URL from the vire-portal dashboard (Settings > MCP Configuration).
 
 ```json
 {
@@ -279,16 +276,34 @@ With a custom portal URL (non-default port, remote server, etc.):
     "vire": {
       "command": "/path/to/bin/vire-mcp",
       "env": {
-        "VIRE_PORTAL_URL": "https://portal.vire.app"
+        "VIRE_MCP_URL": "http://localhost:8500/mcp/YOUR_ENCRYPTED_UID",
+        "VIRE_LOG_LEVEL": "error"
       }
     }
   }
 }
 ```
 
-**Option 2: WSL on Windows**
+**OAuth Mode (Interactive Login)**
 
-When running on Windows via WSL, use a shell wrapper to ensure environment variables are passed correctly:
+OAuth mode runs a browser flow on first launch; tokens are cached in `~/.vire/credentials.json`.
+
+```json
+{
+  "mcpServers": {
+    "vire": {
+      "command": "/path/to/bin/vire-mcp",
+      "env": {
+        "VIRE_PORTAL_URL": "http://localhost:8500"
+      }
+    }
+  }
+}
+```
+
+**WSL on Windows (Direct Mode)**
+
+When running on Windows with vire-mcp in WSL, use a shell wrapper to pass environment variables (the `env` object isn't passed through `wsl -e`):
 
 ```json
 {
@@ -296,18 +311,42 @@ When running on Windows via WSL, use a shell wrapper to ensure environment varia
     "vire": {
       "command": "wsl",
       "args": [
+        "-e",
         "/bin/bash",
         "-c",
-        "VIRE_PORTAL_URL=http://localhost:8880 /home/bobmc/development/vire-portal/bin/vire-mcp"
+        "VIRE_MCP_URL=http://localhost:8500/mcp/YOUR_ENCRYPTED_UID VIRE_LOG_LEVEL=error /home/bobmc/development/vire-portal/bin/vire-mcp"
       ]
     }
   }
 }
 ```
 
-> **Note:** The `env VIRE_PORTAL_URL=...` syntax may not pass the variable correctly through WSL. Use `/bin/bash -c "VAR=val command"` instead.
+> **Note:** The `env` object in Claude Desktop config doesn't pass variables through `wsl -e`. Use `/bin/bash -c "VAR=val command"` instead.
 
-**Option 2: Docker**
+**Docker (Direct Mode - Ephemeral)**
+
+Direct mode is ideal for Docker: no OAuth, no credential mounts, completely ephemeral:
+
+```json
+{
+  "mcpServers": {
+    "vire": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "host",
+        "-e", "VIRE_MCP_URL=http://localhost:8500/mcp/YOUR_ENCRYPTED_UID",
+        "-e", "VIRE_LOG_LEVEL=error",
+        "ghcr.io/bobmcallan/vire-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+**Docker (OAuth Mode - Persistent Credentials)**
+
+OAuth mode requires a volume mount to persist tokens across container runs:
 
 ```json
 {
@@ -326,7 +365,7 @@ When running on Windows via WSL, use a shell wrapper to ensure environment varia
 }
 ```
 
-`VIRE_PORTAL_URL` tells the container where to find vire-portal. The `-v ~/.vire:/root/.vire` mount persists OAuth credentials across container runs. Without it, the browser OAuth flow runs on every launch.
+> **Note:** For remote portals, replace `localhost:8500` with your portal URL (e.g., `https://portal.vire.app`).
 
 #### Claude Desktop (production via Connectors)
 
