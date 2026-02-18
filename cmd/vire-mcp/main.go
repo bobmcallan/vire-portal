@@ -91,6 +91,7 @@ func main() {
 	})
 
 	portalURL := strings.TrimRight(cfg.Portal.URL, "/")
+	logger.Info().Str("portal_url", portalURL).Msg("loaded configuration")
 
 	// Allocate port for OAuth callback server.
 	callbackPort, err := findFreePort()

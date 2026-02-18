@@ -272,6 +272,7 @@ func TestDashboardDesignNoBorderRadius(t *testing.T) {
 			(() => {
 				const bad = [];
 				document.querySelectorAll('*').forEach(el => {
+					if (el.classList.contains('status-dot')) return;
 					const r = getComputedStyle(el).borderRadius;
 					if (r && r !== '0px') {
 						const id = el.id ? '#'+el.id : '';

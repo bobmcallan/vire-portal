@@ -29,7 +29,7 @@ Parse user input to determine test category:
 
 2. **Run Browser Tests**
    ```
-   Execute /browser-check workflow for the identified category
+   Execute /ui-test workflow for the identified category
    ```
 
 3. **Analyze Results**
@@ -40,7 +40,6 @@ Parse user input to determine test category:
 4. **Assess Failures**
    For each failed test:
    - Read the failure details from the log
-   - Review relevant screenshots
    - Identify the root cause:
      - **Code bug**: Fix in templates, CSS, JS, or Go handlers
      - **Test misalignment**: Test expects behavior that doesn't match requirements → STOP and report
@@ -53,7 +52,7 @@ Parse user input to determine test category:
    - Ensure changes align with existing code patterns
 
 6. **Re-run Tests**
-   - Execute /browser-check again for the same category
+   - Execute /ui-test again for the same category
    - Compare results with previous run
    - If new failures introduced → assess and fix
 
@@ -65,37 +64,35 @@ Parse user input to determine test category:
 
 ## Execution Steps
 
-### Step 1: Setup
-```bash
-cd /home/bobmc/development/vire-portal
-export VIRE_TEST_URL="${VIRE_TEST_URL:-http://localhost:8881}"
-ITERATION=0
-MAX_ITERATIONS=5
-```
+### Step 1: Run Tests
+Tests automatically load config from `tests/ui/test_config.toml` and create results directories.
 
-### Step 2: Run Tests
 Based on input category, execute:
 ```bash
 # For dashboard:
-go test -v ./tests/ui -run "^TestDashboard" -timeout 60s 2>&1 | tee tests/results/latest/dashboard.log
+go test -v ./tests/ui -run "^TestDashboard" -timeout 60s
 
 # For nav:
-go test -v ./tests/ui -run "^TestNav" -timeout 60s 2>&1 | tee tests/results/latest/nav.log
+go test -v ./tests/ui -run "^TestNav" -timeout 60s
 
 # For smoke:
-go test -v ./tests/ui -run "^TestSmoke" -timeout 60s 2>&1 | tee tests/results/latest/smoke.log
+go test -v ./tests/ui -run "^TestSmoke" -timeout 60s
+
+# For auth:
+go test -v ./tests/ui -run "^TestAuth" -timeout 60s
+
+# For all:
+go test -v ./tests/ui -run "^TestSmoke|^TestDashboard|^TestNav|^TestAuth" -timeout 120s
 ```
 
-### Step 3: Check Results
+### Step 2: Check Results
+Results are written to `tests/results/{timestamp}/`. Check for failures:
 ```bash
-FAILED=$(grep -c "^--- FAIL:" tests/results/latest/*.log 2>/dev/null || echo 0)
-if [ "$FAILED" -eq 0 ]; then
-    echo "All tests passed!"
-    exit 0
-fi
+LATEST=$(ls -td tests/results/*/ | head -1)
+grep -c "^--- FAIL:" "$LATEST"*.log 2>/dev/null || echo "0"
 ```
 
-### Step 4: Analyze & Fix
+### Step 3: Analyze & Fix
 For each failure, identify the issue and implement a fix using standard development practices.
 
 ### Step 5: Iterate

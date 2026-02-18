@@ -66,12 +66,43 @@ go test ./...
 # Run tests verbose
 go test -v ./...
 
+# Run UI browser tests (requires running server)
+go test -v ./tests/ui -run "^TestSmoke" -timeout 60s
+go test -v ./tests/ui -run "^TestDashboard" -timeout 60s
+
+# Test results are written to tests/results/{timestamp}/
+ls -la tests/results/
+
 # Vet for issues
 go vet ./...
 
 # Verify auth endpoints on a running server
 ./scripts/verify-auth.sh
 ```
+
+### Browser Tests
+
+UI tests use chromedp (headless Chrome) and are configured via `tests/ui/test_config.toml`:
+
+```toml
+[results]
+dir = "tests/results"      # Results directory (timestamped subdirs)
+
+[server]
+url = "http://localhost:8881"  # Server under test
+
+[browser]
+headless = true            # Set false to see browser
+timeout_seconds = 30
+```
+
+Test categories:
+- **Smoke tests** (`TestSmoke*`): Landing page, login buttons, branding, dashboard loads
+- **Dashboard tests** (`TestDashboard*`): Sections, panels, tabs, design rules
+- **Nav tests** (`TestNav*`): Hamburger menu, dropdown, mobile nav
+- **Auth tests** (`TestAuth*`): OAuth redirect flows
+
+Results include logs and screenshots in `tests/results/{timestamp}/`.
 
 The server runs on `http://localhost:8080` by default (Docker local dev overrides to 8500 via `docker/vire-portal.toml`).
 
@@ -220,6 +251,12 @@ Claude Desktop requires stdio transport for local MCP servers. `vire-mcp` is a s
 | `VIRE_PORTAL_URL` | `http://localhost:8500` | vire-portal URL |
 | `VIRE_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 
+Logs are written to `bin/logs/vire-mcp.log` (relative to the binary). The startup log shows the resolved `portal_url` for troubleshooting:
+
+```
+level=INF message="loaded configuration" portal_url="http://localhost:8880"
+```
+
 **Option 1: Direct binary (recommended)**
 
 Build with `scripts/build.sh --mcp`, then add to `claude_desktop_config.json`:
@@ -234,7 +271,7 @@ Build with `scripts/build.sh --mcp`, then add to `claude_desktop_config.json`:
 }
 ```
 
-With a remote portal:
+With a custom portal URL (non-default port, remote server, etc.):
 
 ```json
 {
@@ -248,6 +285,27 @@ With a remote portal:
   }
 }
 ```
+
+**Option 2: WSL on Windows**
+
+When running on Windows via WSL, use a shell wrapper to ensure environment variables are passed correctly:
+
+```json
+{
+  "mcpServers": {
+    "vire": {
+      "command": "wsl",
+      "args": [
+        "/bin/bash",
+        "-c",
+        "VIRE_PORTAL_URL=http://localhost:8880 /home/bobmc/development/vire-portal/bin/vire-mcp"
+      ]
+    }
+  }
+}
+```
+
+> **Note:** The `env VIRE_PORTAL_URL=...` syntax may not pass the variable correctly through WSL. Use `/bin/bash -c "VAR=val command"` instead.
 
 **Option 2: Docker**
 
@@ -901,6 +959,18 @@ vire-portal/
 │       ├── common/                   # Version, logging, config, formatting helpers
 │       ├── interfaces/               # Service and storage interface contracts
 │       └── models/                   # Data structures (portfolio, market, strategy, etc.)
+├── tests/
+│   ├── common/                       # Test utilities (browser, config, screenshot)
+│   │   ├── browser.go                # chromedp helpers (NewBrowserContext, NavigateAndWait, etc.)
+│   │   ├── testconfig.go             # Test config loader (TOML, results dir, timestamps)
+│   │   └── screenshot.go             # Screenshot capture utility
+│   └── ui/                           # UI browser tests
+│       ├── test_config.toml          # Test configuration (server URL, browser settings)
+│       ├── ui_helpers_test.go        # Test helpers (newBrowser, isVisible, etc.)
+│       ├── smoke_test.go             # Smoke tests (landing, dashboard, branding)
+│       ├── dashboard_test.go         # Dashboard tests (sections, panels, tabs, design rules)
+│       ├── nav_test.go               # Navigation tests (hamburger, dropdown, mobile)
+│       └── auth_test.go              # Auth tests (Google/GitHub login redirects)
 ├── pages/
 │   ├── dashboard.html                # Dashboard page (MCP config, tools, config status)
 │   ├── landing.html                  # Landing page (Go html/template)

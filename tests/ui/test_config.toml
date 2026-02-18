@@ -1,0 +1,17 @@
+# UI Test Configuration
+# These settings control test behavior and output locations
+
+[results]
+# Directory for test results (logs, screenshots)
+# If relative, resolved from project root
+dir = "tests/results"
+
+[server]
+# Base URL for the server under test
+url = "http://localhost:8881"
+
+[browser]
+# Headless mode (true for CI, false for debugging)
+headless = true
+# Default timeout for browser operations
+timeout_seconds = 30
