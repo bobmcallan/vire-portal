@@ -91,6 +91,14 @@ func TestSmokeDashboardLoads(t *testing.T) {
 	if count < 1 {
 		t.Errorf("dashboard sections = %d, want >= 1", count)
 	}
+
+	// Nav menu is only visible when logged in - without login, it should be hidden
+	navHidden, err := isHidden(ctx, ".nav")
+	if err != nil {
+		t.Logf("nav check skipped (may not exist): %v", err)
+	} else if !navHidden {
+		t.Error("nav menu should be hidden on dashboard when not logged in")
+	}
 }
 
 func TestSmokeDashboardNoJSErrors(t *testing.T) {

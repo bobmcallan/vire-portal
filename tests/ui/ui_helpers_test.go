@@ -7,6 +7,7 @@ import (
 	"time"
 
 	commontest "github.com/bobmcallan/vire-portal/tests/common"
+	"github.com/chromedp/chromedp"
 )
 
 func init() {
@@ -29,6 +30,26 @@ func takeScreenshot(t *testing.T, ctx context.Context, subdir, name string) {
 	t.Helper()
 	dir := getScreenshotDir(subdir)
 	path := filepath.Join(dir, name)
+
+	// Set viewport to capture full page content
+	var dims struct {
+		Width  int64 `json:"width"`
+		Height int64 `json:"height"`
+	}
+	err := chromedp.Run(ctx,
+		chromedp.Evaluate(`
+			(() => {
+				return {
+					width: Math.max(document.documentElement.scrollWidth, window.innerWidth),
+					height: Math.max(document.documentElement.scrollHeight, window.innerHeight)
+				};
+			})()
+		`, &dims),
+	)
+	if err == nil && dims.Width > 0 && dims.Height > 0 {
+		_ = chromedp.Run(ctx, chromedp.EmulateViewport(dims.Width, dims.Height))
+	}
+
 	if err := commontest.Screenshot(ctx, path); err != nil {
 		t.Logf("failed to take screenshot %s: %v", name, err)
 	} else {

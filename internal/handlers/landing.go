@@ -56,6 +56,19 @@ func (h *PageHandler) ServePage(templateName string, pageName string) http.Handl
 	return func(w http.ResponseWriter, r *http.Request) {
 		loggedIn, _ := IsLoggedIn(r, h.jwtSecret)
 
+		// Auto-logout on landing page: clear session cookie
+		if pageName == "home" {
+			http.SetCookie(w, &http.Cookie{
+				Name:     "vire_session",
+				Value:    "",
+				Path:     "/",
+				MaxAge:   -1,
+				HttpOnly: true,
+				SameSite: http.SameSiteStrictMode,
+			})
+			loggedIn = false
+		}
+
 		data := map[string]interface{}{
 			"Page":     pageName,
 			"DevMode":  h.devMode,
