@@ -130,24 +130,15 @@ func LoginAndNavigate(ctx context.Context, targetURL string, waitMs int) error {
 	if waitMs == 0 {
 		waitMs = 800
 	}
+	var currentURL string
 	return chromedp.Run(ctx,
 		chromedp.Navigate(base+"/"),
 		chromedp.WaitVisible("body", chromedp.ByQuery),
-		chromedp.Evaluate(fmt.Sprintf(`
-			(async () => {
-				const body = new URLSearchParams({ username: 'dev_user', password: 'dev123' });
-				const r = await fetch('%s/api/auth/login', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-					credentials: 'same-origin',
-					body: body,
-				});
-				return r.status;
-			})()
-		`, base), nil),
-		chromedp.Sleep(300*time.Millisecond),
-		chromedp.Navigate(targetURL),
-		chromedp.WaitVisible("body", chromedp.ByQuery),
+		// Submit the dev login form by clicking the submit button
+		chromedp.Click(".landing-dev-login button[type='submit']", chromedp.ByQuery),
+		// Wait for navigation to complete (URL should change to dashboard)
+		chromedp.Sleep(500*time.Millisecond),
+		chromedp.Location(&currentURL),
 		chromedp.Sleep(time.Duration(waitMs)*time.Millisecond),
 	)
 }
