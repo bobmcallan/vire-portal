@@ -25,14 +25,15 @@ type DashboardConfigStatus struct {
 
 // DashboardHandler serves the dashboard page with dynamic data.
 type DashboardHandler struct {
-	logger       *common.Logger
-	templates    *template.Template
-	devMode      bool
-	port         int
-	jwtSecret    []byte
-	catalogFn    func() []DashboardTool
-	configStatus DashboardConfigStatus
-	userLookupFn func(string) (*client.UserProfile, error)
+	logger         *common.Logger
+	templates      *template.Template
+	devMode        bool
+	port           int
+	jwtSecret      []byte
+	catalogFn      func() []DashboardTool
+	configStatus   DashboardConfigStatus
+	userLookupFn   func(string) (*client.UserProfile, error)
+	devMCPEndpoint func(userID string) string
 }
 
 // NewDashboardHandler creates a new dashboard handler.
@@ -58,6 +59,11 @@ func (h *DashboardHandler) SetConfigStatus(status DashboardConfigStatus) {
 	h.configStatus = status
 }
 
+// SetDevMCPEndpointFn sets the function to generate dev-mode MCP endpoints.
+func (h *DashboardHandler) SetDevMCPEndpointFn(fn func(userID string) string) {
+	h.devMCPEndpoint = fn
+}
+
 // ServeHTTP renders the dashboard page.
 func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tools := h.catalogFn()
@@ -73,10 +79,15 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
 
 	navexaKeyMissing := false
+	var devMCPEndpoint string
 	if loggedIn && h.userLookupFn != nil && claims != nil && claims.Sub != "" {
 		user, err := h.userLookupFn(claims.Sub)
 		if err == nil && user != nil && !user.NavexaKeySet {
 			navexaKeyMissing = true
+		}
+		// Generate dev-mode MCP endpoint if available
+		if h.devMCPEndpoint != nil {
+			devMCPEndpoint = h.devMCPEndpoint(claims.Sub)
 		}
 	}
 
@@ -88,6 +99,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"ToolCount":        toolCount,
 		"ToolStatus":       toolStatus,
 		"MCPEndpoint":      mcpEndpoint,
+		"DevMCPEndpoint":   devMCPEndpoint,
 		"Port":             h.port,
 		"Config":           h.configStatus,
 		"NavexaKeyMissing": navexaKeyMissing,

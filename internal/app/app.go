@@ -46,6 +46,7 @@ type App struct {
 	SettingsHandler     *handlers.SettingsHandler
 	ServerHealthHandler *handlers.ServerHealthHandler
 	MCPHandler          *mcp.Handler
+	MCPDevHandler       *mcp.DevHandler
 	OAuthServer         *auth.OAuthServer
 }
 
@@ -100,6 +101,13 @@ func (a *App) initHandlers() {
 	}
 
 	a.MCPHandler = mcp.NewHandler(a.Config, a.Logger)
+	a.MCPDevHandler = mcp.NewDevHandler(
+		a.MCPHandler,
+		jwtSecret,
+		a.Config.IsDevMode(),
+		a.Config.BaseURL(),
+		a.Logger,
+	)
 
 	a.ServerHealthHandler = handlers.NewServerHealthHandler(a.Logger, a.Config.API.URL)
 	a.SettingsHandler = handlers.NewSettingsHandler(a.Logger, a.Config.IsDevMode(), jwtSecret, userLookup, userSave)
@@ -115,6 +123,9 @@ func (a *App) initHandlers() {
 	a.DashboardHandler.SetConfigStatus(handlers.DashboardConfigStatus{
 		Portfolios: strings.Join(a.Config.User.Portfolios, ", "),
 	})
+	if a.MCPDevHandler != nil {
+		a.DashboardHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
+	}
 
 	a.OAuthServer = auth.NewOAuthServer(a.Config.BaseURL(), jwtSecret, a.Logger)
 	a.AuthHandler.SetOAuthServer(a.OAuthServer)

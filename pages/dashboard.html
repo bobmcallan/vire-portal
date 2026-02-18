@@ -34,6 +34,13 @@
   }
 }</code></pre>
                 </div>
+                {{if .DevMCPEndpoint}}
+                <div class="config-block" style="margin-top: 1rem; border-left: 3px solid #f59e0b; padding-left: 1rem;">
+                    <p><strong>DEV MODE:</strong> Authenticated endpoint (Claude Desktop):</p>
+                    <p><code style="word-break: break-all;">{{.DevMCPEndpoint}}</code></p>
+                    <p class="hint">Use this URL in Claude Desktop config. It authenticates as your user.</p>
+                </div>
+                {{end}}
             </section>
 
             <section class="dashboard-section">

@@ -38,6 +38,11 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	if s.app.MCPHandler != nil {
 		mux.Handle("/mcp", s.app.MCPHandler)
 	}
+	// Dev-mode MCP endpoint with encrypted UID authentication
+	// Pattern: /mcp/{encrypted_uid}
+	if s.app.MCPDevHandler != nil {
+		mux.Handle("/mcp/", s.app.MCPDevHandler)
+	}
 
 	// Settings page
 	mux.HandleFunc("GET /settings", s.app.SettingsHandler.HandleSettings)
