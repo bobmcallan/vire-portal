@@ -23,6 +23,8 @@ type Handler struct {
 	logger     *common.Logger
 	catalog    []CatalogTool
 	jwtSecret  []byte
+	devMode    bool
+	devUser    string
 }
 
 // catalogRetryAttempts is the number of times to retry fetching the catalog.
@@ -79,21 +81,71 @@ func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 	// vire-portal and vire-server version info.
 	mcpSrv.AddTool(VersionTool(), VersionToolHandler(proxy))
 
+	h := &Handler{
+		logger:    logger,
+		catalog:   validated,
+		jwtSecret: []byte(cfg.Auth.JWTSecret),
+		devMode:   cfg.IsDevMode(),
+		devUser:   "dev_user",
+	}
+
 	streamable := mcpserver.NewStreamableHTTPServer(mcpSrv,
 		mcpserver.WithStateLess(true),
+		mcpserver.WithHTTPContextFunc(h.contextFunc),
 	)
+	h.streamable = streamable
 
 	logger.Info().
 		Int("tools", toolCount).
 		Str("api_url", cfg.API.URL).
 		Msg("MCP handler initialized")
 
-	return &Handler{
-		streamable: streamable,
-		logger:     logger,
-		catalog:    validated,
-		jwtSecret:  []byte(cfg.Auth.JWTSecret),
+	return h
+}
+
+// contextFunc is called by mcp-go to inject context values for tool handlers.
+func (h *Handler) contextFunc(ctx context.Context, r *http.Request) context.Context {
+	uc := h.extractUserContext(r)
+	if uc.UserID != "" {
+		return WithUserContext(ctx, uc)
 	}
+	return ctx
+}
+
+// extractUserContext extracts user identity from Bearer token or vire_session cookie.
+// Returns UserContext with UserID if auth is found, or falls back to dev_user in dev mode.
+func (h *Handler) extractUserContext(r *http.Request) UserContext {
+	// Try Bearer token first (Claude CLI/Desktop)
+	if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		claims, err := validateJWT(token, h.jwtSecret)
+		if err == nil && claims.Sub != "" {
+			return UserContext{UserID: claims.Sub}
+		}
+	}
+
+	// Fall back to cookie (web dashboard)
+	cookie, err := r.Cookie("vire_session")
+	if err == nil && cookie.Value != "" {
+		claims, err := validateJWT(cookie.Value, h.jwtSecret)
+		if err == nil && claims.Sub != "" {
+			return UserContext{UserID: claims.Sub}
+		}
+
+		// Legacy fallback: extract sub without validation when no JWT secret
+		if len(h.jwtSecret) == 0 {
+			if sub := extractJWTSub(cookie.Value); sub != "" {
+				return UserContext{UserID: sub}
+			}
+		}
+	}
+
+	// Dev mode fallback
+	if h.devMode && h.devUser != "" {
+		return UserContext{UserID: h.devUser}
+	}
+
+	return UserContext{}
 }
 
 // Catalog returns a copy of the validated tool catalog.
@@ -110,46 +162,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.streamable.ServeHTTP(w, r)
 }
 
-// withUserContext extracts user identity from Bearer token or vire_session cookie,
-// validates the JWT (signature + expiry), and attaches UserContext to the request context.
-// Bearer token takes priority (Claude CLI/Desktop), cookie is fallback (web dashboard).
-// If anything fails, the original request is returned unchanged.
+// withUserContext extracts user identity and attaches UserContext to the request context.
+// It reuses extractUserContext for consistency with the mcp-go context function.
 func (h *Handler) withUserContext(r *http.Request) *http.Request {
-	// Try Bearer token first (Claude CLI/Desktop)
-	if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		claims, err := validateJWT(token, h.jwtSecret)
-		if err == nil && claims.Sub != "" {
-			ctx := WithUserContext(r.Context(), UserContext{UserID: claims.Sub})
-			return r.WithContext(ctx)
-		}
-	}
-
-	// Fall back to cookie (web dashboard)
-	cookie, err := r.Cookie("vire_session")
-	if err != nil || cookie.Value == "" {
-		return r
-	}
-
-	// For cookie-based auth, use the same JWT validation.
-	// If jwtSecret is empty, signature check is skipped (dev mode backwards compat).
-	claims, err := validateJWT(cookie.Value, h.jwtSecret)
-	if err == nil && claims.Sub != "" {
-		ctx := WithUserContext(r.Context(), UserContext{UserID: claims.Sub})
+	uc := h.extractUserContext(r)
+	if uc.UserID != "" {
+		ctx := WithUserContext(r.Context(), uc)
 		return r.WithContext(ctx)
 	}
-
-	// Legacy fallback: extract sub without validation when no JWT secret is configured.
-	// This preserves backwards compat for dev setups where vire-server issues
-	// tokens with a different or no secret.
-	if len(h.jwtSecret) == 0 {
-		sub := extractJWTSub(cookie.Value)
-		if sub != "" {
-			ctx := WithUserContext(r.Context(), UserContext{UserID: sub})
-			return r.WithContext(ctx)
-		}
-	}
-
 	return r
 }
 
