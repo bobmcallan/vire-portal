@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
+	"github.com/bobmcallan/vire-portal/internal/config"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
@@ -20,6 +21,7 @@ type SettingsHandler struct {
 	userLookupFn   func(string) (*client.UserProfile, error)
 	userSaveFn     func(string, map[string]string) error
 	devMCPEndpoint func(userID string) string
+	apiURL         string
 }
 
 // NewSettingsHandler creates a new settings handler.
@@ -42,6 +44,11 @@ func NewSettingsHandler(logger *common.Logger, devMode bool, jwtSecret []byte, u
 // SetDevMCPEndpointFn sets the function to generate dev-mode MCP endpoints.
 func (h *SettingsHandler) SetDevMCPEndpointFn(fn func(userID string) string) {
 	h.devMCPEndpoint = fn
+}
+
+// SetAPIURL sets the API URL for server version fetching.
+func (h *SettingsHandler) SetAPIURL(apiURL string) {
+	h.apiURL = apiURL
 }
 
 // HandleSettings serves GET /settings.
@@ -67,6 +74,8 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 		"NavexaKeyPreview": "",
 		"Saved":            r.URL.Query().Get("saved") == "1",
 		"CSRFToken":        csrfToken,
+		"PortalVersion":    config.GetVersion(),
+		"ServerVersion":    GetServerVersion(h.apiURL),
 	}
 
 	if claims != nil && claims.Sub != "" && h.userLookupFn != nil {

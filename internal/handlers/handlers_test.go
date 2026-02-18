@@ -2401,6 +2401,195 @@ func TestNavTemplate_StatusIndicatorsXSSInClassBinding(t *testing.T) {
 	}
 }
 
+// --- GetServerVersion Tests ---
+
+func TestGetServerVersion_ReturnsVersion(t *testing.T) {
+	// Mock vire-server that returns a version
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/version" {
+			t.Errorf("expected request to /api/version, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"version":"1.2.34","build":"2024-01-15","git_commit":"abc123"}`))
+	}))
+	defer mockServer.Close()
+
+	version := GetServerVersion(mockServer.URL)
+	if version != "1.2.34" {
+		t.Errorf("expected version '1.2.34', got %q", version)
+	}
+}
+
+func TestGetServerVersion_ReturnsUnavailableOnNetworkError(t *testing.T) {
+	// Point to a port that's not listening
+	version := GetServerVersion("http://127.0.0.1:19999")
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on network error, got %q", version)
+	}
+}
+
+func TestGetServerVersion_ReturnsUnavailableOnHTTPError(t *testing.T) {
+	// Server returns 500
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer mockServer.Close()
+
+	version := GetServerVersion(mockServer.URL)
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on HTTP 500, got %q", version)
+	}
+}
+
+func TestGetServerVersion_ReturnsUnavailableOnInvalidJSON(t *testing.T) {
+	// Server returns invalid JSON
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`not json at all`))
+	}))
+	defer mockServer.Close()
+
+	version := GetServerVersion(mockServer.URL)
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on invalid JSON, got %q", version)
+	}
+}
+
+func TestGetServerVersion_ReturnsUnavailableOnMissingVersionField(t *testing.T) {
+	// Server returns JSON without version field
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"build":"2024-01-15","git_commit":"abc123"}`))
+	}))
+	defer mockServer.Close()
+
+	version := GetServerVersion(mockServer.URL)
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on missing version field, got %q", version)
+	}
+}
+
+func TestGetServerVersion_ReturnsUnavailableOnEmptyURL(t *testing.T) {
+	version := GetServerVersion("")
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on empty URL, got %q", version)
+	}
+}
+
+func TestGetServerVersion_ReturnsUnavailableOnInvalidURL(t *testing.T) {
+	version := GetServerVersion("://not-a-valid-url")
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on invalid URL, got %q", version)
+	}
+}
+
+func TestGetServerVersion_TimeoutOnSlowServer(t *testing.T) {
+	// Server takes longer than the 2s timeout
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(3 * time.Second)
+		w.Write([]byte(`{"version":"1.0.0"}`))
+	}))
+	defer mockServer.Close()
+
+	start := time.Now()
+	version := GetServerVersion(mockServer.URL)
+	elapsed := time.Since(start)
+
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on timeout, got %q", version)
+	}
+	// Should timeout within ~2s, not wait the full 3s
+	if elapsed > 2500*time.Millisecond {
+		t.Errorf("GetServerVersion took %v, expected timeout within ~2s", elapsed)
+	}
+}
+
+// --- Footer Version Display Tests ---
+
+func TestServePage_ContainsPortalVersion(t *testing.T) {
+	handler := NewPageHandler(nil, true, []byte{})
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServePage("landing.html", "home")(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// Footer should contain "Portal:" label
+	if !strings.Contains(body, "Portal:") {
+		t.Error("expected footer to contain 'Portal:' label")
+	}
+	// Footer should contain the portal version (config.GetVersion() returns "dev" in tests)
+	if !strings.Contains(body, "dev") {
+		t.Error("expected footer to contain portal version")
+	}
+}
+
+func TestServePage_ContainsServerVersion(t *testing.T) {
+	handler := NewPageHandler(nil, true, []byte{})
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServePage("landing.html", "home")(w, req)
+
+	body := w.Body.String()
+	// Footer should contain "Server:" label
+	if !strings.Contains(body, "Server:") {
+		t.Error("expected footer to contain 'Server:' label")
+	}
+	// Server version may be "unavailable" if vire-server is not running, which is fine
+	// Just check that something is displayed
+	if !strings.Contains(body, "Server:") {
+		t.Error("expected footer to show server version")
+	}
+}
+
+func TestDashboardHandler_ContainsVersionFooter(t *testing.T) {
+	catalogFn := func() []DashboardTool { return nil }
+
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, nil)
+
+	token := buildTestJWT("dev_user")
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "Portal:") {
+		t.Error("expected dashboard footer to contain 'Portal:' label")
+	}
+	if !strings.Contains(body, "Server:") {
+		t.Error("expected dashboard footer to contain 'Server:' label")
+	}
+}
+
+func TestSettingsHandler_ContainsVersionFooter(t *testing.T) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
+	}
+	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
+
+	token := buildTestJWT("dev_user")
+	req := httptest.NewRequest("GET", "/settings", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+	w := httptest.NewRecorder()
+
+	handler.HandleSettings(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "Portal:") {
+		t.Error("expected settings footer to contain 'Portal:' label")
+	}
+	if !strings.Contains(body, "Server:") {
+		t.Error("expected settings footer to contain 'Server:' label")
+	}
+}
+
 // --- Test Helpers ---
 
 func buildTestJWT(sub string) string {

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
+	"github.com/bobmcallan/vire-portal/internal/config"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
@@ -34,6 +35,7 @@ type DashboardHandler struct {
 	configStatus   DashboardConfigStatus
 	userLookupFn   func(string) (*client.UserProfile, error)
 	devMCPEndpoint func(userID string) string
+	apiURL         string
 }
 
 // NewDashboardHandler creates a new dashboard handler.
@@ -52,6 +54,11 @@ func NewDashboardHandler(logger *common.Logger, devMode bool, port int, jwtSecre
 		catalogFn:    catalogFn,
 		userLookupFn: userLookupFn,
 	}
+}
+
+// SetAPIURL sets the API URL for server version fetching.
+func (h *DashboardHandler) SetAPIURL(apiURL string) {
+	h.apiURL = apiURL
 }
 
 // SetConfigStatus sets the config status for display on the dashboard.
@@ -108,6 +115,8 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"Port":             h.port,
 		"Config":           h.configStatus,
 		"NavexaKeyMissing": navexaKeyMissing,
+		"PortalVersion":    config.GetVersion(),
+		"ServerVersion":    GetServerVersion(h.apiURL),
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "dashboard.html", data); err != nil {

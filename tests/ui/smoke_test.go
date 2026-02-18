@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -193,4 +194,43 @@ func navigateToURL(ctx context.Context, url string) error {
 		chromedp.Navigate(url),
 		chromedp.WaitVisible("body", chromedp.ByQuery),
 	)
+}
+
+func TestSmokeFooterVersionDisplay(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	if err := navigateAndWait(ctx, serverURL()+"/"); err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "smoke", "footer-version-display.png")
+
+	// Check footer contains "Portal:" label
+	if err := assertTextContains(ctx, ".footer", "Portal:", "footer Portal version"); err != nil {
+		t.Error(err)
+	}
+
+	// Check footer contains "Server:" label
+	if err := assertTextContains(ctx, ".footer", "Server:", "footer Server version"); err != nil {
+		t.Error(err)
+	}
+
+	// Check footer contains version pattern (e.g., "Portal: dev" or "Portal: 1.2.34")
+	// Version is either semantic version X.X.XX or "dev" or "unavailable"
+	versionPattern := `Portal:\s*(dev|unavailable|\d+\.\d+\.\d+)`
+	versionOk, err := common.EvalBool(ctx, fmt.Sprintf(`
+		(() => {
+			const footer = document.querySelector('.footer');
+			if (!footer) return false;
+			const text = footer.textContent;
+			return /%s/.test(text);
+		})()
+	`, versionPattern))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !versionOk {
+		t.Error("expected footer to contain version pattern after 'Portal:'")
+	}
 }

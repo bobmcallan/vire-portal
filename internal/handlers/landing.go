@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/bobmcallan/vire-portal/internal/config"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
@@ -15,6 +16,7 @@ type PageHandler struct {
 	templates *template.Template
 	devMode   bool
 	jwtSecret []byte
+	apiURL    string
 }
 
 // NewPageHandler creates a new page handler that loads templates from the pages directory.
@@ -30,6 +32,11 @@ func NewPageHandler(logger *common.Logger, devMode bool, jwtSecret []byte) *Page
 		devMode:   devMode,
 		jwtSecret: jwtSecret,
 	}
+}
+
+// SetAPIURL sets the API URL for server version fetching.
+func (h *PageHandler) SetAPIURL(apiURL string) {
+	h.apiURL = apiURL
 }
 
 // FindPagesDir locates the pages directory.
@@ -70,9 +77,11 @@ func (h *PageHandler) ServePage(templateName string, pageName string) http.Handl
 		}
 
 		data := map[string]interface{}{
-			"Page":     pageName,
-			"DevMode":  h.devMode,
-			"LoggedIn": loggedIn,
+			"Page":          pageName,
+			"DevMode":       h.devMode,
+			"LoggedIn":      loggedIn,
+			"PortalVersion": config.GetVersion(),
+			"ServerVersion": GetServerVersion(h.apiURL),
 		}
 
 		if err := h.templates.ExecuteTemplate(w, templateName, data); err != nil {

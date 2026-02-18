@@ -83,6 +83,7 @@ func (a *App) initHandlers() {
 	jwtSecret := []byte(a.Config.Auth.JWTSecret)
 
 	a.PageHandler = handlers.NewPageHandler(a.Logger, a.Config.IsDevMode(), jwtSecret)
+	a.PageHandler.SetAPIURL(a.Config.API.URL)
 	a.HealthHandler = handlers.NewHealthHandler(a.Logger)
 	a.VersionHandler = handlers.NewVersionHandler(a.Logger)
 	a.AuthHandler = handlers.NewAuthHandler(a.Logger, a.Config.IsDevMode(), a.Config.API.URL, a.Config.Auth.CallbackURL, jwtSecret)
@@ -111,6 +112,7 @@ func (a *App) initHandlers() {
 
 	a.ServerHealthHandler = handlers.NewServerHealthHandler(a.Logger, a.Config.API.URL)
 	a.SettingsHandler = handlers.NewSettingsHandler(a.Logger, a.Config.IsDevMode(), jwtSecret, userLookup, userSave)
+	a.SettingsHandler.SetAPIURL(a.Config.API.URL)
 
 	a.DashboardHandler = handlers.NewDashboardHandler(
 		a.Logger,
@@ -120,6 +122,7 @@ func (a *App) initHandlers() {
 		catalogAdapter(a.MCPHandler),
 		userLookup,
 	)
+	a.DashboardHandler.SetAPIURL(a.Config.API.URL)
 	a.DashboardHandler.SetConfigStatus(handlers.DashboardConfigStatus{
 		Portfolios: strings.Join(a.Config.User.Portfolios, ", "),
 	})

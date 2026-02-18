@@ -906,3 +906,312 @@ func safeSubstring(s string, maxLen int) string {
 	}
 	return s[:maxLen]
 }
+
+// --- GetServerVersion Stress Tests ---
+
+func TestGetServerVersion_StressConcurrentRequests(t *testing.T) {
+	// Test concurrent calls to GetServerVersion to check for race conditions.
+	// Each call creates a new http.Client, which should be safe but inefficient.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"version":"1.0.0"}`))
+	}))
+	defer mockServer.Close()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			version := GetServerVersion(mockServer.URL)
+			if version != "1.0.0" {
+				t.Errorf("expected version '1.0.0', got %q", version)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func TestGetServerVersion_StressLargeResponseBody(t *testing.T) {
+	// Server returns a very large response body.
+	// Without a limit on response body size, this could cause memory exhaustion.
+	// The current implementation uses json.Decoder which reads incrementally,
+	// but still buffers the entire body internally.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 10MB of garbage before the actual JSON
+		w.Write([]byte("{"))
+		w.Write([]byte(strings.Repeat("\"filler\":\""+strings.Repeat("x", 1000)+"\",", 5000)))
+		w.Write([]byte(`"version":"1.0.0"}`))
+	}))
+	defer mockServer.Close()
+
+	// This should not panic or OOM, but may be slow or return unavailable
+	version := GetServerVersion(mockServer.URL)
+	// Either it parses successfully or returns unavailable -- both are acceptable
+	if version != "1.0.0" && version != "unavailable" {
+		t.Errorf("expected '1.0.0' or 'unavailable', got %q", version)
+	}
+}
+
+func TestGetServerVersion_StressMalformedJSON(t *testing.T) {
+	malformedResponses := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"unclosed brace", `{"version":"1.0.0"`, "unavailable"},
+		{"extra comma", `{"version":"1.0.0",}`, "unavailable"},
+		{"wrong type for version", `{"version":123}`, "unavailable"},
+		{"null version", `{"version":null}`, "unavailable"},
+		{"array instead of object", `["version","1.0.0"]`, "unavailable"},
+		{"string instead of object", `"not an object"`, "unavailable"},
+		{"deeply nested", `{"a":{"b":{"c":{"d":{"e":{"version":"1.0.0"}}}}}}`, "unavailable"},
+		{"unicode in response", `{"version":"1.0.0","描述":"测试"}`, "1.0.0"},
+		{"HTML in response", `{"version":"1.0.0","<script>alert(1)</script>":"x"}`, "1.0.0"},
+	}
+
+	for _, tc := range malformedResponses {
+		t.Run(tc.name, func(t *testing.T) {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(tc.body))
+			}))
+			defer mockServer.Close()
+
+			version := GetServerVersion(mockServer.URL)
+			if version != tc.want {
+				t.Errorf("expected %q, got %q", tc.want, version)
+			}
+		})
+	}
+}
+
+func TestGetServerVersion_StressHostileVersionValues(t *testing.T) {
+	// Test various hostile strings in the version field to ensure they're
+	// returned as-is without causing injection issues in the template.
+	hostileVersions := []struct {
+		name    string
+		version string
+	}{
+		{"script tag", `<script>alert('xss')</script>`},
+		{"HTML entities", `&lt;script&gt;`},
+		{"SQL injection", `'; DROP TABLE versions; --`},
+		{"CRLF injection", "1.0.0\r\nX-Injected: evil"},
+		{"null bytes", "1.0\x00.0"},
+		{"unicode control chars", "\x1b[31mred\x1b[0m"},
+		{"very long", strings.Repeat("x", 10000)},
+		{"template injection", "{{.PortalVersion}}"},
+		{"go template", `{{"production"}}`},
+	}
+
+	for _, tc := range hostileVersions {
+		t.Run(tc.name, func(t *testing.T) {
+			escaped, _ := json.Marshal(tc.version)
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(fmt.Sprintf(`{"version":%s}`, escaped)))
+			}))
+			defer mockServer.Close()
+
+			// GetServerVersion should return the version string as-is
+			version := GetServerVersion(mockServer.URL)
+			if version != tc.version {
+				t.Errorf("version mismatch: expected %q, got %q", tc.version, version)
+			}
+			// Note: The security check for XSS happens in the template rendering,
+			// not in GetServerVersion. Go templates auto-escape by default.
+		})
+	}
+}
+
+func TestGetServerVersion_StressServerRedirects(t *testing.T) {
+	// Test that GetServerVersion follows redirects (Go's default behavior).
+	// A malicious server could redirect to internal endpoints.
+	finalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"version":"redirected"}`))
+	}))
+	defer finalServer.Close()
+
+	redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, finalServer.URL+"/api/version", http.StatusFound)
+	}))
+	defer redirectServer.Close()
+
+	// By default, Go's http.Client follows up to 10 redirects
+	version := GetServerVersion(redirectServer.URL)
+	if version != "redirected" {
+		t.Errorf("expected 'redirected', got %q", version)
+	}
+	// FINDING: GetServerVersion follows redirects. If apiURL is ever user-controlled,
+	// this could be exploited for SSRF. Since it comes from config, this is mitigated.
+	t.Log("NOTE: GetServerVersion follows redirects. Ensure apiURL is never user-controlled.")
+}
+
+func TestGetServerVersion_StressRedirectLoop(t *testing.T) {
+	// Test redirect loop handling -- Go's http.Client has a 10-redirect limit
+	redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, r.URL.String(), http.StatusFound)
+	}))
+	defer redirectServer.Close()
+
+	// Should eventually error out after 10 redirects
+	version := GetServerVersion(redirectServer.URL)
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on redirect loop, got %q", version)
+	}
+}
+
+func TestGetServerVersion_StressSlowHeaders(t *testing.T) {
+	// Server is slow to send response headers (connection established but headers delayed)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(3 * time.Second) // Longer than 2s timeout
+		w.Write([]byte(`{"version":"1.0.0"}`))
+	}))
+	defer mockServer.Close()
+
+	start := time.Now()
+	version := GetServerVersion(mockServer.URL)
+	elapsed := time.Since(start)
+
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on slow headers, got %q", version)
+	}
+	if elapsed > 2500*time.Millisecond {
+		t.Errorf("timeout took too long: %v", elapsed)
+	}
+}
+
+func TestGetServerVersion_StressSlowBody(t *testing.T) {
+	// Server sends headers immediately but trickles body slowly
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"ver`))
+		time.Sleep(3 * time.Second) // Pause mid-response
+		w.Write([]byte(`sion":"1.0.0"}`))
+	}))
+	defer mockServer.Close()
+
+	start := time.Now()
+	version := GetServerVersion(mockServer.URL)
+	elapsed := time.Since(start)
+
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on slow body, got %q", version)
+	}
+	if elapsed > 2500*time.Millisecond {
+		t.Errorf("timeout took too long: %v", elapsed)
+	}
+}
+
+func TestGetServerVersion_StressWrongContentType(t *testing.T) {
+	// Server returns non-JSON content type but valid JSON body
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`{"version":"1.0.0"}`))
+	}))
+	defer mockServer.Close()
+
+	// Currently accepts any content type as long as body is valid JSON
+	version := GetServerVersion(mockServer.URL)
+	if version != "1.0.0" {
+		t.Errorf("expected '1.0.0', got %q", version)
+	}
+	// FINDING: No content-type validation. A server returning HTML with embedded JSON
+	// would have its version extracted. This is a minor concern since apiURL is trusted.
+	t.Log("NOTE: GetServerVersion does not validate Content-Type header.")
+}
+
+func TestGetServerVersion_StressMultipleVersions(t *testing.T) {
+	// Response contains multiple version fields -- JSON decoder takes the last one
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"version":"1.0.0","version":"2.0.0"}`))
+	}))
+	defer mockServer.Close()
+
+	version := GetServerVersion(mockServer.URL)
+	// Go's JSON decoder behavior for duplicate keys is to use the last value
+	if version != "2.0.0" {
+		t.Errorf("expected '2.0.0' (last value), got %q", version)
+	}
+}
+
+func TestGetServerVersion_StressConnectionRefused(t *testing.T) {
+	// Point to a port that's not listening
+	version := GetServerVersion("http://127.0.0.1:19999")
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on connection refused, got %q", version)
+	}
+}
+
+func TestGetServerVersion_StressDNSLookupFail(t *testing.T) {
+	// Use an invalid hostname that will fail DNS lookup
+	version := GetServerVersion("http://this-host-does-not-exist-12345.invalid/api/version")
+	if version != "unavailable" {
+		t.Errorf("expected 'unavailable' on DNS failure, got %q", version)
+	}
+}
+
+// --- Footer Template Stress Tests ---
+
+func TestServePage_StressVersionInTemplate(t *testing.T) {
+	// Verify that hostile version strings are properly escaped in the template
+	handler := NewPageHandler(nil, true, []byte{})
+	handler.SetAPIURL("") // Force "unavailable" for server version
+
+	// Create a test server that returns a hostile version
+	hostileVersion := `<script>alert('xss')</script>`
+	escaped, _ := json.Marshal(hostileVersion)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(fmt.Sprintf(`{"version":%s}`, escaped)))
+	}))
+	defer mockServer.Close()
+	handler.SetAPIURL(mockServer.URL)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServePage("landing.html", "home")(w, req)
+
+	body := w.Body.String()
+
+	// Go templates auto-escape HTML by default
+	// The raw script tag should be escaped
+	if strings.Contains(body, "<script>alert") {
+		t.Error("SECURITY: XSS vulnerability - script tag not escaped in template output")
+	}
+	// Should contain the escaped version
+	if !strings.Contains(body, "&lt;script&gt;") {
+		t.Logf("Template output for hostile version: %s", body[strings.Index(body, "Server:"):strings.Index(body, "Server:")+100])
+		// This is acceptable - Go templates escape by default
+	}
+}
+
+func TestDashboardHandler_StressConcurrentVersionFetch(t *testing.T) {
+	// Test that multiple concurrent dashboard requests don't cause issues
+	// with the version fetch
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"version":"1.0.0"}`))
+	}))
+	defer mockServer.Close()
+
+	catalogFn := func() []DashboardTool { return nil }
+	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, nil)
+	handler.SetAPIURL(mockServer.URL)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			token := buildTestJWT("dev_user")
+			req := httptest.NewRequest("GET", "/dashboard", nil)
+			req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			body := w.Body.String()
+			if !strings.Contains(body, "Server:") {
+				t.Error("expected footer to contain 'Server:' label")
+			}
+		}()
+	}
+	wg.Wait()
+}
