@@ -66,6 +66,14 @@ func (h *DashboardHandler) SetDevMCPEndpointFn(fn func(userID string) string) {
 
 // ServeHTTP renders the dashboard page.
 func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
+
+	// Redirect unauthenticated users to landing page
+	if !loggedIn {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
 	tools := h.catalogFn()
 
 	toolCount := len(tools)
@@ -76,16 +84,13 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	mcpEndpoint := fmt.Sprintf("http://localhost:%d/mcp", h.port)
 
-	loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
-
 	navexaKeyMissing := false
 	var devMCPEndpoint string
-	if loggedIn && h.userLookupFn != nil && claims != nil && claims.Sub != "" {
+	if h.userLookupFn != nil && claims != nil && claims.Sub != "" {
 		user, err := h.userLookupFn(claims.Sub)
 		if err == nil && user != nil && !user.NavexaKeySet {
 			navexaKeyMissing = true
 		}
-		// Generate dev-mode MCP endpoint if available
 		if h.devMCPEndpoint != nil {
 			devMCPEndpoint = h.devMCPEndpoint(claims.Sub)
 		}

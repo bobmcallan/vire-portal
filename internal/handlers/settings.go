@@ -42,6 +42,12 @@ func NewSettingsHandler(logger *common.Logger, devMode bool, jwtSecret []byte, u
 func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request) {
 	loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
 
+	// Redirect unauthenticated users to landing page
+	if !loggedIn {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
 	csrfToken := ""
 	if csrfCookie, err := r.Cookie("_csrf"); err == nil {
 		csrfToken = csrfCookie.Value
@@ -57,7 +63,7 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 		"CSRFToken":        csrfToken,
 	}
 
-	if loggedIn && claims != nil && claims.Sub != "" && h.userLookupFn != nil {
+	if claims != nil && claims.Sub != "" && h.userLookupFn != nil {
 		user, err := h.userLookupFn(claims.Sub)
 		if err == nil && user != nil {
 			data["NavexaKeySet"] = user.NavexaKeySet
@@ -65,7 +71,7 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	if h.devMode && loggedIn && claims != nil {
+	if h.devMode && claims != nil {
 		if cookie, err := r.Cookie("vire_session"); err == nil {
 			data["JWTToken"] = cookie.Value
 		}

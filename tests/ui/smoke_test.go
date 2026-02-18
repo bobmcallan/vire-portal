@@ -78,26 +78,31 @@ func TestSmokeDashboardLoads(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
+	// Non-authenticated users should be redirected to landing page
 	if err := navigateAndWait(ctx, serverURL()+"/dashboard"); err != nil {
 		t.Fatal(err)
 	}
 
-	takeScreenshot(t, ctx, "smoke", "dashboard-loads.png")
+	takeScreenshot(t, ctx, "smoke", "dashboard-unauth.png")
 
-	count, err := elementCount(ctx, ".dashboard-section")
+	// Should be on landing page, not dashboard
+	var currentURL string
+	if err := chromedp.Run(ctx, chromedp.Location(&currentURL)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check we're on landing page (root) not dashboard
+	if currentURL == serverURL()+"/dashboard" {
+		t.Error("unauthenticated user should be redirected from /dashboard to landing page")
+	}
+
+	// Landing page elements should be visible
+	landingVisible, err := isVisible(ctx, ".landing-title")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count < 1 {
-		t.Errorf("dashboard sections = %d, want >= 1", count)
-	}
-
-	// Nav menu is only visible when logged in - without login, it should be hidden
-	navHidden, err := isHidden(ctx, ".nav")
-	if err != nil {
-		t.Logf("nav check skipped (may not exist): %v", err)
-	} else if !navHidden {
-		t.Error("nav menu should be hidden on dashboard when not logged in")
+	if !landingVisible {
+		t.Error("landing page should be visible after redirect from dashboard")
 	}
 }
 
