@@ -6,31 +6,29 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BIN_DIR="$PROJECT_DIR/bin"
 CONFIG_DIR="$PROJECT_DIR/config"
 PID_FILE="$BIN_DIR/vire-portal.pid"
-NGINX_CONF="$CONFIG_DIR/nginx.conf"
-NGINX_PID_FILE="/tmp/vire-nginx.pid"
-NGINX_HASH_FILE="/tmp/vire-nginx.hash"
 
-# Read port from config or default
-PORT="${VIRE_SERVER_PORT:-8500}"
-
-# Calculate config hash
-get_nginx_hash() {
-    md5sum "$NGINX_CONF" 2>/dev/null | awk '{print $1}'
+# Extract port from TOML config file
+get_port_from_config() {
+    local config_file="$1"
+    if [[ -f "$config_file" ]]; then
+        grep -E '^port\s*=' "$config_file" | head -1 | sed 's/port\s*=\s*//' | tr -d '"' | tr -d "'"
+    else
+        echo ""
+    fi
 }
 
-# Check if nginx config changed
-nginx_config_changed() {
-    if [ ! -f "$NGINX_HASH_FILE" ]; then
-        return 0
+# Get host from TOML config file
+get_host_from_config() {
+    local config_file="$1"
+    if [[ -f "$config_file" ]]; then
+        grep -E '^host\s*=' "$config_file" | head -1 | sed 's/host\s*=\s*//' | tr -d '"' | tr -d "'" || echo "localhost"
+    else
+        echo "localhost"
     fi
-    local current_hash
-    current_hash=$(get_nginx_hash)
-    local saved_hash
-    saved_hash=$(cat "$NGINX_HASH_FILE")
-    [ "$current_hash" != "$saved_hash" ]
 }
 
 stop_server() {
+    local port="$1"
     if [ ! -f "$PID_FILE" ]; then
         return 0
     fi
@@ -40,7 +38,7 @@ stop_server() {
     if kill -0 "$OLD_PID" 2>/dev/null; then
         # Try graceful HTTP shutdown first
         echo "Requesting graceful shutdown..."
-        if curl -sf -X POST "http://localhost:$PORT/api/shutdown" --max-time 5 > /dev/null 2>&1; then
+        if curl -sf -X POST "http://localhost:$port/api/shutdown" --max-time 5 > /dev/null 2>&1; then
             for i in $(seq 1 10); do
                 if ! kill -0 "$OLD_PID" 2>/dev/null; then
                     echo "Server stopped gracefully."
@@ -60,50 +58,32 @@ stop_server() {
     rm -f "$PID_FILE"
 }
 
-stop_nginx() {
-    if [ ! -f "$NGINX_PID_FILE" ]; then
-        return 0
-    fi
-
-    PID=$(cat "$NGINX_PID_FILE")
-    if kill -0 "$PID" 2>/dev/null; then
-        echo "Stopping nginx (PID $PID)..."
-        kill "$PID" 2>/dev/null || true
-        rm -f "$NGINX_PID_FILE"
-        sleep 1
-    fi
-}
-
-start_nginx() {
-    if [ -f "$NGINX_PID_FILE" ]; then
-        PID=$(cat "$NGINX_PID_FILE")
-        if kill -0 "$PID" 2>/dev/null; then
-            if nginx_config_changed; then
-                echo "Nginx config changed, restarting..."
-                stop_nginx
-            else
-                echo "Nginx already running, config unchanged"
-                return 0
-            fi
-        fi
-    fi
-
-    echo "Starting nginx..."
-    nginx -c "$NGINX_CONF"
-    get_nginx_hash > "$NGINX_HASH_FILE"
-    echo "Nginx started on port 8881"
-}
-
 case "${1:-start}" in
   start)
-    # Start nginx first
-    start_nginx
+    # Build binaries to bin/
+    "$SCRIPT_DIR/build.sh"
+
+    # Copy config files to bin/
+    echo "Copying configs..."
+    cp "$CONFIG_DIR/vire-portal.toml" "$BIN_DIR/"
+    cp "$CONFIG_DIR/vire-mcp.toml" "$BIN_DIR/"
+
+    # Read port from config (for shutdown and display)
+    PORT=$(get_port_from_config "$BIN_DIR/vire-portal.toml")
+    if [[ -z "$PORT" ]]; then
+        PORT="${VIRE_SERVER_PORT:-8881}"
+    fi
+
+    HOST=$(get_host_from_config "$BIN_DIR/vire-portal.toml")
+    if [[ -z "$HOST" ]] || [[ "$HOST" == "0.0.0.0" ]]; then
+        HOST="localhost"
+    fi
 
     # Stop existing instance
-    stop_server
+    stop_server "$PORT"
 
-    # Build binaries, configs, and assets to bin/
-    "$SCRIPT_DIR/build.sh"
+    # Ensure logs directory exists
+    mkdir -p "$BIN_DIR/logs"
 
     # Start detached from bin directory
     cd "$BIN_DIR"
@@ -115,12 +95,8 @@ case "${1:-start}" in
     if kill -0 "$SERVER_PID" 2>/dev/null; then
         echo ""
         echo "vire-portal running (PID $SERVER_PID)"
-        echo "  http://localhost:$PORT"
-        echo "  http://localhost:$PORT/api/health"
-        echo ""
-        echo "Access via nginx:"
-        echo "  http://localhost:8881/"
-        echo "  http://localhost:8881/api/"
+        echo "  http://$HOST:$PORT"
+        echo "  http://$HOST:$PORT/api/health"
         echo ""
         echo "Stop: ./scripts/run.sh stop"
     else
@@ -130,27 +106,32 @@ case "${1:-start}" in
     fi
     ;;
   stop)
-    stop_server
-    stop_nginx
+    PORT=$(get_port_from_config "$BIN_DIR/vire-portal.toml")
+    if [[ -z "$PORT" ]]; then
+        PORT="${VIRE_SERVER_PORT:-8881}"
+    fi
+    stop_server "$PORT"
     echo "Stopped"
     ;;
   restart)
-    stop_server
+    PORT=$(get_port_from_config "$BIN_DIR/vire-portal.toml")
+    if [[ -z "$PORT" ]]; then
+        PORT="${VIRE_SERVER_PORT:-8881}"
+    fi
+    stop_server "$PORT"
     exec "$0" start
     ;;
   status)
+    PORT=$(get_port_from_config "$BIN_DIR/vire-portal.toml")
+    if [[ -z "$PORT" ]]; then
+        PORT="${VIRE_SERVER_PORT:-8881}"
+    fi
     if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
         echo "vire-portal running (PID $(cat "$PID_FILE"))"
         curl -sf "http://localhost:$PORT/api/version" 2>/dev/null || true
     else
         echo "vire-portal not running"
         rm -f "$PID_FILE" 2>/dev/null
-    fi
-
-    if [ -f "$NGINX_PID_FILE" ] && kill -0 "$(cat "$NGINX_PID_FILE")" 2>/dev/null; then
-        echo "nginx running (PID $(cat "$NGINX_PID_FILE"))"
-    else
-        echo "nginx not running"
     fi
     ;;
   *)

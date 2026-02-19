@@ -10,7 +10,7 @@
 //
 // Environment variables:
 //
-//	VIRE_PORTAL_URL  vire-portal URL (default: http://localhost:8500)
+//	VIRE_PORTAL_URL  vire-portal URL (default: http://localhost:8080)
 //	VIRE_MCP_URL     full MCP endpoint URL with encrypted UID (bypasses OAuth)
 //	VIRE_LOG_LEVEL   log level       (default: info)
 //

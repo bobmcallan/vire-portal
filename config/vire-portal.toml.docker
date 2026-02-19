@@ -1,3 +1,0 @@
-# VIRE Portal Configuration (Docker)
-# All values are overridden by environment variables at runtime.
-# This file provides structural defaults only — no secrets or personal data.
