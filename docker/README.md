@@ -4,7 +4,7 @@
 
 | Service | Description | Port | Image |
 |---------|-------------|------|-------|
-| vire-portal | Go server (landing page + MCP endpoint) | 8500 | `vire-portal:latest` |
+| vire-portal | Go server (landing page + MCP endpoint) | 8881 | `vire-portal:latest` |
 | vire-mcp | Standalone MCP server (25+ tools) | 4243 | `vire-mcp:latest` |
 | vire-server | Backend API (portfolios, market data, reports) | 4242 | `ghcr.io/bobmcallan/vire-server:latest` |
 
@@ -30,7 +30,7 @@ docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml log
 
 Local deploys use `docker-compose.dev.yml` as a compose overlay, which sets `VIRE_ENV=dev` to enable dev mode (dev login, etc.). The base `docker-compose.yml` is unchanged for prod-like builds.
 
-This starts vire-portal on port 8500, vire-mcp on port 4243, and vire-server on port 4242. Claude connects to `http://localhost:8500/mcp` (portal) or `http://localhost:4243/mcp` (standalone mcp).
+This starts vire-portal on port 8881, vire-mcp on port 4243, and vire-server on port 8882. Claude connects to `http://localhost:8881/mcp` (portal) or `http://localhost:4243/mcp` (standalone mcp).
 
 ### vire-mcp Docker (Claude Desktop)
 
@@ -40,7 +40,7 @@ This starts vire-portal on port 8500, vire-mcp on port 4243, and vire-server on 
 # Direct mode - use encrypted MCP URL from vire-portal dashboard
 docker run -i --rm \
   --network host \
-  -e VIRE_MCP_URL=http://localhost:8500/mcp/YOUR_ENCRYPTED_UID \
+  -e VIRE_MCP_URL=http://localhost:8881/mcp/YOUR_ENCRYPTED_UID \
   -e VIRE_LOG_LEVEL=error \
   ghcr.io/bobmcallan/vire-mcp:latest
 ```
@@ -55,7 +55,7 @@ For Claude Desktop `claude_desktop_config.json`:
       "args": [
         "run", "-i", "--rm",
         "--network", "host",
-        "-e", "VIRE_MCP_URL=http://localhost:8500/mcp/YOUR_ENCRYPTED_UID",
+        "-e", "VIRE_MCP_URL=http://localhost:8881/mcp/YOUR_ENCRYPTED_UID",
         "-e", "VIRE_LOG_LEVEL=error",
         "ghcr.io/bobmcallan/vire-mcp:latest"
       ]
@@ -89,7 +89,7 @@ Direct mode is recommended for Docker - no credential persistence needed, comple
 docker logs -f vire-portal
 
 # Health check
-curl http://localhost:8500/api/health
+curl http://localhost:8881/api/health
 ```
 
 ## Deploy Modes
@@ -125,7 +125,7 @@ curl http://localhost:8500/api/health
 | `VIRE_SERVER_HOST` | `localhost` | Server bind address |
 | `VIRE_SERVER_PORT` | `8080` | Server port |
 | `VIRE_API_URL` | `http://localhost:8080` | vire-server URL for MCP proxy |
-| `VIRE_PORTAL_URL` | `http://localhost:8500` | Portal URL (OAuth mode for vire-mcp) |
+| `VIRE_PORTAL_URL` | `http://localhost:8080` | Portal URL (OAuth mode for vire-mcp) |
 | `VIRE_MCP_URL` | — | Full MCP endpoint URL with encrypted UID (direct mode, bypasses OAuth) |
 | `VIRE_DEFAULT_PORTFOLIO` | `""` | Default portfolio name |
 | `VIRE_DISPLAY_CURRENCY` | `""` | Display currency (e.g., AUD, USD) |
@@ -135,7 +135,7 @@ curl http://localhost:8500/api/health
 | `VIRE_BADGER_PATH` | `./data/vire` | BadgerDB storage path |
 | `VIRE_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
 | `VIRE_LOG_FORMAT` | `text` | Log format (text, json) |
-| `PORTAL_PORT` | `8500` | Host port mapping for portal (docker-compose only) |
+| `PORTAL_PORT` | `8080` | Host port mapping for portal (docker-compose only) |
 | `MCP_PORT` | `4243` | Host port mapping for MCP server (docker-compose only) |
 
 ## Versioning

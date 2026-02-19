@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage: ./scripts/verify-auth.sh
 # Exit 0 if all checks pass, 1 if any fail.
 
-PORT="${PORTAL_PORT:-8500}"
+PORT="${PORTAL_PORT:-8881}"
 BASE="http://localhost:${PORT}"
 PASS=0
 FAIL=0

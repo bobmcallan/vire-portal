@@ -135,7 +135,7 @@ prompt: |
   For implement tasks: write tests first, then implement to pass them.
   For verify tasks: run go test ./..., go vet ./..., then build and restart:
     ./scripts/run.sh restart
-    curl -s http://localhost:${PORTAL_PORT:-8500}/api/health
+    curl -s http://localhost:${PORTAL_PORT:-8881}/api/health
     Leave the server running — subsequent tasks (UI verification, validation) need it.
   For UI verification tasks: run UI tests against the running server (see .claude/skills/ui-test/SKILL.md).
     Check results in tests/results/{timestamp}/ for screenshots and summary.
@@ -217,7 +217,7 @@ When all tasks are complete:
    - All tests pass (`go test ./...`)
    - Go vet is clean (`go vet ./...`)
    - Server builds and runs (`./scripts/run.sh restart`) — leave it running
-   - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8500}/api/health`)
+   - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
    - If web pages changed: UI tests pass (`go test -v ./tests/ui -timeout 120s`)
    - README.md updated if user-facing behaviour changed
@@ -325,7 +325,7 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 | Server host | `VIRE_SERVER_HOST` | `localhost` |
 | API URL | `VIRE_API_URL` | `http://localhost:8080` |
 | JWT secret | `VIRE_AUTH_JWT_SECRET` | `""` (empty = skip signature verification) |
-| OAuth callback URL | `VIRE_AUTH_CALLBACK_URL` | `http://localhost:8500/auth/callback` |
+| OAuth callback URL | `VIRE_AUTH_CALLBACK_URL` | `http://localhost:8080/auth/callback` |
 | Portal URL | `VIRE_PORTAL_URL` | `""` (empty = derive from host:port) |
 | Default portfolio | `VIRE_DEFAULT_PORTFOLIO` | `""` |
 | Display currency | `VIRE_DISPLAY_CURRENCY` | `""` |
