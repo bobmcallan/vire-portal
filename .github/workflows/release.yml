@@ -78,3 +78,51 @@ jobs:
             GIT_COMMIT=${{ steps.meta.outputs.commit }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  create-release:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract versions
+        id: versions
+        run: |
+          PORTAL_VER=$(awk '/^\[vire-portal\]/{f=1;next} /^\[/{f=0} f && /^version:/{print $2; exit}' .version)
+          MCP_VER=$(awk '/^\[vire-mcp\]/{f=1;next} /^\[/{f=0} f && /^version:/{print $2; exit}' .version)
+          echo "portal=${PORTAL_VER}" >> "$GITHUB_OUTPUT"
+          echo "mcp=${MCP_VER}" >> "$GITHUB_OUTPUT"
+          echo "commit=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.versions.outputs.portal }}"
+          
+          # Check if release exists
+          if gh release view "$TAG" --repo "${{ github.repository }}" 2>/dev/null; then
+            echo "Release $TAG already exists, updating..."
+            gh release delete "$TAG" --repo "${{ github.repository }}" --yes || true
+          fi
+          
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "vire-portal $TAG" \
+            --notes "## Release $TAG
+
+          ### Docker Images
+          - \`ghcr.io/${{ github.repository_owner }}/vire-portal:${TAG}\`
+          - \`ghcr.io/${{ github.repository_owner }}/vire-portal:latest\`
+          - \`ghcr.io/${{ github.repository_owner }}/vire-mcp:${{ steps.versions.outputs.mcp }}\`
+          - \`ghcr.io/${{ github.repository_owner }}/vire-mcp:latest\`
+
+          ### Versions
+          - vire-portal: ${{ steps.versions.outputs.portal }}
+          - vire-mcp: ${{ steps.versions.outputs.mcp }}
+          - Commit: ${{ steps.versions.outputs.commit }}"
