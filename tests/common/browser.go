@@ -127,7 +127,7 @@ func NavigateAndWait(ctx context.Context, url string, waitMs int) error {
 }
 
 func LoginAndNavigate(ctx context.Context, targetURL string, waitMs int) error {
-	base := ServerURL()
+	base := GetTestURL()
 	if waitMs == 0 {
 		waitMs = 800
 	}

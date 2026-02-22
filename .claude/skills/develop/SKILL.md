@@ -94,6 +94,7 @@ Use 3 phases for backend-only changes. Add **Phase 2b** when the feature touches
 **Phase 2b — UI Verification** (only if web pages changed; blockedBy: build task):
 Applies when the feature touches: `pages/`, `pages/static/`, `pages/partials/`, HTML templates, CSS, or JS files.
 See `.claude/skills/ui-test/SKILL.md` for full test syntax.
+If UI elements were added, removed, or renamed, update the corresponding test file in `tests/ui/` to match. Stale tests that reference non-existent selectors must be fixed before proceeding.
 
 - "Run UI test suite" — owner: implementer, blockedBy: [build task]
   Run against the running server:
@@ -347,6 +348,7 @@ The portal is stateless -- all user data is managed by vire-server via REST API 
 | `POST /token` | OAuthServer | No (code exchange / refresh) |
 | `GET /` | PageHandler | No |
 | `GET /dashboard` | DashboardHandler | No |
+| `GET /mcp-info` | MCPPageHandler | No |
 | `GET /static/*` | PageHandler | No |
 | `POST /mcp` | MCPHandler | Bearer token or session cookie |
 | `GET /api/health` | HealthHandler | No |

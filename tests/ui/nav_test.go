@@ -326,3 +326,21 @@ func TestNavDesktopLinksVisible(t *testing.T) {
 		t.Error("nav-links should be visible on desktop viewport")
 	}
 }
+
+func TestNavMCPLinkPresent(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exists, err := common.Exists(ctx, `.nav-links a[href="/mcp-info"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Error("MCP link (a[href='/mcp-info']) not found in .nav-links")
+	}
+}

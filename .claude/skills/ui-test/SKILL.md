@@ -106,7 +106,7 @@ Available suites in `tests/ui/*.go`:
 
 ## Test Writing Pattern
 
-**EVERY test MUST capture BEFORE and AFTER screenshots:**
+Screenshots are captured **on failure only** — the `TestRunner.RunTest` framework captures a failure screenshot automatically. Add manual screenshots only when verifying a visual state change (developer's choice).
 
 ```go
 func TestSomething(t *testing.T) {
@@ -118,39 +118,20 @@ func TestSomething(t *testing.T) {
         t.Fatalf("login failed: %v", err)
     }
 
-    // BEFORE screenshot - ALWAYS capture initial state
-    takeScreenshot(t, ctx, "TestSomething_01_before")
-
-    // ... perform test actions ...
-
-    // AFTER screenshot - ALWAYS capture final state
-    takeScreenshot(t, ctx, "TestSomething_02_after")
-
-    // Assertions
     visible, err := isVisible(ctx, ".some-element")
     if err != nil {
         t.Fatalf("error checking visibility: %v", err)
     }
     if !visible {
-        takeScreenshot(t, ctx, "TestSomething_03_fail")  // Additional failure screenshot
         t.Fatal("element not visible")
     }
 }
 ```
 
-### Screenshot Naming Convention
+### Screenshot Convention
 
-- `{TestName}_01_before.png` - State before test actions
-- `{TestName}_02_after.png` - State after test actions
-- `{TestName}_03_fail.png` - State at point of failure (if applicable)
-- `{TestName}_04_stepN.png` - Intermediate steps if needed
-
-### Why BEFORE/AFTER?
-
-1. **BEFORE** shows what the page looked like when test started
-2. **AFTER** shows what changed (or didn't change)
-3. **FAIL** shows exactly where it broke
-4. Without screenshots, test output is just text - useless for UI debugging
+- `{TestName}_FAIL.png` — captured automatically on test failure
+- Manual screenshots only when needed to verify a visual state change
 
 ## Failure Handling
 

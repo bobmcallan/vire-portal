@@ -8,7 +8,7 @@ dir = "tests/results"
 
 [server]
 # Base URL for the server under test
-url = "http://localhost:8881"
+url = "http://localhost:8883"
 
 [browser]
 # Headless mode (true for CI, false for debugging)

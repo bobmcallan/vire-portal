@@ -18,65 +18,12 @@ func TestDashboardAuthLoad(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	// AFTER screenshot - state after login
-	takeScreenshot(t, ctx, "TestDashboardAuthLoad_01_after")
-
 	visible, err := isVisible(ctx, ".page")
 	if err != nil {
 		t.Fatalf("error checking dashboard visibility: %v", err)
 	}
 	if !visible {
-		t.Fatal("dashboard not visible after login")
-	}
-}
-
-func TestDashboardNavPresent(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	// AFTER screenshot - state after login
-	takeScreenshot(t, ctx, "TestDashboardNav_01_after")
-
-	navVisible, err := isVisible(ctx, ".nav")
-	if err != nil {
-		t.Fatalf("error checking nav visibility: %v", err)
-	}
-	if !navVisible {
-		t.Fatal("nav not visible after login")
-	}
-
-	containsBrand, brand, err := commontest.TextContains(ctx, ".nav-brand", "VIRE")
-	if err != nil {
-		t.Fatalf("error checking nav-brand text: %v", err)
-	}
-	if !containsBrand {
-		t.Fatalf("nav-brand = %q, want contains VIRE", brand)
-	}
-}
-
-func TestDashboardSections(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	// AFTER screenshot - state after login
-	takeScreenshot(t, ctx, "TestDashboardSections_01_after")
-
-	count, err := elementCount(ctx, ".panel-headed")
-	if err != nil {
-		t.Fatalf("error counting dashboard panels: %v", err)
-	}
-	if count < 2 {
-		t.Fatalf("dashboard panels = %d, want >= 2 (Strategy + Plan)", count)
+		t.Fatal("dashboard .page not visible after login")
 	}
 }
 
@@ -90,15 +37,12 @@ func TestDashboardNoJSErrors(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	// AFTER screenshot - state after login
-	takeScreenshot(t, ctx, "TestDashboardNoJSErrors_01_after")
-
 	if jsErrs := errs.Errors(); len(jsErrs) > 0 {
 		t.Errorf("JS errors on dashboard:\n  %s", strings.Join(jsErrs, "\n  "))
 	}
 }
 
-func TestDashboardAlpineInitialized(t *testing.T) {
+func TestDashboardAlpineInit(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -107,15 +51,177 @@ func TestDashboardAlpineInitialized(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	// AFTER screenshot - state after login
-	takeScreenshot(t, ctx, "TestDashboardAlpine_01_after")
-
 	alpineReady, err := commontest.EvalBool(ctx, `typeof Alpine !== 'undefined'`)
 	if err != nil {
 		t.Fatalf("error evaluating Alpine check: %v", err)
 	}
 	if !alpineReady {
 		t.Fatal("Alpine.js not initialised")
+	}
+}
+
+func TestDashboardPortfolioDropdown(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to load portfolio data
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+
+	visible, err := isVisible(ctx, "select.portfolio-select")
+	if err != nil {
+		t.Fatalf("error checking portfolio dropdown visibility: %v", err)
+	}
+	if !visible {
+		t.Fatal("portfolio dropdown (select.portfolio-select) not visible")
+	}
+}
+
+func TestDashboardHoldingsTable(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to load holdings data
+	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	visible, err := isVisible(ctx, ".tool-table")
+	if err != nil {
+		t.Fatalf("error checking holdings table visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("holdings table not visible (no portfolio data available)")
+	}
+
+	// Alpine x-for templates render rows asynchronously; count may be 0 if
+	// the MCP backend has no holdings for this portfolio — that's OK.
+	count, err := elementCount(ctx, ".tool-table tbody tr")
+	if err != nil {
+		t.Fatalf("error counting table rows: %v", err)
+	}
+	t.Logf("holdings table rows: %d", count)
+}
+
+func TestDashboardStrategyEditor(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+
+	visible, err := isVisible(ctx, "textarea.portfolio-editor")
+	if err != nil {
+		t.Fatalf("error checking strategy editor visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("strategy editor not visible (no portfolio selected)")
+	}
+
+	// Verify the STRATEGY panel header exists
+	strategyFound, err := commontest.EvalBool(ctx, `
+		(() => {
+			const headers = document.querySelectorAll('.panel-header');
+			return Array.from(headers).some(h => h.textContent.includes('STRATEGY'));
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking STRATEGY header: %v", err)
+	}
+	if !strategyFound {
+		t.Fatal("STRATEGY panel header not found")
+	}
+}
+
+func TestDashboardPlanEditor(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+
+	// Check that there are at least 2 portfolio-editor textareas (strategy + plan)
+	count, err := elementCount(ctx, "textarea.portfolio-editor")
+	if err != nil {
+		t.Fatalf("error counting portfolio editors: %v", err)
+	}
+	if count < 2 {
+		t.Skip("plan editor not visible (no portfolio selected)")
+	}
+
+	// Verify the PLAN panel header exists
+	planFound, err := commontest.EvalBool(ctx, `
+		(() => {
+			const headers = document.querySelectorAll('.panel-header');
+			return Array.from(headers).some(h => h.textContent.includes('PLAN'));
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking PLAN header: %v", err)
+	}
+	if !planFound {
+		t.Fatal("PLAN panel header not found")
+	}
+}
+
+func TestDashboardDefaultCheckbox(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+
+	count, err := elementCount(ctx, ".portfolio-default-label input[type='checkbox']")
+	if err != nil {
+		t.Fatalf("error checking default checkbox: %v", err)
+	}
+	if count < 1 {
+		t.Skip("default checkbox not visible (no portfolio selected)")
+	}
+}
+
+func TestDashboardNoTemplateMarkers(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	var bodyText string
+	err = chromedp.Run(ctx, chromedp.Evaluate(`document.body.innerText`, &bodyText))
+	if err != nil {
+		t.Fatalf("error getting body text: %v", err)
+	}
+
+	badMarkers := []string{"{{.", "<no value>", "{{template", "{{if", "{{range}"}
+	for _, marker := range badMarkers {
+		if strings.Contains(bodyText, marker) {
+			t.Fatalf("raw template marker %q found in page body", marker)
+		}
 	}
 }
 
@@ -128,9 +234,6 @@ func TestDashboardDesign(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
-
-	// AFTER screenshot - state after login
-	takeScreenshot(t, ctx, "TestDashboardDesign_01_after")
 
 	// Check font-family
 	var fontFamily string
@@ -190,143 +293,5 @@ func TestDashboardDesign(t *testing.T) {
 	}
 	if boxShadowViolators != "" {
 		t.Errorf("box-shadow found on: %s", boxShadowViolators)
-	}
-}
-
-func TestDashboardPanels(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	// AFTER screenshot - state after login
-	takeScreenshot(t, ctx, "TestDashboardPanels_01_after")
-
-	count, _ := elementCount(ctx, ".panel-collapse-trigger")
-	if count == 0 {
-		t.Skip("no collapsible panels on page")
-	}
-
-	// Check panels are collapsed on load
-	hidden, err := isHidden(ctx, ".panel-collapse-body")
-	if err != nil {
-		t.Fatalf("error checking panel visibility: %v", err)
-	}
-	if !hidden {
-		t.Fatal("collapsible panel body is open on load — should be collapsed")
-	}
-
-	// Click to expand
-	err = chromedp.Run(ctx,
-		chromedp.Click(".panel-collapse-trigger", chromedp.ByQuery),
-		chromedp.Sleep(400*time.Millisecond),
-	)
-	if err != nil {
-		t.Fatalf("error clicking panel trigger: %v", err)
-	}
-
-	// AFTER click screenshot
-	takeScreenshot(t, ctx, "TestDashboardPanels_02_expanded")
-
-	visible, err := isVisible(ctx, ".panel-collapse-body")
-	if err != nil {
-		t.Fatalf("error checking panel body visibility: %v", err)
-	}
-	if !visible {
-		t.Fatal("collapsible panel did not expand on click")
-	}
-
-	// Click to collapse
-	err = chromedp.Run(ctx,
-		chromedp.Click(".panel-collapse-trigger", chromedp.ByQuery),
-		chromedp.Sleep(400*time.Millisecond),
-	)
-	if err != nil {
-		t.Fatalf("error clicking panel trigger again: %v", err)
-	}
-
-	// AFTER second click screenshot
-	takeScreenshot(t, ctx, "TestDashboardPanels_03_collapsed")
-
-	hidden, err = isHidden(ctx, ".panel-collapse-body")
-	if err != nil {
-		t.Fatalf("error checking panel body visibility: %v", err)
-	}
-	if !hidden {
-		t.Fatal("collapsible panel did not collapse on second click")
-	}
-}
-
-func TestDashboardTabs(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	// AFTER screenshot - state after login
-	takeScreenshot(t, ctx, "TestDashboardTabs_01_after")
-
-	count, _ := elementCount(ctx, ".tab")
-	if count < 2 {
-		t.Skip("fewer than 2 tabs on page")
-	}
-
-	var firstActive bool
-	err = chromedp.Run(ctx,
-		chromedp.Evaluate(`document.querySelector('.tab').classList.contains('active')`, &firstActive),
-	)
-	if err != nil {
-		t.Fatalf("error checking first tab state: %v", err)
-	}
-	if !firstActive {
-		t.Fatal("first tab not active by default")
-	}
-
-	err = chromedp.Run(ctx,
-		chromedp.Evaluate(`document.querySelectorAll('.tab')[1].click()`, nil),
-		chromedp.Sleep(300*time.Millisecond),
-		chromedp.Evaluate(`document.querySelectorAll('.tab')[1].classList.contains('active')`, &firstActive),
-	)
-	if err != nil {
-		t.Fatalf("error clicking second tab: %v", err)
-	}
-
-	// AFTER click screenshot
-	takeScreenshot(t, ctx, "TestDashboardTabs_02_clicked")
-
-	if !firstActive {
-		t.Fatal("second tab not active after click")
-	}
-}
-
-func TestDashboardNoTemplateMarkers(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	// AFTER screenshot - state after login
-	takeScreenshot(t, ctx, "TestDashboardNoTemplateMarkers_01_after")
-
-	var bodyText string
-	err = chromedp.Run(ctx, chromedp.Evaluate(`document.body.innerText`, &bodyText))
-	if err != nil {
-		t.Fatalf("error getting body text: %v", err)
-	}
-
-	badMarkers := []string{"{{.", "<no value>", "{{template", "{{if", "{{range}"}
-	for _, marker := range badMarkers {
-		if strings.Contains(bodyText, marker) {
-			t.Fatalf("raw template marker %q found in page body", marker)
-		}
 	}
 }
