@@ -112,7 +112,7 @@ func ServerURL() string {
 	if url := os.Getenv("VIRE_TEST_URL"); url != "" {
 		return url
 	}
-	return "http://localhost:8881"
+	return "http://localhost:8883"
 }
 
 func NavigateAndWait(ctx context.Context, url string, waitMs int) error {

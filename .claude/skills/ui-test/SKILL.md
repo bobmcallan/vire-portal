@@ -1,112 +1,164 @@
-# UI Test Skill
+# /ui-test - UI Test Review and Execution
 
-Validate portal UI changes using chromedp browser tests. Run this after any frontend changes (templates, CSS, JS, Alpine components).
+Validate portal UI changes using chromedp browser tests. This skill has two mandatory phases: **review** (compliance check) and **execute** (run with result capture).
+
+**Both phases are mandatory. Tests MUST be reviewed before execution. Execution MUST capture results.**
 
 ## Usage
 
 ```
-/ui-test          # Run smoke tests (default)
-/ui-test [suite]  # Run tests for specific suite (e.g. smoke, dashboard, nav, auth)
-/ui-test all      # Run all tests
+/ui-test                    # Review + execute smoke tests (default)
+/ui-test [suite]            # Review + execute specific suite
+/ui-test all                # Review + execute all suites
+/ui-test review [suite]     # Review only (no execution)
+/ui-test execute [suite]    # Execute only (skip review)
 ```
 
-## Required Output Structure
+**Suites:** `smoke`, `dashboard`, `nav`, `auth`, `devauth`, `mcp`, `all`
 
-**Every test run MUST produce the following artifacts:**
+## Mandatory Rules
+
+All UI tests MUST comply with these rules. These are non-negotiable.
+
+### Rule 1: Tests Are Independent of Claude
+
+Tests MUST be executable via standard `go test`. No test may depend on Claude, MCP, or any AI tooling to run. Every test must pass with:
+
+```bash
+go test -v ./tests/ui -run "^TestSuite" -timeout 120s
+```
+
+### Rule 2: Common Browser Setup
+
+All UI tests MUST use the shared browser setup from `tests/common/`:
+- `NewBrowserContext(cfg)` for headless Chrome
+- `LoginAndNavigate(ctx, url, timeout)` for authenticated pages
+- `JSErrorCollector` for capturing JS errors
+
+### Rule 3: Test Results Output
+
+All test execution MUST produce results in:
 
 ```
-tests/results/{timestamp}/
+tests/results/{YYYY-MM-DD-HH-MM-SS}/
 ├── {suite}.log       # Full test output (REQUIRED)
 ├── summary.md        # Pass/fail summary (REQUIRED)
 └── *.png             # Screenshots from failures (if any)
 ```
 
-### summary.md Format
+This is achieved by running tests via the wrapper script `./scripts/ui-test.sh` which captures output via `tee` and generates `summary.md`.
 
-```markdown
-# Test Summary: {suite}
+### Rule 4: Execute Is Read-Only
 
-**Status:** ✅ PASS | ❌ FAIL
-**Timestamp:** YYYY-MM-DD HH:MM:SS
-**Server:** http://localhost:8881
+The execute phase MUST NEVER modify test files. If compliance issues are found during review, they must be fixed before execution.
 
-## Results
+## Phase 1: Review (Mandatory Before Execution)
 
-| Metric | Count |
-|--------|-------|
-| Passed | N |
-| Failed | N |
-| Skipped | N |
+Check each test file in the target suite against the compliance rules.
 
-## Artifacts
+### Step 1: Read Test Files
 
-- Log: `{suite}.log`
+Read the test files for the target suite:
 
-### Screenshots (N)
-- `TestName_FAIL.png`
+| Suite | File |
+|-------|------|
+| smoke | `tests/ui/smoke_test.go` |
+| dashboard | `tests/ui/dashboard_test.go` |
+| nav | `tests/ui/nav_test.go` |
+| auth | `tests/ui/auth_test.go` |
+| devauth | `tests/ui/dev_auth_test.go` |
+| mcp | `tests/ui/mcp_test.go` |
 
-## Failures
+### Step 2: Check Compliance
 
-- **TestName**: Error message
+| # | Rule | What to Check |
+|---|------|---------------|
+| 1 | Independent of Claude | No Claude/AI imports or runtime dependencies |
+| 2 | Common browser setup | Uses `newBrowser(t)`, `loginAndNavigate()`, helpers from `ui_helpers_test.go` |
+| 3 | Correct selectors | CSS selectors match current HTML templates in `pages/` |
+| 4 | Standard Go patterns | Uses `t.Fatal()`, `t.Error()`, `t.Skip()`, `t.Logf()` correctly |
+| 5 | No stale references | No selectors for removed/renamed elements |
+
+### Step 3: Report Compliance
+
+```
+# UI Test Review: {suite}
+
+## Compliance
+- Files checked: N
+- Compliant: N
+- Non-compliant: N
+
+## Issues (if any)
+- `file_test.go:45` — stale selector `.old-class` (element removed)
+- `file_test.go:72` — missing test for new `.new-element`
+
+## Recommendation
+Fix issues before execution.
 ```
 
-## Pre-Test Checks (REQUIRED)
+**If non-compliant:** Fix the issues, then proceed to execution.
 
-Before running any tests, verify:
+## Phase 2: Execute (Mandatory Result Capture)
 
-1. **Server health check:**
-   ```bash
-   curl -sf http://localhost:8881/api/health || echo "Server not running"
-   ```
-
-2. **If server not running, STOP and inform user.** Do not attempt to fix.
-
-## Test Execution
-
-Run tests using the wrapper script (ensures artifact collection):
+### Step 1: Pre-Flight Check
 
 ```bash
+# Check server is running (use test config URL)
+curl -sf http://localhost:8883/api/health || echo "Server not running — start with ./scripts/run.sh restart"
+```
+
+If server is not running, STOP and report. Do not attempt to fix.
+
+### Step 2: Execute via Wrapper Script
+
+**CRITICAL: Always use the wrapper script for test execution.** Never run `go test` directly — the wrapper captures output, generates summary, and collects artifacts.
+
+```bash
+# Run specific suite
 ./scripts/ui-test.sh dashboard
+
+# Run all suites
+./scripts/ui-test.sh all
+
+# Available suites: smoke, dashboard, nav, auth, devauth, mcp, all
 ```
 
-Or manually with artifact capture:
+The wrapper script:
+1. Creates timestamped results directory
+2. Checks server health
+3. Runs `go test -v` with output captured via `tee` to `{suite}.log`
+4. Parses output for pass/fail/skip counts
+5. Generates `summary.md` with results and artifact list
+6. Exits with the test exit code
+
+### Step 3: Read and Report Results
+
+**MANDATORY: After execution, read the results and report them.**
 
 ```bash
-# Create results directory
-TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
-RESULT_DIR="tests/results/${TIMESTAMP}"
-mkdir -p "$RESULT_DIR"
+# Find latest results
+LATEST=$(ls -td tests/results/*/ | head -1)
 
-# Run tests with log capture
-go test -v ./tests/ui -run "^TestDashboard" -timeout 120s 2>&1 | tee "$RESULT_DIR/dashboard.log"
+# Read summary
+cat "$LATEST/summary.md"
 
-# Generate summary (MUST happen)
-# ... see scripts/ui-test.sh for full implementation
+# List all artifacts
+ls -la "$LATEST"
 ```
 
-## Test Categories
+The summary and log contents MUST be included in the completion report. Do not just say "tests passed" — show the actual results.
 
-Available suites in `tests/ui/*.go`:
-- **Smoke**: `TestSmoke*` (basic health checks)
-- **Dashboard**: `TestDashboard*` (dashboard UI/logic)
-- **Nav**: `TestNav*` (navigation bar)
-- **Auth**: `TestAuth*` (login flows)
+### Step 4: Handle Failures
 
-## Common Library (`tests/common/`)
-
-- `NewBrowserContext` — Create headless Chrome context
-- `NewJSErrorCollector` — Collect JS errors
-- `NavigateAndWait` — Navigate and wait for load
-- `LoginAndNavigate` — Dev login + navigate
-- `IsVisible/IsHidden` — Element visibility checks
-- `ElementCount` — DOM queries
-- `TextContains` — Text content checks
-- `EvalBool` — JavaScript evaluation
-- `Screenshot` — Capture screenshot
+If tests fail:
+1. Read `{suite}.log` for failure details
+2. Check `*_FAIL.png` screenshots for visual context
+3. Fix the code (if you have write access) or report the failures
+4. Re-run via wrapper script
+5. Repeat until all pass
 
 ## Test Writing Pattern
-
-Screenshots are captured **on failure only** — the `TestRunner.RunTest` framework captures a failure screenshot automatically. Add manual screenshots only when verifying a visual state change (developer's choice).
 
 ```go
 func TestSomething(t *testing.T) {
@@ -128,29 +180,26 @@ func TestSomething(t *testing.T) {
 }
 ```
 
-### Screenshot Convention
+## Common Library (`tests/common/`)
 
-- `{TestName}_FAIL.png` — captured automatically on test failure
-- Manual screenshots only when needed to verify a visual state change
+| Function | Purpose |
+|----------|---------|
+| `NewBrowserContext` | Create headless Chrome context |
+| `NewJSErrorCollector` | Collect JS console errors |
+| `NavigateAndWait` | Navigate and wait for page load |
+| `LoginAndNavigate` | Dev login + navigate to URL |
+| `IsVisible` / `IsHidden` | Element visibility checks |
+| `ElementCount` | Count DOM elements |
+| `TextContains` | Check element text content |
+| `EvalBool` | Evaluate JavaScript expression |
+| `Screenshot` | Capture screenshot to file |
 
-## Failure Handling
+## Integration with /develop
 
-1. Check `summary.md` for overview
-2. Check `{suite}.log` for detailed output
-3. Review `*_FAIL.png` screenshots for visual context
-4. Fix issues and re-run
+When called from the `/develop` workflow (Phase 2b):
 
-## Process Rules
-
-1. **NEVER skip artifact generation** - Tests without logs are useless
-2. **TRUST USER INPUT** - If user says server is running, believe them
-3. **FAIL FAST** - If preconditions fail, stop and report clearly
-4. **CAPTURE EVERYTHING** - Every failure needs a screenshot
-
-## Integration with Develop Workflow
-
-1. Run `/ui-test dashboard` to test dashboard changes
-2. Review artifacts in `tests/results/{timestamp}/`
-3. Fix code
-4. Re-run: `/ui-test dashboard`
-5. Repeat until all pass
+1. The implementer MUST use `./scripts/ui-test.sh` for execution
+2. The implementer MUST read `summary.md` after execution
+3. The implementer MUST send the summary contents to the team lead
+4. The team lead MUST verify results exist in `tests/results/`
+5. If tests fail, the implementer MUST fix and re-run before marking Phase 2b complete

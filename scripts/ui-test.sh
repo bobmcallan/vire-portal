@@ -15,6 +15,15 @@ set -e
 # Configuration
 RESULTS_DIR="tests/results"
 TIMEOUT=120
+CONFIG_FILE="tests/ui/test_config.toml"
+
+# Read server URL from test config, fall back to env var, then default
+if [ -n "$VIRE_TEST_URL" ]; then
+    SERVER_URL="$VIRE_TEST_URL"
+elif [ -f "$CONFIG_FILE" ]; then
+    SERVER_URL=$(grep -E '^url\s*=' "$CONFIG_FILE" | sed 's/.*=\s*"\(.*\)"/\1/' | head -1)
+fi
+SERVER_URL="${SERVER_URL:-http://localhost:8883}"
 
 # Determine test pattern
 CATEGORY="${1:-smoke}"
@@ -60,8 +69,8 @@ echo ""
 
 # Check server health
 echo "Checking server health..."
-if ! curl -sf "${VIRE_TEST_URL:-http://localhost:8881}/api/health" > /dev/null 2>&1; then
-    echo "ERROR: Server not responding at ${VIRE_TEST_URL:-http://localhost:8881}"
+if ! curl -sf "${SERVER_URL}/api/health" > /dev/null 2>&1; then
+    echo "ERROR: Server not responding at ${SERVER_URL}"
     echo "Start the server with: ./scripts/run.sh restart"
     exit 1
 fi
@@ -111,7 +120,7 @@ cat > "$SUMMARY_FILE" << EOF
 
 **Status:** ${STATUS}
 **Timestamp:** $(date +"%Y-%m-%d %H:%M:%S")
-**Server:** ${VIRE_TEST_URL:-http://localhost:8881}
+**Server:** ${SERVER_URL}
 
 ## Results
 

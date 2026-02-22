@@ -94,37 +94,41 @@ Use 3 phases for backend-only changes. Add **Phase 2b** when the feature touches
 
 **Phase 2b — UI Verification** (MANDATORY when web pages changed; blockedBy: build task):
 Applies when the feature touches: `pages/`, `pages/static/`, `pages/partials/`, HTML templates, CSS, or JS files.
-See `.claude/skills/ui-test/SKILL.md` for full test syntax.
+See `.claude/skills/ui-test/SKILL.md` for the full review + execute procedure.
 
-**CRITICAL — Test execution is a hard gate. Tasks MUST NOT be marked complete without actual test execution.** The implementer must:
-1. Run the test commands below and capture the full output
-2. Verify all tests pass (or document failures with root cause)
-3. Include the test command output in a message to the team lead
-4. If any test fails, fix the issue and re-run before marking complete
+**CRITICAL — Test execution is a hard gate. Tasks MUST NOT be marked complete without actual test execution AND captured results.**
 
-- "Run UI test suite" — owner: implementer, blockedBy: [build task]
-  Run against the running server. **ALL commands below must be executed — not skipped:**
+- "Review and run UI tests" — owner: implementer, blockedBy: [build task]
+  Follow the `/ui-test` skill procedure:
+
+  **Phase 1 — Review:** Read test files for each affected suite, check compliance against current HTML selectors (see ui-test skill Step 2). Fix any stale selectors before execution.
+
+  **Phase 2 — Execute:** Run tests via the wrapper script. **NEVER run `go test` directly** — the wrapper captures output, generates `summary.md`, and collects screenshots.
   ```bash
-  # 1. Run smoke tests first
-  go test -v ./tests/ui -run "^TestSmoke" -timeout 120s
+  # Run individual suites via wrapper script
+  ./scripts/ui-test.sh smoke
+  ./scripts/ui-test.sh dashboard
+  ./scripts/ui-test.sh nav
+  ./scripts/ui-test.sh devauth
+  ./scripts/ui-test.sh mcp
 
-  # 2. Run suite matching what changed
-  go test -v ./tests/ui -run "^TestDashboard" -timeout 120s
-  go test -v ./tests/ui -run "^TestNav" -timeout 120s
-  go test -v ./tests/ui -run "^TestDevAuth" -timeout 120s
-
-  # 3. Run full suite
-  go test -v ./tests/ui -timeout 120s
+  # Or run all suites at once
+  ./scripts/ui-test.sh all
   ```
-  **DO NOT mark this task complete unless all test commands above have been executed and their output reviewed.** Marking complete without execution is a workflow violation.
 
-- "Review test results" — owner: implementer, blockedBy: [run UI tests]
-  Check results in `tests/results/{timestamp}/`:
+  **Phase 3 — Report:** Read the results and send them to the team lead.
   ```bash
+  # Find latest results
   LATEST=$(ls -td tests/results/*/ | head -1)
-  ls -la "$LATEST"
+  cat "$LATEST/summary.md"
   ```
-  If tests fail, fix before proceeding to Phase 3. Re-run until green.
+
+  The implementer MUST:
+  1. Send the `summary.md` contents to the team lead
+  2. If any suite fails, fix and re-run via wrapper script until green
+  3. NOT mark this task complete without results in `tests/results/`
+
+  **DO NOT mark this task complete unless wrapper script execution produced results AND the summary was sent to the team lead.** Marking complete without execution is a workflow violation.
 
 **Phase 3 — Document** (blockedBy: validate, and UI verification if applicable):
 - "Update affected documentation" — owner: implementer
@@ -159,7 +163,7 @@ prompt: |
   ## Task Types
   **Implement:** Write tests first, then implement to pass them. Use `go test -run TestName` for targeted testing.
   **Verify:** Run `go test ./...`, `go vet ./...`, then `./scripts/run.sh restart`. Verify with `curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`. Leave server running.
-  **UI Verification:** Run UI tests against running server (see .claude/skills/ui-test/SKILL.md). Check results in `tests/results/{timestamp}/`.
+  **UI Verification:** Follow `.claude/skills/ui-test/SKILL.md` — review tests for compliance, then execute via `./scripts/ui-test.sh` (NEVER raw `go test`). Read `summary.md` from `tests/results/{timestamp}/` and send contents to team lead.
   **Documentation:** Update affected files in docs/, README.md, and .claude/skills/.
 
   ## Communication Rules
@@ -272,7 +276,7 @@ When all tasks are complete:
    - Server builds and runs (`./scripts/run.sh restart`) — leave it running
    - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
-   - **If web pages changed: UI tests MUST have been executed** (`go test -v ./tests/ui -timeout 120s`). The team lead must confirm test execution occurred by checking `tests/results/` for a timestamp directory created during this session. If no test results exist, the implementer must re-run them before completion.
+   - **If web pages changed: UI tests MUST have been executed via `./scripts/ui-test.sh`** (never raw `go test`). The team lead must confirm test execution occurred by checking `tests/results/` for a timestamp directory created during this session containing `summary.md` and `{suite}.log` files. If no test results exist, the implementer must re-run via wrapper script before completion.
    - README.md updated if user-facing behaviour changed
    - API contract documentation matches implementation
    - Devils-advocate has signed off

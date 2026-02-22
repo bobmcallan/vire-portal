@@ -37,7 +37,7 @@ func LoadTestConfig() *TestConfig {
 	globalConfigOnce.Do(func() {
 		globalConfig = &TestConfig{}
 		globalConfig.Results.Dir = "tests/results"
-		globalConfig.Server.URL = "http://localhost:8881"
+		globalConfig.Server.URL = "http://localhost:8883"
 		globalConfig.Browser.Headless = true
 		globalConfig.Browser.TimeoutSecs = 30
 
