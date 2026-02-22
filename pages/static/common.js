@@ -125,11 +125,33 @@ function portfolioDashboard() {
         selected: '',
         defaultPortfolio: '',
         holdings: [],
+        showClosed: false,
         strategy: '',
         plan: '',
         loading: true,
         error: '',
         get isDefault() { return this.selected === this.defaultPortfolio; },
+        get filteredHoldings() {
+            let h = this.holdings.slice();
+            if (!this.showClosed) {
+                h = h.filter(x => x.market_value !== 0);
+            }
+            h.sort((a, b) => (a.ticker || '').localeCompare(b.ticker || ''));
+            return h;
+        },
+        get totalValue() {
+            return this.filteredHoldings.reduce((sum, h) => sum + (Number(h.market_value) || 0), 0);
+        },
+        get totalGain() {
+            return this.filteredHoldings.reduce((sum, h) => sum + (Number(h.gain_value) || 0), 0);
+        },
+        get totalGainPct() {
+            return this.filteredHoldings.reduce((sum, h) => sum + (Number(h.total_return_pct) || 0), 0);
+        },
+        gainClass(val) {
+            if (val == null || val === 0) return '';
+            return val > 0 ? 'gain-positive' : 'gain-negative';
+        },
 
         async init() {
             try {

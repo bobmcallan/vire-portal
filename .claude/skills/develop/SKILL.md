@@ -81,6 +81,7 @@ Use 3 phases for backend-only changes. Add **Phase 2b** when the feature touches
 **Phase 1 — Implement** (no dependencies):
 - "Write tests and implement <feature>" — owner: implementer
   Task description includes: approach, files to change, test strategy, and acceptance criteria.
+  **MANDATORY:** If UI elements are added, removed, or renamed, the implementer MUST update or create corresponding tests in `tests/ui/` as part of this task. The task MUST NOT be marked complete without test files that cover the new/changed UI elements.
 - "Review implementation and tests" — owner: reviewer, blockedBy: [implement task]
   Scope: code quality, pattern consistency, test coverage.
 - "Stress-test implementation" — owner: devils-advocate, blockedBy: [implement task]
@@ -91,34 +92,39 @@ Use 3 phases for backend-only changes. Add **Phase 2b** when the feature touches
   Run `go test ./...`, `go vet ./...`, then `./scripts/run.sh restart` (rebuilds and restarts; leaves the server running for subsequent verification tasks).
 - "Validate running server" — owner: reviewer, blockedBy: [build task]
 
-**Phase 2b — UI Verification** (only if web pages changed; blockedBy: build task):
+**Phase 2b — UI Verification** (MANDATORY when web pages changed; blockedBy: build task):
 Applies when the feature touches: `pages/`, `pages/static/`, `pages/partials/`, HTML templates, CSS, or JS files.
 See `.claude/skills/ui-test/SKILL.md` for full test syntax.
-If UI elements were added, removed, or renamed, update the corresponding test file in `tests/ui/` to match. Stale tests that reference non-existent selectors must be fixed before proceeding.
+
+**CRITICAL — Test execution is a hard gate. Tasks MUST NOT be marked complete without actual test execution.** The implementer must:
+1. Run the test commands below and capture the full output
+2. Verify all tests pass (or document failures with root cause)
+3. Include the test command output in a message to the team lead
+4. If any test fails, fix the issue and re-run before marking complete
 
 - "Run UI test suite" — owner: implementer, blockedBy: [build task]
-  Run against the running server:
+  Run against the running server. **ALL commands below must be executed — not skipped:**
   ```bash
-  # Run smoke tests (default)
+  # 1. Run smoke tests first
   go test -v ./tests/ui -run "^TestSmoke" -timeout 120s
 
-  # Run specific suite based on what changed
+  # 2. Run suite matching what changed
   go test -v ./tests/ui -run "^TestDashboard" -timeout 120s
   go test -v ./tests/ui -run "^TestNav" -timeout 120s
-  go test -v ./tests/ui -run "^TestAuth" -timeout 120s
+  go test -v ./tests/ui -run "^TestDevAuth" -timeout 120s
 
-  # Run all tests
+  # 3. Run full suite
   go test -v ./tests/ui -timeout 120s
   ```
-- "Review test results" — owner: implementer, blockedBy: [build task]
+  **DO NOT mark this task complete unless all test commands above have been executed and their output reviewed.** Marking complete without execution is a workflow violation.
+
+- "Review test results" — owner: implementer, blockedBy: [run UI tests]
   Check results in `tests/results/{timestamp}/`:
   ```bash
   LATEST=$(ls -td tests/results/*/ | head -1)
-  cat "$LATEST/summary.md"
-  ls -la "$LATEST"  # View screenshots
+  ls -la "$LATEST"
   ```
-  Replace `<workdir>` with the actual work directory path (e.g. `.claude/workdir/20260214-1430-oauth-handler/`).
-  If checks fail, fix before proceeding to Phase 3.
+  If tests fail, fix before proceeding to Phase 3. Re-run until green.
 
 **Phase 3 — Document** (blockedBy: validate, and UI verification if applicable):
 - "Update affected documentation" — owner: implementer
@@ -259,14 +265,14 @@ When working with Claude models, reduce context usage:
 
 When all tasks are complete:
 
-1. Verify the code quality checklist:
+1. Verify the code quality checklist (team lead MUST verify each item, not trust task status alone):
    - All new code has tests
-   - All tests pass (`go test ./...`)
+   - All tests pass (`go test ./...`) — verified by reviewing actual command output
    - Go vet is clean (`go vet ./...`)
    - Server builds and runs (`./scripts/run.sh restart`) — leave it running
    - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
-   - If web pages changed: UI tests pass (`go test -v ./tests/ui -timeout 120s`)
+   - **If web pages changed: UI tests MUST have been executed** (`go test -v ./tests/ui -timeout 120s`). The team lead must confirm test execution occurred by checking `tests/results/` for a timestamp directory created during this session. If no test results exist, the implementer must re-run them before completion.
    - README.md updated if user-facing behaviour changed
    - API contract documentation matches implementation
    - Devils-advocate has signed off

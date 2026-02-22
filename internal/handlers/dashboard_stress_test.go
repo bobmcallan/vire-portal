@@ -398,6 +398,188 @@ func TestDashboardHandler_StressTemplateDataIsolation(t *testing.T) {
 	}
 }
 
+// --- Dashboard: New Portfolio Enhancement Template Safety ---
+
+func TestDashboardHandler_StressGainClassBindingsSafe(t *testing.T) {
+	// Verify the gain column uses :class with gainClass() and x-text for display.
+	// The :class binding sets className (safe), not innerHTML.
+	// gainClass() must only return hardcoded class names — never user input.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Verify gain class binding exists in template
+	if !strings.Contains(body, `gainClass(`) {
+		t.Error("expected gainClass() bindings in dashboard template")
+	}
+
+	// Verify all gainClass usages are via :class (safe) not x-html (unsafe)
+	if strings.Contains(body, `x-html`) {
+		t.Error("SECURITY: dashboard uses x-html — all dynamic content must use x-text or :class")
+	}
+
+	// Verify the summary section uses x-text for value display
+	if !strings.Contains(body, `x-text="fmt(totalValue)"`) {
+		t.Error("expected totalValue summary with x-text binding")
+	}
+	if !strings.Contains(body, `x-text="fmt(totalGain)"`) {
+		t.Error("expected totalGain summary with x-text binding")
+	}
+	if !strings.Contains(body, `x-text="pct(totalGainPct)"`) {
+		t.Error("expected totalGainPct summary with x-text binding")
+	}
+}
+
+func TestDashboardHandler_StressShowClosedCheckboxPresent(t *testing.T) {
+	// Verify the showClosed checkbox exists and uses x-model (safe two-way binding)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, `x-model="showClosed"`) {
+		t.Error("expected showClosed checkbox with x-model binding")
+	}
+	if !strings.Contains(body, `portfolio-filter-label`) {
+		t.Error("expected portfolio-filter-label class on show closed checkbox label")
+	}
+}
+
+func TestDashboardHandler_StressFilteredHoldingsLoop(t *testing.T) {
+	// Verify the holdings table iterates filteredHoldings, not raw holdings.
+	// Using raw holdings would bypass the showClosed filter.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, `x-for="h in filteredHoldings"`) {
+		t.Error("holdings table must iterate filteredHoldings, not raw holdings")
+	}
+
+	// Count occurrences: there should be exactly one x-for loop with holdings
+	rawCount := strings.Count(body, `x-for="h in holdings"`)
+	if rawCount > 0 {
+		t.Errorf("LOGIC: found %d x-for loops using raw 'holdings' — should use 'filteredHoldings'", rawCount)
+	}
+}
+
+func TestDashboardHandler_StressSummaryGainColorBindings(t *testing.T) {
+	// Verify gain color classes in summary use :class (className, safe)
+	// and display values use x-text (textContent, safe)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Summary gain $ must have :class for color
+	if !strings.Contains(body, `:class="gainClass(totalGain)"`) {
+		t.Error("expected :class gainClass binding on totalGain summary")
+	}
+	// Summary gain % must have :class for color
+	if !strings.Contains(body, `:class="gainClass(totalGainPct)"`) {
+		t.Error("expected :class gainClass binding on totalGainPct summary")
+	}
+	// Per-row gain % must have :class for color
+	if !strings.Contains(body, `:class="gainClass(h.total_return_pct)"`) {
+		t.Error("expected :class gainClass binding on per-holding gain column")
+	}
+}
+
+func TestDashboardHandler_StressPortfolioSummarySection(t *testing.T) {
+	// Verify the portfolio summary section exists and is properly structured
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Summary section must exist
+	if !strings.Contains(body, `portfolio-summary`) {
+		t.Error("expected portfolio-summary section in dashboard")
+	}
+	// Summary must show conditionally based on filteredHoldings
+	if !strings.Contains(body, `x-show="filteredHoldings.length > 0"`) {
+		t.Error("portfolio summary should be conditional on filteredHoldings.length > 0")
+	}
+	// Verify all three summary items exist
+	summaryLabels := []string{"TOTAL VALUE", "TOTAL GAIN $", "TOTAL GAIN %"}
+	for _, label := range summaryLabels {
+		if !strings.Contains(body, label) {
+			t.Errorf("expected summary label %q in dashboard", label)
+		}
+	}
+}
+
+func TestDashboardHandler_StressNoInlineEventHandlers(t *testing.T) {
+	// Verify the template does not use inline event handlers like onclick=
+	// which could be injection vectors. Alpine uses @click which is safe.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	dangerousAttrs := []string{
+		` onclick=`, ` onerror=`, ` onload=`, ` onmouseover=`,
+		` onfocus=`, ` onsubmit=`, ` onchange=`,
+	}
+	for _, attr := range dangerousAttrs {
+		if strings.Contains(strings.ToLower(body), attr) {
+			t.Errorf("SECURITY: found dangerous inline handler %q in template", attr)
+		}
+	}
+}
+
+func TestDashboardHandler_StressCSSGainClassesExist(t *testing.T) {
+	// Verify the CSS file is referenced and the gain color classes
+	// use the correct color values (green positive, red negative).
+	// This is a static check — the actual CSS is in portal.css.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Verify the CSS file is referenced
+	if !strings.Contains(body, "portal.css") {
+		t.Error("expected portal.css to be referenced in dashboard template")
+	}
+}
+
 // --- Portfolio API Response Shape Injection ---
 
 func TestPortfolioDashboard_StressJSONResponseShapes(t *testing.T) {

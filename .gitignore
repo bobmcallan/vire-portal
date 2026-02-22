@@ -43,6 +43,9 @@ Thumbs.db
 # Debug
 __debug_bin*
 
+# PID files
+*.pid
+
 # Logs
 *.log
 

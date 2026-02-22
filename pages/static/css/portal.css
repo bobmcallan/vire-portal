@@ -950,6 +950,33 @@ code {
     text-align: right;
 }
 
+.gain-positive { color: #2d8a4e; }
+.gain-negative { color: #a33; }
+
+.portfolio-summary {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 1rem 0;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid #000;
+}
+
+.portfolio-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.portfolio-filter-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    margin-bottom: 1rem;
+}
+
 
 /* ============================================================
    WARNING / SUCCESS BANNERS
