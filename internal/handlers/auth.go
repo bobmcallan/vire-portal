@@ -234,13 +234,30 @@ func (h *AuthHandler) HandleGitHubLogin(w http.ResponseWriter, r *http.Request) 
 func (h *AuthHandler) proxyOAuthRedirect(w http.ResponseWriter, r *http.Request, provider string) {
 	serverURL := h.apiURL + "/api/auth/login/" + provider + "?callback=" + url.QueryEscape(h.callbackURL)
 
+	req, err := http.NewRequest("GET", serverURL, nil)
+	if err != nil {
+		if h.logger != nil {
+			h.logger.Error().Str("provider", provider).Str("error", err.Error()).Msg("OAuth login: failed to build request")
+		}
+		http.Redirect(w, r, "/error?reason=auth_failed", http.StatusFound)
+		return
+	}
+
+	// Forward the portal's public Host so vire-server builds an external redirect_uri
+	// (otherwise the Go client sends Host: server:8080, an internal Docker address).
+	if h.callbackURL != "" {
+		if u, err := url.Parse(h.callbackURL); err == nil {
+			req.Host = u.Host
+		}
+	}
+
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 		Timeout: 10 * time.Second,
 	}
-	resp, err := client.Get(serverURL)
+	resp, err := client.Do(req)
 	if err != nil {
 		if h.logger != nil {
 			h.logger.Error().Str("provider", provider).Str("error", err.Error()).Msg("OAuth login: failed to reach vire-server")
