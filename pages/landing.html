@@ -37,13 +37,14 @@
                     <a href="/api/auth/login/github" class="btn btn-secondary">
                         SIGN IN WITH GITHUB
                     </a>
-                    {{if .DevMode}}
-                    <form method="POST" action="/api/auth/login" class="landing-dev-login">
-                        <input type="hidden" name="username" value="dev_user">
-                        <input type="hidden" name="password" value="dev123">
-                        <button type="submit" class="btn btn-dev">DEV LOGIN</button>
+                    <div class="landing-divider">
+                        <span>or</span>
+                    </div>
+                    <form method="POST" action="/api/auth/login" class="landing-login-form">
+                        <input type="text" name="username" placeholder="Username" value="{{if .DevMode}}dev_user{{end}}" required>
+                        <input type="password" name="password" placeholder="Password" value="{{if .DevMode}}dev123{{end}}" required>
+                        <button type="submit" class="btn btn-login">SIGN IN</button>
                     </form>
-                    {{end}}
                 </div>
             </template>
 

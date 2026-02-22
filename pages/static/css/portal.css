@@ -825,20 +825,58 @@ code {
     margin-bottom: 3rem;
 }
 
-.landing-dev-login {
+.landing-divider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: #666;
+    font-size: 0.875rem;
+}
+
+.landing-divider::before,
+.landing-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #ddd;
+}
+
+.landing-login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
     width: 100%;
 }
 
-.btn-dev {
+.landing-login-form input[type="text"],
+.landing-login-form input[type="password"] {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #000;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.875rem;
     background: #fff;
-    color: #a33;
-    border-color: #a33;
+}
+
+.landing-login-form input[type="text"]:focus,
+.landing-login-form input[type="password"]:focus {
+    outline: none;
+    border-color: #0066cc;
+}
+
+.landing-login-form input[type="text"]::placeholder,
+.landing-login-form input[type="password"]::placeholder {
+    color: #999;
+}
+
+.btn-login {
+    background: #000;
+    color: #fff;
     width: 100%;
 }
 
-.btn-dev:hover {
-    background: #a33;
-    color: #fff;
+.btn-login:hover {
+    background: #333;
 }
 
 .landing-features {
