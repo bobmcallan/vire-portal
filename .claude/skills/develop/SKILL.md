@@ -335,6 +335,7 @@ When all tasks are complete:
 | Auth / OAuth Discovery | `internal/auth/` |
 | HTTP Handlers | `internal/handlers/` |
 | MCP Server | `internal/mcp/` |
+| API Response Cache | `internal/cache/` |
 | HTTP Server | `internal/server/` |
 | HTML Templates | `pages/` |
 | Template Partials | `pages/partials/` |

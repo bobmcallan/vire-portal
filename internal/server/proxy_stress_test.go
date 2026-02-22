@@ -334,6 +334,114 @@ func TestAPIProxy_StressSuite(t *testing.T) {
 			t.Errorf("expected %d methods proxied, got %d", len(methods), len(receivedMethods))
 		}
 	})
+
+	t.Run("CacheHitSkipsBackend", func(t *testing.T) {
+		var backendHits int
+		var mu sync.Mutex
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			backendHits++
+			mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"portfolios":[{"name":"SMSF"}]}`))
+		}))
+		defer backend.Close()
+
+		application.Config.API.URL = backend.URL
+		secret := application.Config.Auth.JWTSecret
+		token := createTestJWT("cache-test-user", secret)
+		srv := New(application)
+
+		// First request: should hit backend
+		req1 := httptest.NewRequest("GET", "/api/portfolios", nil)
+		req1.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		w1 := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w1, req1)
+
+		if w1.Code != http.StatusOK {
+			t.Fatalf("first request expected 200, got %d", w1.Code)
+		}
+
+		// Second request: should be served from cache (no backend hit)
+		req2 := httptest.NewRequest("GET", "/api/portfolios", nil)
+		req2.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		w2 := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w2, req2)
+
+		if w2.Code != http.StatusOK {
+			t.Fatalf("second request expected 200, got %d", w2.Code)
+		}
+		if w2.Body.String() != w1.Body.String() {
+			t.Error("cached response body differs from original")
+		}
+
+		mu.Lock()
+		hits := backendHits
+		mu.Unlock()
+		if hits != 1 {
+			t.Errorf("expected 1 backend hit (second served from cache), got %d", hits)
+		}
+	})
+
+	t.Run("WriteInvalidatesCache", func(t *testing.T) {
+		var backendHits int
+		var mu sync.Mutex
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			backendHits++
+			mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+		}))
+		defer backend.Close()
+
+		application.Config.API.URL = backend.URL
+		secret := application.Config.Auth.JWTSecret
+		token := createTestJWT("invalidate-test-user", secret)
+		srv := New(application)
+
+		// GET /api/portfolios to populate cache
+		req1 := httptest.NewRequest("GET", "/api/portfolios", nil)
+		req1.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		w1 := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w1, req1)
+
+		// Verify cache works (second GET should NOT hit backend)
+		req1b := httptest.NewRequest("GET", "/api/portfolios", nil)
+		req1b.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		w1b := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w1b, req1b)
+
+		mu.Lock()
+		hitsBeforePut := backendHits
+		mu.Unlock()
+		if hitsBeforePut != 1 {
+			t.Fatalf("expected 1 backend hit before PUT (second GET from cache), got %d", hitsBeforePut)
+		}
+
+		// PUT to /api/portfolios — invalidates cached entries containing this path
+		req2 := httptest.NewRequest("PUT", "/api/portfolios", strings.NewReader(`{"name":"SMSF"}`))
+		req2.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		req2.Header.Set("Content-Type", "application/json")
+		w2 := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w2, req2)
+
+		// GET again: cache was invalidated by PUT, should hit backend
+		req3 := httptest.NewRequest("GET", "/api/portfolios", nil)
+		req3.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		w3 := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w3, req3)
+
+		mu.Lock()
+		hits := backendHits
+		mu.Unlock()
+		// 3 hits: initial GET, PUT, post-invalidation GET
+		if hits != 3 {
+			t.Errorf("expected 3 backend hits (GET + PUT + cache-miss GET), got %d", hits)
+		}
+	})
 }
 
 // --- Route tests that don't need a backend ---

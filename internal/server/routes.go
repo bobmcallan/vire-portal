@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bobmcallan/vire-portal/internal/cache"
 	"github.com/bobmcallan/vire-portal/internal/handlers"
 )
 
@@ -104,6 +105,27 @@ func (s *Server) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extract user ID for cache keying
+	var userID string
+	if loggedIn, claims := handlers.IsLoggedIn(r, []byte(s.app.Config.Auth.JWTSecret)); loggedIn && claims != nil {
+		userID = claims.Sub
+	}
+
+	// Check cache for GET requests (key includes query string)
+	if r.Method == http.MethodGet && userID != "" {
+		cacheKey := cache.MakeKey(userID, r.Method, r.URL.RequestURI())
+		if cached, ok := s.cache.Get(cacheKey); ok {
+			for key, values := range cached.Headers {
+				for _, value := range values {
+					w.Header().Add(key, value)
+				}
+			}
+			w.WriteHeader(cached.StatusCode)
+			w.Write(cached.Body)
+			return
+		}
+	}
+
 	targetURL := apiURL + r.URL.Path
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
@@ -122,8 +144,8 @@ func (s *Server) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Inject X-Vire-User-ID from session cookie for authenticated API calls
-	if loggedIn, claims := handlers.IsLoggedIn(r, []byte(s.app.Config.Auth.JWTSecret)); loggedIn && claims != nil {
-		proxyReq.Header.Set("X-Vire-User-ID", claims.Sub)
+	if userID != "" {
+		proxyReq.Header.Set("X-Vire-User-ID", userID)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -135,6 +157,33 @@ func (s *Server) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	const maxCacheableBody = 5 * 1024 * 1024 // 5MB
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxCacheableBody+1))
+	if err != nil {
+		s.logger.Warn().Err(err).Str("path", r.URL.Path).Msg("Failed to read proxy response body")
+		http.Error(w, `{"error":"Failed to read API response"}`, http.StatusBadGateway)
+		return
+	}
+
+	// Cache successful GET responses (skip oversized bodies)
+	if r.Method == http.MethodGet && userID != "" && resp.StatusCode >= 200 && resp.StatusCode < 300 && len(body) <= maxCacheableBody {
+		cacheKey := cache.MakeKey(userID, r.Method, r.URL.RequestURI())
+		headerCopy := make(http.Header)
+		for key, values := range resp.Header {
+			headerCopy[key] = append([]string(nil), values...)
+		}
+		s.cache.Set(cacheKey, &cache.CachedResponse{
+			StatusCode: resp.StatusCode,
+			Headers:    headerCopy,
+			Body:       body,
+		})
+	}
+
+	// Invalidate cache on write operations
+	if r.Method != http.MethodGet && userID != "" {
+		s.cache.InvalidatePrefix(r.URL.Path)
+	}
+
 	for key, values := range resp.Header {
 		for _, value := range values {
 			w.Header().Add(key, value)
@@ -142,7 +191,7 @@ func (s *Server) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+	w.Write(body)
 }
 
 // handleWellKnownNotFound returns 404 for unregistered .well-known paths.

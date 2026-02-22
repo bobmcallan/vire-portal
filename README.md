@@ -973,6 +973,9 @@ vire-portal/
 │   │   ├── landing.go               # PageHandler (template rendering + static file serving)
 │   │   ├── settings.go              # GET/POST /settings (Navexa API key management)
 │   │   └── version.go               # GET /api/version
+│   ├── cache/
+│   │   ├── cache.go                 # API response cache (TTL, max entries, prefix invalidation)
+│   │   └── cache_test.go
 │   ├── client/
 │   │   ├── vire_client.go           # HTTP client for vire-server user API (GetUser, UpdateUser)
 │   │   └── vire_client_test.go
@@ -1024,7 +1027,7 @@ vire-portal/
 │   └── static/
 │       ├── css/
 │       │   └── portal.css            # 80s B&W aesthetic (no border-radius, no box-shadow)
-│       └── common.js                 # Client logging, Alpine.js init, portfolioDashboard() component
+│       └── common.js                 # Client logging, Alpine.js init, vireStore (fetch cache/dedup), portfolioDashboard()
 ├── docker/
 │   ├── Dockerfile                    # Portal multi-stage build (golang:1.25 -> alpine)
 │   ├── Dockerfile.mcp               # MCP stdio binary build (golang:1.25 -> alpine)

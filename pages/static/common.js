@@ -118,6 +118,60 @@ document.addEventListener('alpine:init', () => {
 
 });
 
+// Data store: caches API responses, deduplicates arrays, prevents concurrent fetches.
+const vireStore = {
+    _cache: {},       // URL -> {data, expiry}
+    _inflight: {},    // URL -> Promise (single-flight)
+    _ttl: 30000,      // 30s default TTL
+
+    async fetch(url, options) {
+        // Check cache first
+        const cached = this._cache[url];
+        if (cached && Date.now() < cached.expiry) {
+            return cached.data.clone();
+        }
+
+        // Check inflight — return same promise if already fetching
+        if (this._inflight[url]) {
+            const resp = await this._inflight[url];
+            return resp.clone();
+        }
+
+        // Fetch, store in cache, return
+        const promise = fetch(url, options).then(resp => {
+            if (resp.ok) {
+                this._cache[url] = { data: resp, expiry: Date.now() + this._ttl };
+            }
+            delete this._inflight[url];
+            return resp;
+        }).catch(err => {
+            delete this._inflight[url];
+            throw err;
+        });
+
+        this._inflight[url] = promise;
+        return (await promise).clone();
+    },
+
+    invalidate(urlPrefix) {
+        for (const key of Object.keys(this._cache)) {
+            if (key.startsWith(urlPrefix)) {
+                delete this._cache[key];
+            }
+        }
+    },
+
+    dedup(array, key) {
+        const seen = new Set();
+        return array.filter(item => {
+            const k = item[key];
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        });
+    }
+};
+
 // Portfolio Dashboard component
 function portfolioDashboard() {
     return {
@@ -155,14 +209,14 @@ function portfolioDashboard() {
 
         async init() {
             try {
-                const res = await fetch('/api/portfolios');
+                const res = await vireStore.fetch('/api/portfolios');
                 if (!res.ok) {
                     this.error = 'Failed to load portfolios';
                     this.loading = false;
                     return;
                 }
                 const data = await res.json();
-                this.portfolios = data.portfolios || [];
+                this.portfolios = vireStore.dedup(data.portfolios || [], 'name');
                 this.defaultPortfolio = data.default || '';
                 if (this.defaultPortfolio) {
                     this.selected = this.defaultPortfolio;
@@ -182,14 +236,14 @@ function portfolioDashboard() {
             if (!this.selected) return;
             try {
                 const [holdingsRes, strategyRes, planRes] = await Promise.all([
-                    fetch('/api/portfolios/' + encodeURIComponent(this.selected)),
-                    fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/strategy'),
-                    fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/plan'),
+                    vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected)),
+                    vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/strategy'),
+                    vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/plan'),
                 ]);
 
                 if (holdingsRes.ok) {
                     const holdingsData = await holdingsRes.json();
-                    this.holdings = holdingsData.holdings || [];
+                    this.holdings = vireStore.dedup(holdingsData.holdings || [], 'ticker');
                 } else {
                     this.holdings = [];
                 }
@@ -229,6 +283,7 @@ function portfolioDashboard() {
                     });
                     this.defaultPortfolio = this.selected;
                 }
+                vireStore.invalidate('/api/portfolios');
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Default updated' } }));
             } catch (e) {
                 debugError('portfolioDashboard', 'toggleDefault failed', e);
@@ -242,6 +297,7 @@ function portfolioDashboard() {
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ strategy: this.strategy }),
                 });
+                vireStore.invalidate('/api/portfolios');
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Strategy saved' } }));
             } catch (e) {
                 debugError('portfolioDashboard', 'saveStrategy failed', e);
@@ -255,6 +311,7 @@ function portfolioDashboard() {
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ notes: this.plan }),
                 });
+                vireStore.invalidate('/api/portfolios');
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Plan saved' } }));
             } catch (e) {
                 debugError('portfolioDashboard', 'savePlan failed', e);

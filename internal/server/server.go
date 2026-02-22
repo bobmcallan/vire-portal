@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/app"
+	"github.com/bobmcallan/vire-portal/internal/cache"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
@@ -16,6 +17,7 @@ type Server struct {
 	router       *http.ServeMux
 	server       *http.Server
 	logger       *common.Logger
+	cache        *cache.ResponseCache
 	shutdownChan chan struct{}
 }
 
@@ -29,6 +31,7 @@ func New(application *app.App) *Server {
 	s := &Server{
 		app:    application,
 		logger: application.Logger,
+		cache:  cache.New(30*time.Second, 1000),
 	}
 
 	s.router = s.setupRoutes()
