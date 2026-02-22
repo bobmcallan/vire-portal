@@ -54,16 +54,16 @@ fi
 go test -v ./tests/ui -run "$PATTERN" -timeout 120s | tee "$RESULT_DIR/${CATEGORY}.log"
 ```
 
-2. Check results in `tests/results/{timestamp}/`:
+2. Check results in `tests/logs/{timestamp}/`:
 ```bash
-LATEST=$(ls -td tests/results/*/ | head -1)
+LATEST=$(ls -td tests/logs/*/ | head -1)
 echo "Results: $LATEST"
 ls -la "$LATEST"
 ```
 
 3. Generate summary from test output:
 ```bash
-LATEST=$(ls -td tests/results/*/ | head -1)
+LATEST=$(ls -td tests/logs/*/ | head -1)
 # Find the log file (e.g. smoke.log, auth.log)
 LOG_FILE=$(ls "$LATEST"*.log 2>/dev/null | head -1)
 SUMMARY_FILE="$LATEST/summary.md"
@@ -102,7 +102,7 @@ grep -B1 -A5 "^--- FAIL:" "$LOG_FILE" 2>/dev/null | head -20 >> "$SUMMARY_FILE" 
 
 4. Report results:
 ```bash
-LATEST=$(ls -td tests/results/*/ | head -1)
+LATEST=$(ls -td tests/logs/*/ | head -1)
 cat "$LATEST/summary.md"
 ```
 

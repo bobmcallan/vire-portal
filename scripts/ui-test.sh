@@ -5,7 +5,7 @@
 #   ./scripts/ui-test.sh [suite]     # Run specific suite (smoke, dashboard, nav, auth)
 #   ./scripts/ui-test.sh all         # Run all tests
 #
-# Artifacts are saved to tests/results/{timestamp}/:
+# Artifacts are saved to tests/logs/{timestamp}/:
 #   - {suite}.log      # Full test output
 #   - summary.md       # Pass/fail summary with screenshots list
 #   - *.png            # Screenshots from failures
@@ -13,7 +13,7 @@
 set -e
 
 # Configuration
-RESULTS_DIR="tests/results"
+RESULTS_DIR="tests/logs"
 TIMEOUT=120
 CONFIG_FILE="tests/ui/test_config.toml"
 
@@ -48,7 +48,7 @@ else
 fi
 
 # Create timestamped results directory
-TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
+TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 RESULT_DIR="${RESULTS_DIR}/${TIMESTAMP}"
 mkdir -p "$RESULT_DIR"
 
@@ -67,14 +67,18 @@ echo "Log:       $LOG_FILE"
 echo "========================================"
 echo ""
 
-# Check server health
-echo "Checking server health..."
-if ! curl -sf "${SERVER_URL}/api/health" > /dev/null 2>&1; then
-    echo "ERROR: Server not responding at ${SERVER_URL}"
-    echo "Start the server with: ./scripts/run.sh restart"
-    exit 1
+# Check server health (skip in Docker mode — TestMain starts its own container)
+if [ -n "$VIRE_TEST_URL" ]; then
+    echo "Checking server health..."
+    if ! curl -sf "${SERVER_URL}/api/health" > /dev/null 2>&1; then
+        echo "ERROR: Server not responding at ${SERVER_URL}"
+        echo "Start the server with: ./scripts/run.sh restart"
+        exit 1
+    fi
+    echo "Server: OK"
+else
+    echo "Docker mode: container will be started by TestMain"
 fi
-echo "Server: OK"
 echo ""
 
 # Run tests, capturing output to log file

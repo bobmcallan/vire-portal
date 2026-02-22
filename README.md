@@ -71,8 +71,8 @@ go test -v ./...
 go test -v ./tests/ui -run "^TestSmoke" -timeout 60s
 go test -v ./tests/ui -run "^TestDashboard" -timeout 60s
 
-# Test results are written to tests/results/{timestamp}/
-ls -la tests/results/
+# Test results are written to tests/logs/{timestamp}/
+ls -la tests/logs/
 
 # Vet for issues
 go vet ./...
@@ -87,7 +87,7 @@ UI tests use chromedp (headless Chrome) and are configured via `tests/ui/test_co
 
 ```toml
 [results]
-dir = "tests/results"      # Results directory (timestamped subdirs)
+dir = "tests/logs"      # Results directory (timestamped subdirs)
 
 [server]
 url = "http://localhost:8881"  # Server under test
@@ -103,7 +103,7 @@ Test categories:
 - **Nav tests** (`TestNav*`): Hamburger menu, dropdown, mobile nav
 - **Auth tests** (`TestAuth*`): OAuth redirect flows
 
-Results include logs and screenshots in `tests/results/{timestamp}/`.
+Results include logs and screenshots in `tests/logs/{timestamp}/`.
 
 The server runs on `http://localhost:8080` by default (Docker local dev overrides to 8881 via `docker/vire-portal.toml`).
 

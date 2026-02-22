@@ -1,0 +1,35 @@
+# Build stage
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /build
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o vire-portal ./cmd/vire-portal
+
+# Runtime stage
+FROM alpine:3.21
+
+WORKDIR /app
+
+RUN apk --no-cache add ca-certificates wget
+
+COPY --from=builder /build/vire-portal .
+COPY --from=builder /build/pages ./pages
+COPY --from=builder /build/import ./import
+COPY tests/docker/portal-test.toml ./portal-test.toml
+
+RUN mkdir -p /app/data /app/logs
+
+ENV VIRE_ENV=dev
+ENV VIRE_SERVER_HOST=0.0.0.0
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=5s --timeout=3s --retries=5 \
+    CMD wget --spider -q http://localhost:8080/api/health || exit 1
+
+ENTRYPOINT ["./vire-portal", "-c", "portal-test.toml"]

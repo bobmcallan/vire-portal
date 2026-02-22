@@ -94,16 +94,16 @@ Use 3 phases for backend-only changes. Add **Phase 2b** when the feature touches
 
 **Phase 2b — UI Verification** (MANDATORY when web pages changed; blockedBy: build task):
 Applies when the feature touches: `pages/`, `pages/static/`, `pages/partials/`, HTML templates, CSS, or JS files.
-See `.claude/skills/ui-test/SKILL.md` for the full review + execute procedure.
+See `.claude/skills/test-common/SKILL.md` and `.claude/skills/test-execute/SKILL.md` for the full procedure.
 
 **CRITICAL — Test execution is a hard gate. Tasks MUST NOT be marked complete without actual test execution AND captured results.**
 
-- "Review and run UI tests" — owner: implementer, blockedBy: [build task]
-  Follow the `/ui-test` skill procedure:
+- "Review and run UI tests" — owner: test-executor, blockedBy: [build task]
+  Follow the `/test-execute` skill procedure:
 
-  **Phase 1 — Review:** Read test files for each affected suite, check compliance against current HTML selectors (see ui-test skill Step 2). Fix any stale selectors before execution.
+  **Step 1 — Validate:** Check test files for structural compliance (see `/test-common` mandatory rules).
 
-  **Phase 2 — Execute:** Run tests via the wrapper script. **NEVER run `go test` directly** — the wrapper captures output, generates `summary.md`, and collects screenshots.
+  **Step 2 — Execute:** Run tests via the wrapper script. **NEVER run `go test` directly** — the wrapper captures output, generates `summary.md`, and collects screenshots.
   ```bash
   # Run individual suites via wrapper script
   ./scripts/ui-test.sh smoke
@@ -116,19 +116,25 @@ See `.claude/skills/ui-test/SKILL.md` for the full review + execute procedure.
   ./scripts/ui-test.sh all
   ```
 
-  **Phase 3 — Report:** Read the results and send them to the team lead.
+  **Step 3 — Report:** Read the results and send them to the team lead.
   ```bash
   # Find latest results
-  LATEST=$(ls -td tests/results/*/ | head -1)
+  LATEST=$(ls -td tests/logs/*/ | head -1)
   cat "$LATEST/summary.md"
   ```
 
-  The implementer MUST:
+  The test-executor MUST:
   1. Send the `summary.md` contents to the team lead
-  2. If any suite fails, fix and re-run via wrapper script until green
-  3. NOT mark this task complete without results in `tests/results/`
+  2. If any suite fails, notify the implementer to fix and re-run
+  3. NOT mark this task complete without results in `tests/logs/`
 
   **DO NOT mark this task complete unless wrapper script execution produced results AND the summary was sent to the team lead.** Marking complete without execution is a workflow violation.
+
+- "Review UI test compliance" — owner: test-creator, blockedBy: [implement task]
+  Follow the `/test-create-review` skill procedure:
+  - Review test files for selector accuracy against current HTML templates
+  - Fix stale selectors before execution
+  - Create new tests if UI elements were added
 
 **Phase 3 — Document** (blockedBy: validate, and UI verification if applicable):
 - "Update affected documentation" — owner: implementer
@@ -163,7 +169,7 @@ prompt: |
   ## Task Types
   **Implement:** Write tests first, then implement to pass them. Use `go test -run TestName` for targeted testing.
   **Verify:** Run `go test ./...`, `go vet ./...`, then `./scripts/run.sh restart`. Verify with `curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`. Leave server running.
-  **UI Verification:** Follow `.claude/skills/ui-test/SKILL.md` — review tests for compliance, then execute via `./scripts/ui-test.sh` (NEVER raw `go test`). Read `summary.md` from `tests/results/{timestamp}/` and send contents to team lead.
+  **UI Verification:** Follow `.claude/skills/test-common/SKILL.md` and `.claude/skills/test-execute/SKILL.md` — review tests for compliance, then execute via `./scripts/ui-test.sh` (NEVER raw `go test`). Read `summary.md` from `tests/logs/{timestamp}/` and send contents to team lead.
   **Documentation:** Update affected files in docs/, README.md, and .claude/skills/.
 
   ## Communication Rules
@@ -218,7 +224,7 @@ prompt: |
 
   ## Key Files to Read First
   - `.claude/skills/develop/SKILL.md` — Reference section for conventions, routes, config
-  - `.claude/skills/ui-test/SKILL.md` — If testing web endpoints
+  - `.claude/skills/test-common/SKILL.md` — If testing web endpoints
   - Changed files from implementation
 
   ## Workflow
@@ -239,6 +245,73 @@ prompt: |
   ## Communication Rules
   - Send findings to "implementer" via SendMessage ONLY if fixes are needed
   - Format findings as: severity (critical/high/medium/low), location, issue, exploit scenario, fix
+  - Do NOT send status messages — use TaskUpdate for completion
+```
+
+**test-executor:**
+```
+name: "test-executor"
+subagent_type: "general-purpose"
+model: "sonnet"
+team_name: "vire-portal-develop"
+run_in_background: true
+prompt: |
+  You are the test-executor on a development team. You run UI tests and report results.
+
+  Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
+
+  ## Key Files to Read First
+  - `.claude/skills/test-common/SKILL.md` — Mandatory rules and infrastructure docs
+  - `.claude/skills/test-execute/SKILL.md` — Execution workflow
+  - Task description in TaskList — scope and acceptance criteria
+
+  ## Workflow
+  1. Read TaskList, claim your tasks (owner: "test-executor") by setting status to "in_progress"
+  2. Work through tasks in ID order, mark each completed before moving to the next
+  3. After each task, check TaskList for your next available task
+
+  ## Execution Rules
+  - **NEVER modify test files** — this role is read-only
+  - Always use `./scripts/ui-test.sh` for suite execution (never raw `go test`)
+  - After execution, read `summary.md` and send contents to the team lead
+  - Check `tests/logs/{timestamp}/container.log` for container-level errors
+  - If tests fail, notify the implementer with failure details
+
+  ## Communication Rules
+  - Send test results to team lead via SendMessage after each execution
+  - Message "implementer" only if failures require code fixes
+  - Do NOT send status messages — use TaskUpdate for completion
+```
+
+**test-creator:**
+```
+name: "test-creator"
+subagent_type: "general-purpose"
+model: "sonnet"
+team_name: "vire-portal-develop"
+run_in_background: true
+prompt: |
+  You are the test-creator on a development team. You create and review UI tests.
+
+  Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
+
+  ## Key Files to Read First
+  - `.claude/skills/test-common/SKILL.md` — Mandatory rules and infrastructure docs
+  - `.claude/skills/test-create-review/SKILL.md` — Test creation and review workflow
+  - Task description in TaskList — scope and acceptance criteria
+
+  ## Workflow
+  1. Read TaskList, claim your tasks (owner: "test-creator") by setting status to "in_progress"
+  2. Work through tasks in ID order, mark each completed before moving to the next
+  3. After each task, check TaskList for your next available task
+
+  ## Task Types
+  - **Review:** Check test files for selector accuracy against current HTML templates in `pages/`. Fix stale selectors.
+  - **Create:** Scaffold new test files using the template from `/test-create-review`. Ensure compliance with `/test-common` rules.
+  - **Audit:** Report compliance issues without making changes.
+
+  ## Communication Rules
+  - Send findings to "implementer" only if test code needs fixes
   - Do NOT send status messages — use TaskUpdate for completion
 ```
 
@@ -276,7 +349,7 @@ When all tasks are complete:
    - Server builds and runs (`./scripts/run.sh restart`) — leave it running
    - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
-   - **If web pages changed: UI tests MUST have been executed via `./scripts/ui-test.sh`** (never raw `go test`). The team lead must confirm test execution occurred by checking `tests/results/` for a timestamp directory created during this session containing `summary.md` and `{suite}.log` files. If no test results exist, the implementer must re-run via wrapper script before completion.
+   - **If web pages changed: UI tests MUST have been executed via `./scripts/ui-test.sh`** (never raw `go test`). The team lead must confirm test execution occurred by checking `tests/logs/` for a timestamp directory created during this session containing `summary.md`, `{suite}.log`, and `container.log` files. If no test results exist, the test-executor must re-run via wrapper script before completion.
    - README.md updated if user-facing behaviour changed
    - API contract documentation matches implementation
    - Devils-advocate has signed off

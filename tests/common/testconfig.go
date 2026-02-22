@@ -36,7 +36,7 @@ var (
 func LoadTestConfig() *TestConfig {
 	globalConfigOnce.Do(func() {
 		globalConfig = &TestConfig{}
-		globalConfig.Results.Dir = "tests/results"
+		globalConfig.Results.Dir = "tests/logs"
 		globalConfig.Server.URL = "http://localhost:8883"
 		globalConfig.Browser.Headless = true
 		globalConfig.Browser.TimeoutSecs = 30
@@ -78,7 +78,7 @@ func InitResultsDir() string {
 			}
 		}
 
-		timestamp := time.Now().Format("2006-01-02-15-04-05")
+		timestamp := time.Now().Format("20060102-150405")
 		resultsDir = filepath.Join(baseDir, timestamp)
 
 		if err := os.MkdirAll(resultsDir, 0755); err != nil {
@@ -121,6 +121,21 @@ func GetTestURL() string {
 
 func GetLogPath(suite string) string {
 	return filepath.Join(GetResultsDir(), suite+".log")
+}
+
+// FindProjectRoot walks up directories to find go.mod
+func FindProjectRoot() string {
+	dir, _ := os.Getwd()
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "."
+		}
+		dir = parent
+	}
 }
 
 func WriteResultsSummary(suite string, passed, failed, skipped int) {

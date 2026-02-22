@@ -86,9 +86,9 @@ go test -v ./tests/ui -run "^TestSmoke|^TestDashboard|^TestNav|^TestAuth" -timeo
 ```
 
 ### Step 2: Check Results
-Results are written to `tests/results/{timestamp}/`. Check for failures:
+Results are written to `tests/logs/{timestamp}/`. Check for failures:
 ```bash
-LATEST=$(ls -td tests/results/*/ | head -1)
+LATEST=$(ls -td tests/logs/*/ | head -1)
 grep -c "^--- FAIL:" "$LATEST"*.log 2>/dev/null || echo "0"
 ```
 

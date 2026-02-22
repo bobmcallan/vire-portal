@@ -4,7 +4,7 @@
 [results]
 # Directory for test results (logs, screenshots)
 # If relative, resolved from project root
-dir = "tests/results"
+dir = "tests/logs"
 
 [server]
 # Base URL for the server under test

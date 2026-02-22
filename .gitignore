@@ -11,7 +11,7 @@ bin/
 # Test binary and output, built with `go test -c`
 browser-check
 *.test
-tests/results
+tests/logs
 
 # Code coverage
 *.out
