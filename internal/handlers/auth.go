@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -213,18 +214,52 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
-// HandleGoogleLogin redirects to vire-server's Google OAuth endpoint.
-// GET /api/auth/login/google -> 302 to {apiURL}/api/auth/login/google?callback={callbackURL}
+// HandleGoogleLogin proxies the Google OAuth redirect through vire-server.
+// Makes a server-side request to vire-server and forwards the redirect Location
+// to the browser, preventing exposure of internal Docker addresses.
 func (h *AuthHandler) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) {
-	redirectURL := h.apiURL + "/api/auth/login/google?callback=" + h.callbackURL
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	h.proxyOAuthRedirect(w, r, "google")
 }
 
-// HandleGitHubLogin redirects to vire-server's GitHub OAuth endpoint.
-// GET /api/auth/login/github -> 302 to {apiURL}/api/auth/login/github?callback={callbackURL}
+// HandleGitHubLogin proxies the GitHub OAuth redirect through vire-server.
+// Makes a server-side request to vire-server and forwards the redirect Location
+// to the browser, preventing exposure of internal Docker addresses.
 func (h *AuthHandler) HandleGitHubLogin(w http.ResponseWriter, r *http.Request) {
-	redirectURL := h.apiURL + "/api/auth/login/github?callback=" + h.callbackURL
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	h.proxyOAuthRedirect(w, r, "github")
+}
+
+// proxyOAuthRedirect makes a server-side request to vire-server's OAuth endpoint
+// and forwards the redirect Location to the browser. This prevents exposing
+// internal Docker addresses (like http://server:8080) to the browser.
+func (h *AuthHandler) proxyOAuthRedirect(w http.ResponseWriter, r *http.Request, provider string) {
+	serverURL := h.apiURL + "/api/auth/login/" + provider + "?callback=" + url.QueryEscape(h.callbackURL)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Timeout: 10 * time.Second,
+	}
+	resp, err := client.Get(serverURL)
+	if err != nil {
+		if h.logger != nil {
+			h.logger.Error().Str("provider", provider).Str("error", err.Error()).Msg("OAuth login: failed to reach vire-server")
+		}
+		http.Redirect(w, r, "/error?reason=auth_unavailable", http.StatusFound)
+		return
+	}
+	defer resp.Body.Close()
+
+	location := resp.Header.Get("Location")
+	if location == "" {
+		if h.logger != nil {
+			h.logger.Error().Str("provider", provider).Int("status", resp.StatusCode).Msg("OAuth login: vire-server did not return redirect")
+		}
+		http.Redirect(w, r, "/error?reason=auth_failed", http.StatusFound)
+		return
+	}
+
+	http.Redirect(w, r, location, http.StatusFound)
 }
 
 // HandleOAuthCallback handles the OAuth callback from vire-server.

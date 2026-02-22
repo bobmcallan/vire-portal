@@ -374,8 +374,16 @@ func TestOAuthCallback_StressConcurrentRequests(t *testing.T) {
 // --- OAuth Login Redirect Security ---
 
 func TestGoogleLogin_StressOpenRedirectProtection(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
+	// Mock vire-server that returns a fixed Google redirect
+	googleURL := "https://accounts.google.com/o/oauth2/auth?client_id=test"
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, googleURL, http.StatusFound)
+	}))
+	defer mockServer.Close()
 
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	// Query parameters on the request path should not influence the redirect target
 	paths := []string{
 		"/api/auth/login/google?redirect=https://evil.com",
 		"/api/auth/login/google?callback=https://evil.com",
@@ -388,7 +396,7 @@ func TestGoogleLogin_StressOpenRedirectProtection(t *testing.T) {
 		handler.HandleGoogleLogin(w, req)
 
 		location := w.Header().Get("Location")
-		if !strings.HasPrefix(location, "http://localhost:8080/") {
+		if location != googleURL {
 			t.Errorf("SECURITY: Google login redirect influenced: path=%s, location=%s", path, location)
 		}
 		if strings.Contains(location, "evil.com") {
@@ -398,7 +406,14 @@ func TestGoogleLogin_StressOpenRedirectProtection(t *testing.T) {
 }
 
 func TestGitHubLogin_StressOpenRedirectProtection(t *testing.T) {
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback", []byte{})
+	// Mock vire-server that returns a fixed GitHub redirect
+	githubURL := "https://github.com/login/oauth/authorize?client_id=test"
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, githubURL, http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	paths := []string{
 		"/api/auth/login/github?redirect=https://evil.com",
@@ -417,19 +432,436 @@ func TestGitHubLogin_StressOpenRedirectProtection(t *testing.T) {
 	}
 }
 
-func TestOAuthLogin_StressCallbackURLNotEncoded(t *testing.T) {
-	// The callback URL is concatenated without url.QueryEscape.
-	// If callbackURL contains & or # chars, the redirect URL becomes ambiguous.
-	handler := NewAuthHandler(nil, false, "http://localhost:8080", "http://localhost:8500/auth/callback?extra=param&another=val", []byte{})
+func TestOAuthLogin_StressCallbackURLProperlyEncoded(t *testing.T) {
+	// The callback URL is now url.QueryEscape'd in the proxy request to vire-server.
+	// Verify that complex callback URLs are properly encoded.
+	callbackURL := "http://localhost:8500/auth/callback?extra=param&another=val"
+	expectedEncoded := url.QueryEscape(callbackURL)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cb := r.URL.Query().Get("callback")
+		if cb != callbackURL {
+			t.Errorf("expected callback=%s, got %s", callbackURL, cb)
+		}
+		// Verify the raw query has the callback properly encoded
+		if !strings.Contains(r.URL.RawQuery, "callback="+expectedEncoded) {
+			t.Errorf("callback not properly encoded in raw query: %s", r.URL.RawQuery)
+		}
+		http.Redirect(w, r, "https://accounts.google.com/o/oauth2/auth", http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, callbackURL, []byte{})
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+	handler.HandleGoogleLogin(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected status 302, got %d", w.Code)
+	}
+}
+
+// --- OAuth Proxy Security: Hostile Location Headers ---
+
+func TestOAuthProxy_StressHostileLocationHeaders(t *testing.T) {
+	// CRITICAL: The proxy forwards the Location header from vire-server to the browser.
+	// If vire-server is compromised or returns hostile redirects, the browser follows them.
+	// These tests document the trust boundary: vire-server Location is forwarded as-is.
+	hostileLocations := []struct {
+		name     string
+		location string
+	}{
+		{"javascript URI", "javascript:alert(document.cookie)"},
+		{"data URI HTML", "data:text/html,<script>alert(1)</script>"},
+		{"data URI base64", "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="},
+		{"protocol-relative evil", "//evil.com/steal?cookies="},
+		{"plain evil.com", "https://evil.com/phishing"},
+		{"backslash URL", "https://evil.com\\@legit.com"},
+		{"at-sign confusion", "https://evil.com%40legit.com"},
+		{"unicode homograph", "https://\u0435vil.com"}, // Cyrillic 'е'
+	}
+
+	for _, tc := range hostileLocations {
+		t.Run(tc.name, func(t *testing.T) {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", tc.location)
+				w.WriteHeader(http.StatusFound)
+			}))
+			defer mockServer.Close()
+
+			handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+			req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+			w := httptest.NewRecorder()
+
+			// Must not panic
+			handler.HandleGoogleLogin(w, req)
+
+			if w.Code != http.StatusFound {
+				t.Errorf("expected 302, got %d", w.Code)
+			}
+
+			// Document: the proxy forwards Location as-is from vire-server.
+			// This is acceptable because vire-server is trusted, but should be
+			// documented as a trust boundary assumption.
+			location := w.Header().Get("Location")
+			t.Logf("Forwarded hostile Location %q -> %q", tc.location, location)
+		})
+	}
+}
+
+func TestOAuthProxy_StressMultipleLocationHeaders(t *testing.T) {
+	// What if vire-server returns multiple Location headers?
+	// Go's resp.Header.Get("Location") returns the first value only.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Location", "https://accounts.google.com/legit")
+		w.Header().Add("Location", "https://evil.com/phishing")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
 
 	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
 	w := httptest.NewRecorder()
 	handler.HandleGoogleLogin(w, req)
 
 	location := w.Header().Get("Location")
-	// This is a defense-in-depth concern: callbackURL comes from config, not user input.
-	// But the string concatenation is fragile.
-	t.Logf("Redirect URL with complex callback: %s", location)
+	// Go's Header.Get returns the first value, so the second hostile one is ignored
+	if strings.Contains(location, "evil.com") {
+		t.Errorf("SECURITY: second Location header (evil.com) was used: %s", location)
+	}
+}
+
+func TestOAuthProxy_StressServerHangs(t *testing.T) {
+	// Vire-server accepts connection but responds very slowly.
+	// The 10s timeout should prevent the portal from hanging indefinitely.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Sleep slightly longer than the 10s client timeout.
+		// Use context to detect client disconnect and return early.
+		select {
+		case <-r.Context().Done():
+			return
+		case <-time.After(12 * time.Second):
+			return
+		}
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+
+	start := time.Now()
+	handler.HandleGoogleLogin(w, req)
+	elapsed := time.Since(start)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302, got %d", w.Code)
+	}
+	location := w.Header().Get("Location")
+	if !strings.Contains(location, "reason=auth_unavailable") {
+		t.Errorf("expected auth_unavailable error redirect, got %s", location)
+	}
+	if elapsed > 12*time.Second {
+		t.Errorf("timeout took too long: %v (expected ~10s)", elapsed)
+	}
+}
+
+func TestOAuthProxy_StressServerReturns200NoLocation(t *testing.T) {
+	// Vire-server returns 200 OK instead of a redirect -- no Location header.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("unexpected response"))
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+	handler.HandleGoogleLogin(w, req)
+
+	location := w.Header().Get("Location")
+	if !strings.Contains(location, "reason=auth_failed") {
+		t.Errorf("expected auth_failed error redirect when no Location header, got %s", location)
+	}
+}
+
+func TestOAuthProxy_StressServerReturns500WithLocation(t *testing.T) {
+	// Vire-server returns 500 with a Location header.
+	// FINDING: The proxy only checks for empty Location, not status code.
+	// A 500 with Location is unusual but the proxy still forwards it.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "https://accounts.google.com/o/oauth2/auth")
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+	handler.HandleGoogleLogin(w, req)
+
+	location := w.Header().Get("Location")
+	// The proxy forwards Location regardless of HTTP status from vire-server.
+	// This is acceptable because vire-server is trusted.
+	t.Logf("FINDING: Location from 500 response forwarded: %s", location)
+}
+
+func TestOAuthProxy_StressServerUnreachable(t *testing.T) {
+	handler := NewAuthHandler(nil, false, "http://127.0.0.1:1", "http://localhost:8500/auth/callback", []byte{})
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+	handler.HandleGoogleLogin(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302, got %d", w.Code)
+	}
+	location := w.Header().Get("Location")
+	if !strings.Contains(location, "reason=auth_unavailable") {
+		t.Errorf("expected auth_unavailable error, got %s", location)
+	}
+}
+
+func TestOAuthProxy_StressErrorDoesNotLeakInternalAddresses(t *testing.T) {
+	// CRITICAL: Error messages/redirects must NOT expose the internal API URL.
+	// The whole point of the proxy is to hide Docker-internal addresses.
+	internalURL := "http://server:8080"
+	handler := NewAuthHandler(nil, false, internalURL, "http://localhost:8500/auth/callback", []byte{})
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+	handler.HandleGoogleLogin(w, req)
+
+	location := w.Header().Get("Location")
+	if strings.Contains(location, "server:8080") {
+		t.Errorf("SECURITY: internal Docker address leaked in redirect: %s", location)
+	}
+
+	body := w.Body.String()
+	if strings.Contains(body, "server:8080") {
+		t.Errorf("SECURITY: internal Docker address leaked in response body")
+	}
+}
+
+func TestOAuthProxy_StressConcurrentRequests(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "https://accounts.google.com/o/oauth2/auth?client_id=xxx")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+			w := httptest.NewRecorder()
+			handler.HandleGoogleLogin(w, req)
+
+			if w.Code != http.StatusFound {
+				t.Errorf("concurrent request got status %d", w.Code)
+			}
+			location := w.Header().Get("Location")
+			if !strings.HasPrefix(location, "https://accounts.google.com/") {
+				t.Errorf("concurrent request got wrong redirect: %s", location)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func TestOAuthProxy_StressProviderPathVerification(t *testing.T) {
+	// The provider string is hardcoded to "google" or "github" in the callers.
+	// Verify the constructed URL path matches expectations.
+	var receivedPath string
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedPath = r.URL.Path
+		w.Header().Set("Location", "https://accounts.google.com/")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	// Google login
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+	handler.HandleGoogleLogin(w, req)
+	if receivedPath != "/api/auth/login/google" {
+		t.Errorf("expected /api/auth/login/google, got %s", receivedPath)
+	}
+
+	// GitHub login
+	req = httptest.NewRequest("GET", "/api/auth/login/github", nil)
+	w = httptest.NewRecorder()
+	handler.HandleGitHubLogin(w, req)
+	if receivedPath != "/api/auth/login/github" {
+		t.Errorf("expected /api/auth/login/github, got %s", receivedPath)
+	}
+}
+
+func TestOAuthProxy_StressCallbackURLEscaping(t *testing.T) {
+	// Verify the callback URL with special characters is properly URL-encoded.
+	var receivedQuery string
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery = r.URL.RawQuery
+		w.Header().Set("Location", "https://accounts.google.com/")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	callbackURL := "http://portal:8881/auth/callback?state=abc&nonce=xyz"
+	handler := NewAuthHandler(nil, false, mockServer.URL, callbackURL, []byte{})
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+	handler.HandleGoogleLogin(w, req)
+
+	expectedEncoded := "callback=" + url.QueryEscape(callbackURL)
+	if receivedQuery != expectedEncoded {
+		t.Errorf("callback not properly escaped:\nexpected: %s\ngot:      %s", expectedEncoded, receivedQuery)
+	}
+}
+
+func TestOAuthProxy_StressLocationHeaderInjection(t *testing.T) {
+	// Test CRLF injection in Location header from vire-server.
+	// Go's net/http strips \r\n in header values, replacing them with spaces.
+	// This prevents actual HTTP header injection on the wire, but the text
+	// "Set-Cookie: stolen=true" remains in the Location URL string (harmlessly).
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "https://legit.com/path\r\nSet-Cookie: stolen=true")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+	handler.HandleGoogleLogin(w, req)
+
+	// CRITICAL: No actual Set-Cookie header must be created from the injection.
+	// Go's HTTP server sanitizes \r\n, so the injected text becomes part of the
+	// Location URL string, not a separate header.
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "stolen" {
+			t.Error("SECURITY: CRLF injection in Location header created a real Set-Cookie header")
+		}
+	}
+
+	// The Location header value will contain the sanitized text (spaces replace \r\n),
+	// but this is not exploitable since browsers won't parse it as a separate header.
+	t.Log("NOTE: Go sanitizes CRLF in header values. No actual header injection is possible.")
+}
+
+func TestOAuthProxy_StressEmptyLocationHeader(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+	handler.HandleGoogleLogin(w, req)
+
+	location := w.Header().Get("Location")
+	if !strings.Contains(location, "reason=auth_failed") {
+		t.Errorf("expected auth_failed redirect for empty Location, got %s", location)
+	}
+}
+
+func TestOAuthProxy_StressVeryLongLocation(t *testing.T) {
+	// Vire-server returns an extremely long Location header.
+	longLocation := "https://accounts.google.com/?" + strings.Repeat("x="+strings.Repeat("y", 1000)+"&", 1000)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", longLocation)
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+
+	// Must not panic
+	handler.HandleGoogleLogin(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302 for very long Location, got %d", w.Code)
+	}
+}
+
+func TestOAuthProxy_StressGitHubSameAsGoogle(t *testing.T) {
+	// Verify GitHub login uses the same proxy path and has identical security properties.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "github") {
+			t.Errorf("expected github in path, got %s", r.URL.Path)
+		}
+		w.Header().Set("Location", "https://github.com/login/oauth/authorize?client_id=xxx")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	// Test unreachable server
+	handler2 := NewAuthHandler(nil, false, "http://127.0.0.1:1", "http://localhost:8500/auth/callback", []byte{})
+	req := httptest.NewRequest("GET", "/api/auth/login/github", nil)
+	w := httptest.NewRecorder()
+	handler2.HandleGitHubLogin(w, req)
+
+	location := w.Header().Get("Location")
+	if !strings.Contains(location, "reason=auth_unavailable") {
+		t.Errorf("GitHub login: expected auth_unavailable on unreachable server, got %s", location)
+	}
+
+	// Test successful redirect
+	req = httptest.NewRequest("GET", "/api/auth/login/github", nil)
+	w = httptest.NewRecorder()
+	handler.HandleGitHubLogin(w, req)
+
+	location = w.Header().Get("Location")
+	if !strings.HasPrefix(location, "https://github.com/") {
+		t.Errorf("expected GitHub OAuth URL, got %s", location)
+	}
+}
+
+func TestOAuthProxy_StressResponseBodyNotConsumed(t *testing.T) {
+	// The proxy reads the Location header but does not consume the response body.
+	// Verify this doesn't cause issues even if the server sends a body.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "https://accounts.google.com/")
+		w.WriteHeader(http.StatusFound)
+		// Send a large body alongside the redirect
+		w.Write([]byte(strings.Repeat("garbage body data ", 10000)))
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, false, mockServer.URL, "http://localhost:8500/auth/callback", []byte{})
+
+	// Run multiple times to check for connection/resource leaks
+	for i := 0; i < 20; i++ {
+		req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+		w := httptest.NewRecorder()
+		handler.HandleGoogleLogin(w, req)
+
+		if w.Code != http.StatusFound {
+			t.Errorf("iteration %d: expected 302, got %d", i, w.Code)
+		}
+	}
 }
 
 // --- Login Server Interaction ---

@@ -36,8 +36,8 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `GET /api/version` | VersionHandler | No | Version info (JSON) |
 | `POST /api/auth/login` | AuthHandler | No | Email/password login (forwards to vire-server) |
 | `POST /api/auth/logout` | AuthHandler | No | Clears session cookie, redirects to `/` |
-| `GET /api/auth/login/google` | AuthHandler | No | Redirects to vire-server Google OAuth |
-| `GET /api/auth/login/github` | AuthHandler | No | Redirects to vire-server GitHub OAuth |
+| `GET /api/auth/login/google` | AuthHandler | No | Proxies Google OAuth redirect from vire-server |
+| `GET /api/auth/login/github` | AuthHandler | No | Proxies GitHub OAuth redirect from vire-server |
 | `GET /auth/callback` | AuthHandler | No | OAuth callback (receives `?token=`, sets session cookie) |
 | `GET /settings` | SettingsHandler | No | Settings page (Navexa API key management) |
 | `POST /settings` | SettingsHandler | No | Save settings (requires session cookie) |
@@ -441,14 +441,17 @@ The portal authenticates users via vire-server. Three login methods are supporte
 ```
 1. User clicks "Sign in with Google" (or GitHub) on /
    -> Browser navigates to portal: GET /api/auth/login/google
-2. Portal 302-redirects to vire-server: GET {API_URL}/api/auth/login/google?callback={callbackURL}
-3. vire-server redirects to the OAuth provider's consent screen
-4. User authorises, provider redirects back to vire-server
-5. vire-server exchanges code for tokens, creates/updates user, mints a JWT
-6. vire-server redirects to portal: GET /auth/callback?token=<jwt>
-7. Portal sets the JWT as an httpOnly "vire_session" cookie
-8. User is redirected to /dashboard
+2. Portal makes a server-side request to vire-server: GET {API_URL}/api/auth/login/google?callback={callbackURL}
+3. vire-server returns a 302 redirect to the OAuth provider's consent screen
+4. Portal forwards the redirect Location to the browser (never exposing internal API URLs)
+5. User authorises, provider redirects back to vire-server
+6. vire-server exchanges code for tokens, creates/updates user, mints a JWT
+7. vire-server redirects to portal: GET /auth/callback?token=<jwt>
+8. Portal sets the JWT as an httpOnly "vire_session" cookie
+9. User is redirected to /dashboard
 ```
+
+The server-side proxy prevents internal Docker addresses (like `http://server:8080`) from being exposed to the browser.
 
 The `callback_url` config setting tells the portal where vire-server should redirect after OAuth completes. This must match the URL registered with each OAuth provider.
 
@@ -522,13 +525,13 @@ All endpoints return errors in a consistent shape:
 
 #### `GET /api/auth/login/:provider`
 
-Redirects the browser to the OAuth provider's consent screen. The portal links to this URL directly via anchor tags (`<a href="...">`). The gateway generates a `state` token for CSRF protection, constructs the `redirect_uri` from its domain config, and returns a 302 redirect.
+Proxies the OAuth redirect through vire-server. The portal makes a server-side HTTP request to vire-server, which returns a 302 redirect to the OAuth provider. The portal forwards the redirect Location to the browser. This prevents internal Docker addresses from reaching the browser.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `:provider` | path | `google` or `github` |
 
-**Response:** 302 redirect to provider OAuth URL with `client_id`, `redirect_uri`, `scope`, `state` params.
+**Response:** 302 redirect to provider OAuth URL (forwarded from vire-server). On error: 302 redirect to `/error?reason=auth_unavailable` or `/error?reason=auth_failed`.
 
 #### `POST /api/auth/callback`
 

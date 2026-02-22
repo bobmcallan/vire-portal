@@ -24,8 +24,8 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `GET /api/version` | VersionHandler | No | Version info (JSON) |
 | `POST /api/auth/login` | AuthHandler | No | Email/password login (forwards to vire-server) |
 | `POST /api/auth/logout` | AuthHandler | No | Clears session cookie, redirects to `/` |
-| `GET /api/auth/login/google` | AuthHandler | No | Redirects to vire-server Google OAuth |
-| `GET /api/auth/login/github` | AuthHandler | No | Redirects to vire-server GitHub OAuth |
+| `GET /api/auth/login/google` | AuthHandler | No | Proxies Google OAuth redirect from vire-server |
+| `GET /api/auth/login/github` | AuthHandler | No | Proxies GitHub OAuth redirect from vire-server |
 | `GET /auth/callback` | AuthHandler | No | OAuth callback (receives `?token=`, sets session cookie) |
 | `GET /settings` | SettingsHandler | No | Settings page (Navexa API key management) |
 | `POST /settings` | SettingsHandler | No | Save settings (requires session cookie) |

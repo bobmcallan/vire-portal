@@ -529,7 +529,22 @@ func TestHandleOAuthCallback_EmptyToken(t *testing.T) {
 // --- HandleGoogleLogin / HandleGitHubLogin Tests ---
 
 func TestHandleGoogleLogin_RedirectsToVireServer(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:4242", "http://localhost:8500/auth/callback", []byte(""))
+	// Mock vire-server that returns a 302 to Google OAuth
+	googleAuthURL := "https://accounts.google.com/o/oauth2/auth?client_id=test&redirect_uri=http%3A%2F%2Flocalhost%3A8500%2Fauth%2Fcallback"
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/auth/login/google" {
+			t.Errorf("expected path /api/auth/login/google, got %s", r.URL.Path)
+		}
+		// Verify callback is passed as query param
+		cb := r.URL.Query().Get("callback")
+		if cb != "http://localhost:8500/auth/callback" {
+			t.Errorf("expected callback=http://localhost:8500/auth/callback, got %s", cb)
+		}
+		http.Redirect(w, r, googleAuthURL, http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
 	w := httptest.NewRecorder()
@@ -541,14 +556,27 @@ func TestHandleGoogleLogin_RedirectsToVireServer(t *testing.T) {
 	}
 
 	location := w.Header().Get("Location")
-	expected := "http://localhost:4242/api/auth/login/google?callback=http://localhost:8500/auth/callback"
-	if location != expected {
-		t.Errorf("expected redirect to %s, got %s", expected, location)
+	if location != googleAuthURL {
+		t.Errorf("expected redirect to %s, got %s", googleAuthURL, location)
 	}
 }
 
 func TestHandleGitHubLogin_RedirectsToVireServer(t *testing.T) {
-	handler := NewAuthHandler(nil, true, "http://localhost:4242", "http://localhost:8500/auth/callback", []byte(""))
+	// Mock vire-server that returns a 302 to GitHub OAuth
+	githubAuthURL := "https://github.com/login/oauth/authorize?client_id=test&redirect_uri=http%3A%2F%2Flocalhost%3A8500%2Fauth%2Fcallback"
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/auth/login/github" {
+			t.Errorf("expected path /api/auth/login/github, got %s", r.URL.Path)
+		}
+		cb := r.URL.Query().Get("callback")
+		if cb != "http://localhost:8500/auth/callback" {
+			t.Errorf("expected callback=http://localhost:8500/auth/callback, got %s", cb)
+		}
+		http.Redirect(w, r, githubAuthURL, http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte(""))
 
 	req := httptest.NewRequest("GET", "/api/auth/login/github", nil)
 	w := httptest.NewRecorder()
@@ -560,9 +588,51 @@ func TestHandleGitHubLogin_RedirectsToVireServer(t *testing.T) {
 	}
 
 	location := w.Header().Get("Location")
-	expected := "http://localhost:4242/api/auth/login/github?callback=http://localhost:8500/auth/callback"
-	if location != expected {
-		t.Errorf("expected redirect to %s, got %s", expected, location)
+	if location != githubAuthURL {
+		t.Errorf("expected redirect to %s, got %s", githubAuthURL, location)
+	}
+}
+
+func TestHandleGoogleLogin_ServerUnreachable(t *testing.T) {
+	handler := NewAuthHandler(nil, true, "http://127.0.0.1:1", "http://localhost:8500/auth/callback", []byte(""))
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+
+	handler.HandleGoogleLogin(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected status 302, got %d", w.Code)
+	}
+
+	location := w.Header().Get("Location")
+	if !strings.Contains(location, "reason=auth_unavailable") {
+		t.Errorf("expected redirect to /error?reason=auth_unavailable, got %s", location)
+	}
+}
+
+func TestHandleGoogleLogin_ServerNoRedirect(t *testing.T) {
+	// Mock server returns 200 with no Location header
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"error":"no oauth configured"}`))
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, true, mockServer.URL, "http://localhost:8500/auth/callback", []byte(""))
+
+	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
+	w := httptest.NewRecorder()
+
+	handler.HandleGoogleLogin(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected status 302, got %d", w.Code)
+	}
+
+	location := w.Header().Get("Location")
+	if !strings.Contains(location, "reason=auth_failed") {
+		t.Errorf("expected redirect to /error?reason=auth_failed, got %s", location)
 	}
 }
 

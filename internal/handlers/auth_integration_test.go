@@ -155,11 +155,25 @@ func TestLoginIntegration_VireServerReturnsEmptyToken(t *testing.T) {
 // --- OAuth Redirect Chain Tests ---
 
 func TestOAuthRedirect_GoogleCallbackChain(t *testing.T) {
-	apiURL := "http://localhost:4242"
 	callbackURL := "http://localhost:8500/auth/callback"
-	handler := NewAuthHandler(nil, true, apiURL, callbackURL, []byte(""))
+	googleAuthURL := "https://accounts.google.com/o/oauth2/auth?client_id=test"
 
-	// Step 1: Verify HandleGoogleLogin builds correct redirect URL
+	// Mock vire-server that returns a 302 to Google OAuth
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/auth/login/google" {
+			t.Errorf("expected path /api/auth/login/google, got %s", r.URL.Path)
+		}
+		cb := r.URL.Query().Get("callback")
+		if cb != callbackURL {
+			t.Errorf("expected callback=%s, got %s", callbackURL, cb)
+		}
+		http.Redirect(w, r, googleAuthURL, http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, true, mockServer.URL, callbackURL, []byte(""))
+
+	// Step 1: Verify HandleGoogleLogin proxies the redirect from vire-server
 	req := httptest.NewRequest("GET", "/api/auth/login/google", nil)
 	w := httptest.NewRecorder()
 	handler.HandleGoogleLogin(w, req)
@@ -167,10 +181,9 @@ func TestOAuthRedirect_GoogleCallbackChain(t *testing.T) {
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status 302, got %d", w.Code)
 	}
-	expectedRedirect := apiURL + "/api/auth/login/google?callback=" + callbackURL
 	location := w.Header().Get("Location")
-	if location != expectedRedirect {
-		t.Errorf("expected redirect to %s, got %s", expectedRedirect, location)
+	if location != googleAuthURL {
+		t.Errorf("expected redirect to %s, got %s", googleAuthURL, location)
 	}
 
 	// Step 2: Verify HandleOAuthCallback with token sets cookie and redirects
@@ -203,11 +216,25 @@ func TestOAuthRedirect_GoogleCallbackChain(t *testing.T) {
 }
 
 func TestOAuthRedirect_GitHubCallbackChain(t *testing.T) {
-	apiURL := "http://localhost:4242"
 	callbackURL := "http://localhost:8500/auth/callback"
-	handler := NewAuthHandler(nil, true, apiURL, callbackURL, []byte(""))
+	githubAuthURL := "https://github.com/login/oauth/authorize?client_id=test"
 
-	// Step 1: Verify HandleGitHubLogin builds correct redirect URL
+	// Mock vire-server that returns a 302 to GitHub OAuth
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/auth/login/github" {
+			t.Errorf("expected path /api/auth/login/github, got %s", r.URL.Path)
+		}
+		cb := r.URL.Query().Get("callback")
+		if cb != callbackURL {
+			t.Errorf("expected callback=%s, got %s", callbackURL, cb)
+		}
+		http.Redirect(w, r, githubAuthURL, http.StatusFound)
+	}))
+	defer mockServer.Close()
+
+	handler := NewAuthHandler(nil, true, mockServer.URL, callbackURL, []byte(""))
+
+	// Step 1: Verify HandleGitHubLogin proxies the redirect from vire-server
 	req := httptest.NewRequest("GET", "/api/auth/login/github", nil)
 	w := httptest.NewRecorder()
 	handler.HandleGitHubLogin(w, req)
@@ -215,10 +242,9 @@ func TestOAuthRedirect_GitHubCallbackChain(t *testing.T) {
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status 302, got %d", w.Code)
 	}
-	expectedRedirect := apiURL + "/api/auth/login/github?callback=" + callbackURL
 	location := w.Header().Get("Location")
-	if location != expectedRedirect {
-		t.Errorf("expected redirect to %s, got %s", expectedRedirect, location)
+	if location != githubAuthURL {
+		t.Errorf("expected redirect to %s, got %s", githubAuthURL, location)
 	}
 
 	// Step 2: Verify HandleOAuthCallback with token sets cookie and redirects

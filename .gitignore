@@ -12,6 +12,7 @@ bin/
 browser-check
 *.test
 tests/logs
+tests/results
 
 # Code coverage
 *.out

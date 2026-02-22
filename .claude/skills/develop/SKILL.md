@@ -440,8 +440,8 @@ The portal is stateless -- all user data is managed by vire-server via REST API 
 | `GET /api/version` | VersionHandler | No |
 | `POST /api/auth/login` | AuthHandler | No (forwards to vire-server) |
 | `POST /api/auth/logout` | AuthHandler | No |
-| `GET /api/auth/login/google` | AuthHandler | No (redirects to vire-server) |
-| `GET /api/auth/login/github` | AuthHandler | No (redirects to vire-server) |
+| `GET /api/auth/login/google` | AuthHandler | No (proxies OAuth redirect from vire-server) |
+| `GET /api/auth/login/github` | AuthHandler | No (proxies OAuth redirect from vire-server) |
 | `GET /auth/callback` | AuthHandler | No (OAuth callback, sets session cookie or completes MCP flow) |
 | `POST /api/shutdown` | Server | No (dev mode only, 403 in prod) |
 | `GET /settings` | SettingsHandler | No |
