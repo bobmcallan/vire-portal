@@ -195,6 +195,25 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Errorf("portfolio summary item count = %d, want 3", count)
 	}
 
+	// Verify the 3 summary labels are "TOTAL VALUE", "TOTAL GAIN $", "TOTAL GAIN %"
+	labelsCorrect, err := commontest.EvalBool(ctx, `
+		(() => {
+			const labels = document.querySelectorAll('.portfolio-summary-item .label');
+			if (labels.length !== 3) return false;
+			const expected = ['TOTAL VALUE', 'TOTAL GAIN $', 'TOTAL GAIN %'];
+			for (let i = 0; i < 3; i++) {
+				if (labels[i].textContent.trim() !== expected[i]) return false;
+			}
+			return true;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking summary labels: %v", err)
+	}
+	if !labelsCorrect {
+		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, TOTAL GAIN $, TOTAL GAIN %")
+	}
+
 	// Verify summary spans full content width (justify-content: space-between)
 	spansWidth, err := commontest.EvalBool(ctx, `
 		(() => {
@@ -249,6 +268,47 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	}
 	if !summaryGainColored {
 		t.Log("summary gain values have no color class (gains may be zero)")
+	}
+}
+
+func TestDashboardColumnAlignment(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render
+	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	// Check if holdings table is visible
+	visible, err := isVisible(ctx, ".tool-table")
+	if err != nil {
+		t.Fatalf("error checking holdings table visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("holdings table not visible (no portfolio data available)")
+	}
+
+	// Verify column headers with .text-right class have computed text-align: right
+	aligned, err := commontest.EvalBool(ctx, `
+		(() => {
+			const ths = document.querySelectorAll('.tool-table th.text-right');
+			if (ths.length === 0) return false;
+			for (const th of ths) {
+				const style = getComputedStyle(th);
+				if (style.textAlign !== 'right') return false;
+			}
+			return true;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking column header alignment: %v", err)
+	}
+	if !aligned {
+		t.Error("column headers with .text-right class do not have computed text-align: right")
 	}
 }
 
