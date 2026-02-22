@@ -30,17 +30,17 @@ func TestDevAuthLandingNoCookie(t *testing.T) {
 		t.Error("expected login buttons on landing page (user should not be logged in)")
 	}
 
-	// Verify dev login form is visible
-	devLoginVisible, err := isVisible(ctx, ".landing-dev-login")
+	// Verify login form is visible
+	loginFormVisible, err := isVisible(ctx, ".landing-login-form")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !devLoginVisible {
-		t.Error("dev login form should be visible on landing page")
+	if !loginFormVisible {
+		t.Error("login form should be visible on landing page")
 	}
 }
 
-// TestDevAuthLoginRedirect verifies DEV LOGIN redirects to dashboard
+// TestDevAuthLoginRedirect verifies login form redirects to dashboard
 func TestDevAuthLoginRedirect(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
@@ -52,19 +52,19 @@ func TestDevAuthLoginRedirect(t *testing.T) {
 
 	takeScreenshot(t, ctx, "dev-auth", "login-before-click.png")
 
-	// Check dev login form exists
-	devLoginVisible, err := isVisible(ctx, ".landing-dev-login")
+	// Check login form exists
+	loginFormVisible, err := isVisible(ctx, ".landing-login-form")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !devLoginVisible {
-		t.Fatal("dev login form not visible on landing page")
+	if !loginFormVisible {
+		t.Fatal("login form not visible on landing page")
 	}
 
 	// Use JavaScript to submit the form directly (works even in Alpine.js templates)
 	var currentURL string
 	err = chromedp.Run(ctx,
-		chromedp.Evaluate(`document.querySelector('.landing-dev-login').submit()`, nil),
+		chromedp.Evaluate(`document.querySelector('.landing-login-form').submit()`, nil),
 		chromedp.Sleep(1500*time.Millisecond),
 		chromedp.WaitVisible("body", chromedp.ByQuery),
 		chromedp.Location(&currentURL),
