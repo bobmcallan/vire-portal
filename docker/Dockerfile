@@ -36,9 +36,8 @@ RUN apk --no-cache add ca-certificates wget
 # Copy binary from builder
 COPY --from=builder /build/vire-portal .
 
-# Copy templates, config, and version file
+# Copy templates and import data
 COPY --from=builder /build/pages ./pages
-COPY --from=builder /build/config/vire-portal.toml.docker ./vire-portal.toml
 COPY --from=builder /build/import ./import
 
 # Create data and logs directories

@@ -1,6 +1,6 @@
 [vire-portal]
-version: 0.2.27
-build: 02-22-13-09-00
+version: 0.2.28
+build: 02-22-13-53-00
 
 [vire-mcp]
 version: 0.1.23
