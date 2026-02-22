@@ -41,19 +41,21 @@ type ComplianceResult struct {
 
 // Portfolio represents a stock portfolio
 type Portfolio struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	NavexaID     string    `json:"navexa_id,omitempty"`
-	Holdings     []Holding `json:"holdings"`
-	TotalValue   float64   `json:"total_value"`
-	TotalCost    float64   `json:"total_cost"`
-	TotalGain    float64   `json:"total_gain"`
-	TotalGainPct float64   `json:"total_gain_pct"`
-	Currency     string    `json:"currency"`
-	FXRate       float64   `json:"fx_rate,omitempty"` // AUDUSD rate used for currency conversion at sync time
-	LastSynced   time.Time `json:"last_synced"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                string    `json:"id"`
+	Name              string    `json:"name"`
+	NavexaID          string    `json:"navexa_id,omitempty"`
+	Holdings          []Holding `json:"holdings"`
+	TotalValue        float64   `json:"total_value"`
+	TotalCost         float64   `json:"total_cost"`
+	TotalGain         float64   `json:"total_gain"`
+	TotalGainPct      float64   `json:"total_gain_pct"`
+	TotalNetReturn    float64   `json:"total_net_return"`
+	TotalNetReturnPct float64   `json:"total_net_return_pct"`
+	Currency          string    `json:"currency"`
+	FXRate            float64   `json:"fx_rate,omitempty"` // AUDUSD rate used for currency conversion at sync time
+	LastSynced        time.Time `json:"last_synced"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // Holding represents a portfolio position
@@ -74,8 +76,10 @@ type Holding struct {
 	TotalReturnValue   float64        `json:"total_return_value"`
 	TotalReturnPct     float64        `json:"total_return_pct"`      // IRR p.a. from Navexa
 	TotalReturnPctTWRR float64        `json:"total_return_pct_twrr"` // Time-weighted return (computed locally)
-	Currency           string         `json:"currency"`              // Holding currency (AUD, USD)
-	Country            string         `json:"country,omitempty"`     // Domicile country ISO code (e.g. "AU", "US")
+	NetReturn          float64        `json:"net_return"`
+	NetReturnPct       float64        `json:"net_return_pct"`
+	Currency           string         `json:"currency"`          // Holding currency (AUD, USD)
+	Country            string         `json:"country,omitempty"` // Domicile country ISO code (e.g. "AU", "US")
 	Trades             []*NavexaTrade `json:"trades,omitempty"`
 	LastUpdated        time.Time      `json:"last_updated"`
 }

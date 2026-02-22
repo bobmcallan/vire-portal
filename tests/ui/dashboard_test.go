@@ -186,22 +186,22 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Skip("portfolio summary not visible (no holdings data available)")
 	}
 
-	// Verify 3 summary items exist
+	// Verify 4 summary items exist
 	count, err := elementCount(ctx, ".portfolio-summary .portfolio-summary-item")
 	if err != nil {
 		t.Fatalf("error counting summary items: %v", err)
 	}
-	if count != 3 {
-		t.Errorf("portfolio summary item count = %d, want 3", count)
+	if count != 4 {
+		t.Errorf("portfolio summary item count = %d, want 4", count)
 	}
 
-	// Verify the 3 summary labels are "TOTAL VALUE", "TOTAL GAIN $", "TOTAL GAIN %"
+	// Verify the 4 summary labels are "TOTAL VALUE", "TOTAL COST", "TOTAL GAIN $", "TOTAL GAIN %"
 	labelsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
 			const labels = document.querySelectorAll('.portfolio-summary-item .label');
-			if (labels.length !== 3) return false;
-			const expected = ['TOTAL VALUE', 'TOTAL GAIN $', 'TOTAL GAIN %'];
-			for (let i = 0; i < 3; i++) {
+			if (labels.length !== 4) return false;
+			const expected = ['TOTAL VALUE', 'TOTAL COST', 'TOTAL GAIN $', 'TOTAL GAIN %'];
+			for (let i = 0; i < 4; i++) {
 				if (labels[i].textContent.trim() !== expected[i]) return false;
 			}
 			return true;
@@ -211,7 +211,7 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Fatalf("error checking summary labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, TOTAL GAIN $, TOTAL GAIN %")
+		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, TOTAL COST, TOTAL GAIN $, TOTAL GAIN %")
 	}
 
 	// Verify summary spans full content width (justify-content: space-between)
@@ -234,7 +234,7 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	valuesPopulated, err := commontest.EvalBool(ctx, `
 		(() => {
 			const items = document.querySelectorAll('.portfolio-summary-item .text-bold');
-			if (items.length < 3) return false;
+			if (items.length < 4) return false;
 			for (const item of items) {
 				const text = item.textContent.trim();
 				if (!text || text === '') return false;
@@ -253,9 +253,9 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	summaryGainColored, err := commontest.EvalBool(ctx, `
 		(() => {
 			const items = document.querySelectorAll('.portfolio-summary-item .text-bold');
-			// Items 1 and 2 are TOTAL GAIN $ and TOTAL GAIN % — should have gain class if non-zero
+			// Items 2 and 3 are TOTAL GAIN $ and TOTAL GAIN % — should have gain class if non-zero
 			let hasGainClass = false;
-			for (let i = 1; i < items.length; i++) {
+			for (let i = 2; i < items.length; i++) {
 				if (items[i].classList.contains('gain-positive') || items[i].classList.contains('gain-negative')) {
 					hasGainClass = true;
 				}
@@ -359,35 +359,40 @@ func TestDashboardGainColors(t *testing.T) {
 		t.Skip("holdings table not visible (no portfolio data available)")
 	}
 
-	gainHeaderFound, err := commontest.EvalBool(ctx, `
+	gainHeadersFound, err := commontest.EvalBool(ctx, `
 		(() => {
 			const ths = document.querySelectorAll('.tool-table th');
-			return Array.from(ths).some(th => th.textContent.includes('Gain'));
+			const headers = Array.from(ths).map(th => th.textContent.trim());
+			return headers.includes('Gain $') && headers.includes('Gain %');
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking Gain column header: %v", err)
+		t.Fatalf("error checking Gain column headers: %v", err)
 	}
-	if !gainHeaderFound {
-		t.Error("Gain% column header not found in holdings table")
+	if !gainHeadersFound {
+		t.Error("Gain $ and Gain % column headers not found in holdings table")
 	}
 
-	// 3. Verify gain values are displayed in table rows (not empty)
+	// 3. Verify gain values are displayed in table rows (not empty) — last TWO cells are gain columns
 	var gainInfo string
 	err = chromedp.Run(ctx, chromedp.Evaluate(`
 		(() => {
 			const rows = document.querySelectorAll('.tool-table tbody tr');
 			if (rows.length === 0) return 'no-rows';
-			// Last cell in each row is the gain column
-			const lastCells = Array.from(rows).map(r => {
+			// Last two cells in each row are Gain $ and Gain %
+			const gainCells = [];
+			for (const r of rows) {
 				const cells = r.querySelectorAll('td');
-				return cells[cells.length - 1];
-			});
-			const empty = lastCells.filter(c => !c.textContent.trim() || c.textContent.trim() === '');
+				if (cells.length >= 2) {
+					gainCells.push(cells[cells.length - 2]);
+					gainCells.push(cells[cells.length - 1]);
+				}
+			}
+			const empty = gainCells.filter(c => !c.textContent.trim() || c.textContent.trim() === '');
 			if (empty.length > 0) return 'empty:' + empty.length;
-			const withColor = lastCells.filter(c => c.classList.contains('gain-positive') || c.classList.contains('gain-negative'));
-			const neutral = lastCells.filter(c => !c.classList.contains('gain-positive') && !c.classList.contains('gain-negative'));
-			return 'rows:' + rows.length + ',colored:' + withColor.length + ',neutral:' + neutral.length;
+			const withColor = gainCells.filter(c => c.classList.contains('gain-positive') || c.classList.contains('gain-negative'));
+			const neutral = gainCells.filter(c => !c.classList.contains('gain-positive') && !c.classList.contains('gain-negative'));
+			return 'rows:' + rows.length + ',gainCells:' + gainCells.length + ',colored:' + withColor.length + ',neutral:' + neutral.length;
 		})()
 	`, &gainInfo))
 	if err != nil {
@@ -395,7 +400,7 @@ func TestDashboardGainColors(t *testing.T) {
 	}
 	t.Logf("table gain info: %s", gainInfo)
 	if strings.HasPrefix(gainInfo, "empty:") {
-		t.Errorf("gain column has empty cells: %s", gainInfo)
+		t.Errorf("gain columns have empty cells: %s", gainInfo)
 	}
 
 	// 4. Verify gain colors in portfolio summary (if visible)
@@ -407,9 +412,9 @@ func TestDashboardGainColors(t *testing.T) {
 		err = chromedp.Run(ctx, chromedp.Evaluate(`
 			(() => {
 				const items = document.querySelectorAll('.portfolio-summary-item .text-bold');
-				if (items.length < 3) return 'items:' + items.length;
-				// Items at index 1 and 2 are gain $ and gain %
-				const gainItems = [items[1], items[2]];
+				if (items.length < 4) return 'items:' + items.length;
+				// Items at index 2 and 3 are gain $ and gain %
+				const gainItems = [items[2], items[3]];
 				const colored = gainItems.filter(i => i.classList.contains('gain-positive') || i.classList.contains('gain-negative'));
 				const values = gainItems.map(i => i.textContent.trim());
 				return 'values:[' + values.join(',') + '],colored:' + colored.length;

@@ -501,9 +501,13 @@ func TestDashboardHandler_StressSummaryGainColorBindings(t *testing.T) {
 	if !strings.Contains(body, `:class="gainClass(totalGainPct)"`) {
 		t.Error("expected :class gainClass binding on totalGainPct summary")
 	}
+	// Per-row gain $ must have :class for color
+	if !strings.Contains(body, `:class="gainClass(h.net_return)"`) {
+		t.Error("expected :class gainClass binding on per-holding gain $ column")
+	}
 	// Per-row gain % must have :class for color
-	if !strings.Contains(body, `:class="gainClass(h.total_return_pct)"`) {
-		t.Error("expected :class gainClass binding on per-holding gain column")
+	if !strings.Contains(body, `:class="gainClass(h.net_return_pct)"`) {
+		t.Error("expected :class gainClass binding on per-holding gain % column")
 	}
 }
 
@@ -527,8 +531,8 @@ func TestDashboardHandler_StressPortfolioSummarySection(t *testing.T) {
 	if !strings.Contains(body, `x-show="filteredHoldings.length > 0"`) {
 		t.Error("portfolio summary should be conditional on filteredHoldings.length > 0")
 	}
-	// Verify all three summary items exist
-	summaryLabels := []string{"TOTAL VALUE", "TOTAL GAIN $", "TOTAL GAIN %"}
+	// Verify all four summary items exist
+	summaryLabels := []string{"TOTAL VALUE", "TOTAL COST", "TOTAL GAIN $", "TOTAL GAIN %"}
 	for _, label := range summaryLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected summary label %q in dashboard", label)

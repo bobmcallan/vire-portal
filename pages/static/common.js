@@ -184,6 +184,7 @@ function portfolioDashboard() {
         plan: '',
         portfolioGain: 0,
         portfolioGainPct: 0,
+        portfolioCost: 0,
         loading: true,
         error: '',
         get isDefault() { return this.selected === this.defaultPortfolio; },
@@ -197,6 +198,9 @@ function portfolioDashboard() {
         },
         get totalValue() {
             return this.filteredHoldings.reduce((sum, h) => sum + (Number(h.market_value) || 0), 0);
+        },
+        get totalCost() {
+            return this.portfolioCost;
         },
         get totalGain() {
             return this.portfolioGain;
@@ -246,12 +250,14 @@ function portfolioDashboard() {
                 if (holdingsRes.ok) {
                     const holdingsData = await holdingsRes.json();
                     this.holdings = vireStore.dedup(holdingsData.holdings || [], 'ticker');
-                    this.portfolioGain = Number(holdingsData.total_gain) || 0;
-                    this.portfolioGainPct = Number(holdingsData.total_gain_pct) || 0;
+                    this.portfolioGain = Number(holdingsData.total_net_return) || 0;
+                    this.portfolioGainPct = Number(holdingsData.total_net_return_pct) || 0;
+                    this.portfolioCost = Number(holdingsData.total_cost) || 0;
                 } else {
                     this.holdings = [];
                     this.portfolioGain = 0;
                     this.portfolioGainPct = 0;
+                    this.portfolioCost = 0;
                 }
 
                 if (strategyRes.ok) {

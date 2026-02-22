@@ -51,6 +51,10 @@
                     <span class="text-bold" x-text="fmt(totalValue)"></span>
                 </div>
                 <div class="portfolio-summary-item">
+                    <span class="label">TOTAL COST</span>
+                    <span class="text-bold" x-text="fmt(totalCost)"></span>
+                </div>
+                <div class="portfolio-summary-item">
                     <span class="label">TOTAL GAIN $</span>
                     <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>
                 </div>
@@ -76,7 +80,8 @@
                                     <th>Name</th>
                                     <th class="text-right">Value</th>
                                     <th class="text-right">Weight%</th>
-                                    <th class="text-right">Gain%</th>
+                                    <th class="text-right">Gain $</th>
+                                    <th class="text-right">Gain %</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -86,7 +91,8 @@
                                         <td x-text="h.name"></td>
                                         <td class="text-right" x-text="fmt(h.market_value)"></td>
                                         <td class="text-right" x-text="pct(h.weight)"></td>
-                                        <td class="text-right" :class="gainClass(h.total_return_pct)" x-text="pct(h.total_return_pct)"></td>
+                                        <td class="text-right" :class="gainClass(h.net_return)" x-text="fmt(h.net_return)"></td>
+                                        <td class="text-right" :class="gainClass(h.net_return_pct)" x-text="pct(h.net_return_pct)"></td>
                                     </tr>
                                 </template>
                             </tbody>
