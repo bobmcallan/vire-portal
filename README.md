@@ -22,7 +22,8 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | Route | Handler | Auth | Description |
 |-------|---------|------|-------------|
 | `GET /` | PageHandler | No | Landing page (server-rendered HTML template) |
-| `GET /dashboard` | DashboardHandler | No | Dashboard (MCP config, tools, config status) |
+| `GET /dashboard` | DashboardHandler | No | Dashboard (portfolio management, holdings, strategy, plan) |
+| `GET /mcp-info` | MCPPageHandler | No | MCP info page (connection config, tools catalog) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP transport, dynamic tools) |
 | `GET /.well-known/oauth-authorization-server` | OAuthServer | No | OAuth 2.1 authorization server metadata |
@@ -98,7 +99,7 @@ timeout_seconds = 30
 
 Test categories:
 - **Smoke tests** (`TestSmoke*`): Landing page, login buttons, branding, dashboard loads
-- **Dashboard tests** (`TestDashboard*`): Sections, panels, tabs, design rules
+- **Dashboard tests** (`TestDashboard*`): Sections, panels, portfolio UI, design rules
 - **Nav tests** (`TestNav*`): Hamburger menu, dropdown, mobile nav
 - **Auth tests** (`TestAuth*`): OAuth redirect flows
 
@@ -964,7 +965,8 @@ vire-portal/
 │   │   ├── auth_test.go             # Auth handler tests (ValidateJWT, IsLoggedIn, OAuth flows)
 │   │   ├── auth_integration_test.go # Integration tests (full login round-trip, OAuth chains)
 │   │   ├── auth_stress_test.go      # Security stress tests (alg:none attack, tampering, timing, hostile inputs)
-│   │   ├── dashboard.go             # GET /dashboard (MCP config, tools, config status)
+│   │   ├── dashboard.go             # GET /dashboard (portfolio management, holdings, strategy, plan)
+│   │   ├── mcp_page.go             # GET /mcp-info (MCP connection config, tools catalog)
 │   │   ├── handlers_test.go
 │   │   ├── health.go                # GET /api/health
 │   │   ├── helpers.go               # WriteJSON, RequireMethod, WriteError
@@ -1011,7 +1013,8 @@ vire-portal/
 │       ├── nav_test.go               # Navigation tests (hamburger, dropdown, mobile)
 │       └── auth_test.go              # Auth tests (Google/GitHub login redirects)
 ├── pages/
-│   ├── dashboard.html                # Dashboard page (MCP config, tools, config status)
+│   ├── dashboard.html                # Dashboard page (portfolio selector, holdings, strategy/plan editors)
+│   ├── mcp.html                     # MCP info page (connection details, tools table)
 │   ├── landing.html                  # Landing page (Go html/template)
 │   ├── settings.html                 # Settings page (Navexa API key management)
 │   ├── partials/
@@ -1021,7 +1024,7 @@ vire-portal/
 │   └── static/
 │       ├── css/
 │       │   └── portal.css            # 80s B&W aesthetic (no border-radius, no box-shadow)
-│       └── common.js                 # Client logging (debugLog, debugError) + Alpine.js init
+│       └── common.js                 # Client logging, Alpine.js init, portfolioDashboard() component
 ├── docker/
 │   ├── Dockerfile                    # Portal multi-stage build (golang:1.25 -> alpine)
 │   ├── Dockerfile.mcp               # MCP stdio binary build (golang:1.25 -> alpine)

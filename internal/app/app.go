@@ -12,16 +12,16 @@ import (
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
-// catalogAdapter converts MCP catalog tools to dashboard display tools.
-func catalogAdapter(mcpHandler *mcp.Handler) func() []handlers.DashboardTool {
-	return func() []handlers.DashboardTool {
+// catalogAdapter converts MCP catalog tools to MCP page display tools.
+func catalogAdapter(mcpHandler *mcp.Handler) func() []handlers.MCPPageTool {
+	return func() []handlers.MCPPageTool {
 		if mcpHandler == nil {
 			return nil
 		}
 		catalog := mcpHandler.Catalog()
-		tools := make([]handlers.DashboardTool, len(catalog))
+		tools := make([]handlers.MCPPageTool, len(catalog))
 		for i, ct := range catalog {
-			tools[i] = handlers.DashboardTool{
+			tools[i] = handlers.MCPPageTool{
 				Name:        ct.Name,
 				Description: ct.Description,
 				Method:      ct.Method,
@@ -43,6 +43,7 @@ type App struct {
 	VersionHandler      *handlers.VersionHandler
 	AuthHandler         *handlers.AuthHandler
 	DashboardHandler    *handlers.DashboardHandler
+	MCPPageHandler      *handlers.MCPPageHandler
 	SettingsHandler     *handlers.SettingsHandler
 	ServerHealthHandler *handlers.ServerHealthHandler
 	MCPHandler          *mcp.Handler
@@ -117,17 +118,22 @@ func (a *App) initHandlers() {
 	a.DashboardHandler = handlers.NewDashboardHandler(
 		a.Logger,
 		a.Config.IsDevMode(),
-		a.Config.Server.Port,
 		jwtSecret,
-		catalogAdapter(a.MCPHandler),
 		userLookup,
 	)
 	a.DashboardHandler.SetAPIURL(a.Config.API.URL)
-	a.DashboardHandler.SetConfigStatus(handlers.DashboardConfigStatus{
-		Portfolios: strings.Join(a.Config.User.Portfolios, ", "),
-	})
+
+	a.MCPPageHandler = handlers.NewMCPPageHandler(
+		a.Logger,
+		a.Config.IsDevMode(),
+		a.Config.Server.Port,
+		jwtSecret,
+		catalogAdapter(a.MCPHandler),
+	)
+	a.MCPPageHandler.SetAPIURL(a.Config.API.URL)
+
 	if a.MCPDevHandler != nil {
-		a.DashboardHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
+		a.MCPPageHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
 		a.SettingsHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
 	}
 

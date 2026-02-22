@@ -298,13 +298,7 @@ func TestLoginHandler_MissingCredentials(t *testing.T) {
 // --- Dashboard Handler Tests ---
 
 func TestDashboardHandler_Returns200(t *testing.T) {
-	tools := []DashboardTool{
-		{Name: "get_summary", Description: "Get portfolio summary", Method: "GET", Path: "/api/portfolios/{name}/summary"},
-		{Name: "list_holdings", Description: "List holdings", Method: "GET", Path: "/api/portfolios/{name}/holdings"},
-	}
-	catalogFn := func() []DashboardTool { return tools }
-
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")
@@ -322,16 +316,16 @@ func TestDashboardHandler_Returns200(t *testing.T) {
 	}
 }
 
-func TestDashboardHandler_ContainsToolCatalog(t *testing.T) {
-	tools := []DashboardTool{
+func TestMCPPageHandler_ContainsToolCatalog(t *testing.T) {
+	tools := []MCPPageTool{
 		{Name: "get_summary", Description: "Get portfolio summary", Method: "GET", Path: "/api/portfolios/{name}/summary"},
 		{Name: "compute_indicators", Description: "Compute technical indicators", Method: "POST", Path: "/api/indicators"},
 	}
-	catalogFn := func() []DashboardTool { return tools }
+	catalogFn := func() []MCPPageTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
 
-	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
@@ -341,24 +335,24 @@ func TestDashboardHandler_ContainsToolCatalog(t *testing.T) {
 
 	// Should display tool names
 	if !strings.Contains(body, "get_summary") {
-		t.Error("expected dashboard to contain tool name 'get_summary'")
+		t.Error("expected MCP page to contain tool name 'get_summary'")
 	}
 	if !strings.Contains(body, "compute_indicators") {
-		t.Error("expected dashboard to contain tool name 'compute_indicators'")
+		t.Error("expected MCP page to contain tool name 'compute_indicators'")
 	}
 
 	// Should display tool descriptions
 	if !strings.Contains(body, "Get portfolio summary") {
-		t.Error("expected dashboard to contain tool description")
+		t.Error("expected MCP page to contain tool description")
 	}
 }
 
-func TestDashboardHandler_ContainsMCPConnectionConfig(t *testing.T) {
-	catalogFn := func() []DashboardTool { return nil }
+func TestMCPPageHandler_ContainsMCPConnectionConfig(t *testing.T) {
+	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
 
-	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
@@ -368,26 +362,26 @@ func TestDashboardHandler_ContainsMCPConnectionConfig(t *testing.T) {
 
 	// Should contain MCP endpoint
 	if !strings.Contains(body, "/mcp") {
-		t.Error("expected dashboard to contain /mcp endpoint")
+		t.Error("expected MCP page to contain /mcp endpoint")
 	}
 
 	// Should contain Claude Code JSON config
 	if !strings.Contains(body, "mcpServers") {
-		t.Error("expected dashboard to contain mcpServers JSON config")
+		t.Error("expected MCP page to contain mcpServers JSON config")
 	}
 
 	// Should contain the port in the endpoint URL
 	if !strings.Contains(body, "8500") {
-		t.Error("expected dashboard to contain port 8500 in MCP endpoint")
+		t.Error("expected MCP page to contain port 8500 in MCP endpoint")
 	}
 }
 
-func TestDashboardHandler_ShowsEmptyToolsMessage(t *testing.T) {
-	catalogFn := func() []DashboardTool { return nil }
+func TestMCPPageHandler_ShowsEmptyToolsMessage(t *testing.T) {
+	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
 
-	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
@@ -397,19 +391,19 @@ func TestDashboardHandler_ShowsEmptyToolsMessage(t *testing.T) {
 
 	// With no tools, should show a "no tools" indicator
 	if !strings.Contains(body, "NO TOOLS") {
-		t.Error("expected dashboard to show NO TOOLS message when catalog is empty")
+		t.Error("expected MCP page to show NO TOOLS message when catalog is empty")
 	}
 }
 
-func TestDashboardHandler_XSSEscaping(t *testing.T) {
-	tools := []DashboardTool{
+func TestMCPPageHandler_XSSEscaping(t *testing.T) {
+	tools := []MCPPageTool{
 		{Name: "<script>alert('xss')</script>", Description: "<img onerror=alert(1) src=x>"},
 	}
-	catalogFn := func() []DashboardTool { return tools }
+	catalogFn := func() []MCPPageTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
 
-	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
@@ -419,29 +413,29 @@ func TestDashboardHandler_XSSEscaping(t *testing.T) {
 
 	// html/template auto-escapes; verify raw HTML tags are NOT present
 	if strings.Contains(body, "<script>") {
-		t.Error("expected <script> tag to be escaped in dashboard output")
+		t.Error("expected <script> tag to be escaped in MCP page output")
 	}
 	if strings.Contains(body, "<img onerror") {
-		t.Error("expected <img onerror> to be escaped in dashboard output")
+		t.Error("expected <img onerror> to be escaped in MCP page output")
 	}
 
 	// The escaped forms should be present
 	if !strings.Contains(body, "&lt;script&gt;") {
-		t.Error("expected escaped &lt;script&gt; in dashboard output")
+		t.Error("expected escaped &lt;script&gt; in MCP page output")
 	}
 }
 
-func TestDashboardHandler_ToolCount(t *testing.T) {
-	tools := []DashboardTool{
+func TestMCPPageHandler_ToolCount(t *testing.T) {
+	tools := []MCPPageTool{
 		{Name: "tool_a", Description: "Tool A"},
 		{Name: "tool_b", Description: "Tool B"},
 		{Name: "tool_c", Description: "Tool C"},
 	}
-	catalogFn := func() []DashboardTool { return tools }
+	catalogFn := func() []MCPPageTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
 
-	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
@@ -451,7 +445,7 @@ func TestDashboardHandler_ToolCount(t *testing.T) {
 
 	// Should show the tool count
 	if !strings.Contains(body, "3") {
-		t.Error("expected dashboard to display tool count of 3")
+		t.Error("expected MCP page to display tool count of 3")
 	}
 }
 
@@ -637,8 +631,7 @@ func TestLogoutHandler_WorksWithoutExistingCookie(t *testing.T) {
 func TestServePage_LoggedIn_WithCookie(t *testing.T) {
 	// Note: Landing page auto-logouts, so nav is never rendered even with valid cookie.
 	// Use DashboardHandler to test logged-in nav rendering.
-	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")
@@ -1034,12 +1027,11 @@ func TestSettingsHandler_GET_SavedBanner(t *testing.T) {
 // --- Dashboard NavexaKeyMissing Tests ---
 
 func TestDashboardHandler_NavexaKeyMissing_WhenEmpty(t *testing.T) {
-	catalogFn := func() []DashboardTool { return nil }
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), lookupFn)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "dev_user")
@@ -1057,12 +1049,11 @@ func TestDashboardHandler_NavexaKeyMissing_WhenEmpty(t *testing.T) {
 }
 
 func TestDashboardHandler_NavexaKeyMissing_WhenSet(t *testing.T) {
-	catalogFn := func() []DashboardTool { return nil }
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: "ekey"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), lookupFn)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "dev_user")
@@ -1077,12 +1068,11 @@ func TestDashboardHandler_NavexaKeyMissing_WhenSet(t *testing.T) {
 }
 
 func TestDashboardHandler_NavexaKeyMissing_NotLoggedIn(t *testing.T) {
-	catalogFn := func() []DashboardTool { return nil }
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), lookupFn)
 
 	// No cookie
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1494,12 +1484,11 @@ func TestSettingsHandler_GET_LookupFailure(t *testing.T) {
 
 func TestDashboardHandler_NavexaKeyMissing_LookupFailure(t *testing.T) {
 	// If user lookup fails, the warning should NOT show (fail open, don't crash)
-	catalogFn := func() []DashboardTool { return nil }
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return nil, fmt.Errorf("database unavailable")
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), lookupFn)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "dev_user")
@@ -1519,14 +1508,13 @@ func TestDashboardHandler_NavexaKeyMissing_LookupFailure(t *testing.T) {
 
 func TestDashboardHandler_NavexaKeyMissing_GarbageCookie(t *testing.T) {
 	// With authentication, a garbage JWT should result in redirect to landing
-	catalogFn := func() []DashboardTool { return nil }
 	lookupCalled := false
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		lookupCalled = true
 		return &client.UserProfile{Username: userID}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), lookupFn)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "garbage-not-jwt"})
@@ -1551,8 +1539,7 @@ func TestNavTemplate_ContainsLogoutPostForm(t *testing.T) {
 	// The logout must be a POST form (not a GET link) for CSRF protection.
 	// A GET link would be vulnerable to CSRF via <img src="/api/auth/logout">.
 	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
-	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")
@@ -1574,8 +1561,7 @@ func TestNavTemplate_ContainsLogoutPostForm(t *testing.T) {
 func TestNavTemplate_MobileMenuPresent(t *testing.T) {
 	// Verify mobile menu elements exist when logged in, using navMenu() component.
 	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
-	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")
@@ -1602,8 +1588,7 @@ func TestNavTemplate_MobileMenuPresent(t *testing.T) {
 func TestNavTemplate_HamburgerDropdownPresent(t *testing.T) {
 	// Verify nav uses navMenu() component and has a dropdown with Settings + Logout.
 	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
-	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")
@@ -1652,8 +1637,7 @@ func TestNavTemplate_NotRenderedWhenLoggedOut(t *testing.T) {
 
 func TestNavTemplate_ActiveStateForDashboard(t *testing.T) {
 	// Verify Dashboard link gets "active" class when Page="dashboard".
-	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")
@@ -1748,8 +1732,7 @@ func TestXCloakStyle_InCSS(t *testing.T) {
 }
 
 func TestDashboardHandler_PageIdentifier(t *testing.T) {
-	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")
@@ -1810,15 +1793,15 @@ func TestSettingsHandler_FormUsesComponentLibraryClasses(t *testing.T) {
 	}
 }
 
-func TestDashboardHandler_ToolTableUseComponentLibraryClasses(t *testing.T) {
-	tools := []DashboardTool{
+func TestMCPPageHandler_ToolTableUseComponentLibraryClasses(t *testing.T) {
+	tools := []MCPPageTool{
 		{Name: "test_tool", Description: "A test tool", Method: "GET", Path: "/api/test"},
 	}
-	catalogFn := func() []DashboardTool { return tools }
+	catalogFn := func() []MCPPageTool { return tools }
 
-	handler := NewDashboardHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
 
-	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
@@ -1826,12 +1809,12 @@ func TestDashboardHandler_ToolTableUseComponentLibraryClasses(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Dashboard should use table classes from component library
+	// MCP page should use table classes from component library
 	if !strings.Contains(body, "table-wrap") {
-		t.Error("expected table-wrap class from component library in dashboard")
+		t.Error("expected table-wrap class from component library in MCP page")
 	}
 	if !strings.Contains(body, "tool-table") {
-		t.Error("expected tool-table class in dashboard tools section")
+		t.Error("expected tool-table class in MCP page tools section")
 	}
 }
 
@@ -1886,13 +1869,13 @@ func TestSettingsHandler_CSRFTokenXSSEscaped(t *testing.T) {
 
 // --- Port Configuration Stress Tests ---
 
-func TestDashboardHandler_PortInMCPEndpoint(t *testing.T) {
+func TestMCPPageHandler_PortInMCPEndpoint(t *testing.T) {
 	// Verify port is correctly embedded in the MCP endpoint URL
-	catalogFn := func() []DashboardTool { return nil }
+	catalogFn := func() []MCPPageTool { return nil }
 
 	// Test with default port 8080
-	handler := NewDashboardHandler(nil, false, 8080, []byte(testJWTSecret), catalogFn, nil)
-	req := httptest.NewRequest("GET", "/dashboard", nil)
+	handler := NewMCPPageHandler(nil, false, 8080, []byte(testJWTSecret), catalogFn)
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -1903,12 +1886,12 @@ func TestDashboardHandler_PortInMCPEndpoint(t *testing.T) {
 	}
 }
 
-func TestDashboardHandler_PortZero(t *testing.T) {
+func TestMCPPageHandler_PortZero(t *testing.T) {
 	// Edge case: port 0 should still render without crashing
-	catalogFn := func() []DashboardTool { return nil }
+	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewDashboardHandler(nil, false, 0, []byte(testJWTSecret), catalogFn, nil)
-	req := httptest.NewRequest("GET", "/dashboard", nil)
+	handler := NewMCPPageHandler(nil, false, 0, []byte(testJWTSecret), catalogFn)
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -1918,12 +1901,12 @@ func TestDashboardHandler_PortZero(t *testing.T) {
 	}
 }
 
-func TestDashboardHandler_PortNegative(t *testing.T) {
+func TestMCPPageHandler_PortNegative(t *testing.T) {
 	// Edge case: negative port should render without crashing
-	catalogFn := func() []DashboardTool { return nil }
+	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewDashboardHandler(nil, false, -1, []byte(testJWTSecret), catalogFn, nil)
-	req := httptest.NewRequest("GET", "/dashboard", nil)
+	handler := NewMCPPageHandler(nil, false, -1, []byte(testJWTSecret), catalogFn)
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -1935,12 +1918,11 @@ func TestDashboardHandler_PortNegative(t *testing.T) {
 
 func TestDashboardHandler_WarningBannerCSS(t *testing.T) {
 	// Verify warning banner uses correct component library class.
-	catalogFn := func() []DashboardTool { return nil }
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, lookupFn)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), lookupFn)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")
@@ -2402,8 +2384,7 @@ func TestStatusIndicatorCSS_DotBorderRadius(t *testing.T) {
 func TestNavTemplate_StatusIndicatorsPresent(t *testing.T) {
 	// Verify status indicators appear in the nav when logged in.
 	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
-	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")
@@ -2433,8 +2414,7 @@ func TestNavTemplate_StatusIndicatorsXSSInClassBinding(t *testing.T) {
 	// In this implementation, portal/server are only set to 'startup', 'up', or 'down'
 	// so no XSS is possible. This test verifies the class binding pattern is safe.
 	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
-	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")
@@ -2600,9 +2580,7 @@ func TestServePage_ContainsServerVersion(t *testing.T) {
 }
 
 func TestDashboardHandler_ContainsVersionFooter(t *testing.T) {
-	catalogFn := func() []DashboardTool { return nil }
-
-	handler := NewDashboardHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
 	addAuthCookie(req, "test-user")

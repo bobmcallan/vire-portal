@@ -21,7 +21,7 @@ func TestDashboardAuthLoad(t *testing.T) {
 	// AFTER screenshot - state after login
 	takeScreenshot(t, ctx, "TestDashboardAuthLoad_01_after")
 
-	visible, err := isVisible(ctx, ".dashboard")
+	visible, err := isVisible(ctx, ".page")
 	if err != nil {
 		t.Fatalf("error checking dashboard visibility: %v", err)
 	}
@@ -71,12 +71,12 @@ func TestDashboardSections(t *testing.T) {
 	// AFTER screenshot - state after login
 	takeScreenshot(t, ctx, "TestDashboardSections_01_after")
 
-	count, err := elementCount(ctx, ".dashboard-section")
+	count, err := elementCount(ctx, ".panel-headed")
 	if err != nil {
-		t.Fatalf("error counting dashboard sections: %v", err)
+		t.Fatalf("error counting dashboard panels: %v", err)
 	}
 	if count < 2 {
-		t.Fatalf("dashboard sections = %d, want >= 2 (MCP + Config)", count)
+		t.Fatalf("dashboard panels = %d, want >= 2 (Strategy + Plan)", count)
 	}
 }
 

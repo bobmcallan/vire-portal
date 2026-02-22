@@ -1191,8 +1191,7 @@ func TestDashboardHandler_StressConcurrentVersionFetch(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	catalogFn := func() []DashboardTool { return nil }
-	handler := NewDashboardHandler(nil, true, 8500, []byte{}, catalogFn, nil)
+	handler := NewDashboardHandler(nil, true, []byte{}, nil)
 	handler.SetAPIURL(mockServer.URL)
 
 	var wg sync.WaitGroup

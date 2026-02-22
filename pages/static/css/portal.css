@@ -909,44 +909,45 @@ code {
 
 
 /* ============================================================
-   DASHBOARD (legacy compat)
+   PORTFOLIO DASHBOARD
    ============================================================ */
 
-.dashboard {
-    padding: 2rem 1rem;
-}
-
-.dashboard-inner {
-    max-width: 64rem;
-    margin: 0 auto;
-}
-
-.dashboard-section {
-    border: 2px solid #000;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-.dashboard-field {
+.portfolio-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
     margin-bottom: 1.5rem;
 }
 
-.dashboard-field:last-child {
-    margin-bottom: 0;
+.portfolio-select {
+    flex: 1;
+    max-width: 20rem;
 }
 
-.dashboard-label {
-    display: block;
-    font-size: 0.75rem;
+.portfolio-default-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
     font-weight: 700;
-    letter-spacing: 0.1em;
-    color: #888;
-    margin-bottom: 0.5rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    white-space: nowrap;
 }
 
-.dashboard-empty {
-    color: #888;
-    font-size: 0.875rem;
+.portfolio-editor {
+    min-height: 200px;
+    max-height: 600px;
+    resize: vertical;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    width: 100%;
+}
+
+.text-right {
+    text-align: right;
 }
 
 

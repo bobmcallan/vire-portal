@@ -117,3 +117,133 @@ document.addEventListener('alpine:init', () => {
     }));
 
 });
+
+// Portfolio Dashboard component
+function portfolioDashboard() {
+    return {
+        portfolios: [],
+        selected: '',
+        defaultPortfolio: '',
+        holdings: [],
+        strategy: '',
+        plan: '',
+        loading: true,
+        error: '',
+        get isDefault() { return this.selected === this.defaultPortfolio; },
+
+        async init() {
+            try {
+                const res = await fetch('/api/portfolios');
+                if (!res.ok) {
+                    this.error = 'Failed to load portfolios';
+                    this.loading = false;
+                    return;
+                }
+                const data = await res.json();
+                this.portfolios = data.portfolios || [];
+                this.defaultPortfolio = data.default || '';
+                if (this.defaultPortfolio) {
+                    this.selected = this.defaultPortfolio;
+                } else if (this.portfolios.length > 0) {
+                    this.selected = this.portfolios[0].name;
+                }
+                if (this.selected) await this.loadPortfolio();
+            } catch (e) {
+                debugError('portfolioDashboard', 'init failed', e);
+                this.error = 'Failed to connect to server';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadPortfolio() {
+            if (!this.selected) return;
+            try {
+                const [holdingsRes, strategyRes, planRes] = await Promise.all([
+                    fetch('/api/portfolios/' + encodeURIComponent(this.selected)),
+                    fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/strategy'),
+                    fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/plan'),
+                ]);
+
+                if (holdingsRes.ok) {
+                    const holdingsData = await holdingsRes.json();
+                    this.holdings = holdingsData.holdings || [];
+                } else {
+                    this.holdings = [];
+                }
+
+                if (strategyRes.ok) {
+                    const strategyData = await strategyRes.json();
+                    this.strategy = strategyData.notes || JSON.stringify(strategyData.strategy || strategyData, null, 2);
+                } else {
+                    this.strategy = '';
+                }
+
+                if (planRes.ok) {
+                    const planData = await planRes.json();
+                    this.plan = planData.notes || JSON.stringify(planData.plan || planData, null, 2);
+                } else {
+                    this.plan = '';
+                }
+            } catch (e) {
+                debugError('portfolioDashboard', 'loadPortfolio failed', e);
+            }
+        },
+
+        async toggleDefault() {
+            try {
+                if (this.isDefault) {
+                    await fetch('/api/portfolios/default', {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({}),
+                    });
+                    this.defaultPortfolio = '';
+                } else {
+                    await fetch('/api/portfolios/default', {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ name: this.selected }),
+                    });
+                    this.defaultPortfolio = this.selected;
+                }
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Default updated' } }));
+            } catch (e) {
+                debugError('portfolioDashboard', 'toggleDefault failed', e);
+            }
+        },
+
+        async saveStrategy() {
+            try {
+                await fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/strategy', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ strategy: this.strategy }),
+                });
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Strategy saved' } }));
+            } catch (e) {
+                debugError('portfolioDashboard', 'saveStrategy failed', e);
+            }
+        },
+
+        async savePlan() {
+            try {
+                await fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/plan', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ notes: this.plan }),
+                });
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Plan saved' } }));
+            } catch (e) {
+                debugError('portfolioDashboard', 'savePlan failed', e);
+            }
+        },
+
+        fmt(val) {
+            return val != null ? Number(val).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+        },
+        pct(val) {
+            return val != null ? Number(val).toFixed(2) + '%' : '-';
+        },
+    };
+}

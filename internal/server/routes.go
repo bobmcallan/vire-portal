@@ -4,6 +4,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/bobmcallan/vire-portal/internal/handlers"
 )
 
 // setupRoutes configures all HTTP routes.
@@ -28,6 +30,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 
 	// UI page routes (HTML templates)
 	mux.HandleFunc("GET /dashboard", s.app.DashboardHandler.ServeHTTP)
+	mux.HandleFunc("GET /mcp-info", s.app.MCPPageHandler.ServeHTTP)
 	mux.HandleFunc("GET /error", s.app.PageHandler.ServePage("error.html", "error"))
 	mux.HandleFunc("/", s.app.PageHandler.ServePage("landing.html", "home"))
 
@@ -116,6 +119,11 @@ func (s *Server) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
 		for _, value := range values {
 			proxyReq.Header.Add(key, value)
 		}
+	}
+
+	// Inject X-Vire-User-ID from session cookie for authenticated API calls
+	if loggedIn, claims := handlers.IsLoggedIn(r, []byte(s.app.Config.Auth.JWTSecret)); loggedIn && claims != nil {
+		proxyReq.Header.Set("X-Vire-User-ID", claims.Sub)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}

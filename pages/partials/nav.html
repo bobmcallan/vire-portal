@@ -6,6 +6,7 @@
 
             <ul class="nav-links">
                 <li><a href="/dashboard" {{if eq .Page "dashboard"}}class="active"{{end}}>Dashboard</a></li>
+                <li><a href="/mcp-info" {{if eq .Page "mcp"}}class="active"{{end}}>MCP</a></li>
             </ul>
 
             <div class="nav-hamburger-wrap" @click.outside="closeDropdown()">
@@ -32,6 +33,7 @@
             <div class="mobile-menu">
                 <button @click="closeMobile()" class="mobile-menu-close">&#10005;</button>
                 <a href="/dashboard">Dashboard</a>
+                <a href="/mcp-info">MCP</a>
                 <a href="/settings">Settings</a>
                 <form method="POST" action="/api/auth/logout">
                     <button type="submit" style="display:block;width:100%;padding:0.6rem 0;font-weight:700;font-size:0.8rem;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;color:#000;border:none;border-bottom:1px solid #888;background:none;cursor:pointer;text-align:left;font-family:'IBM Plex Mono',ui-monospace,monospace;">Logout</button>

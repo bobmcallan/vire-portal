@@ -110,13 +110,13 @@ func TestDevAuthCookieAndJWT(t *testing.T) {
 		t.Error("nav should be visible when logged in")
 	}
 
-	// Verify we can access dashboard content
-	dashboardSections, err := elementCount(ctx, ".dashboard-section")
+	// Verify we can access dashboard content (portfolio UI panels)
+	dashboardPanels, err := elementCount(ctx, ".panel-headed")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dashboardSections < 1 {
-		t.Errorf("expected at least 1 dashboard section, got: %d", dashboardSections)
+	if dashboardPanels < 1 {
+		t.Errorf("expected at least 1 dashboard panel, got: %d", dashboardPanels)
 	}
 
 	// Verify login buttons are NOT visible (user is logged in)

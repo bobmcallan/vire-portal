@@ -10,8 +10,8 @@
 
     {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
 
-    <main class="dashboard">
-        <div class="dashboard-inner">
+    <main class="page" x-data="portfolioDashboard()" x-init="init()">
+        <div class="page-body">
 
             {{if .NavexaKeyMissing}}
             <div class="warning-banner">
@@ -20,64 +20,77 @@
             </div>
             {{end}}
 
-            <section class="dashboard-section">
-                <h2 class="section-title">MCP CONNECTION</h2>
-                <div class="config-block">
-                    <p>Endpoint: <code>{{.MCPEndpoint}}</code></p>
-                    <p>Add to your Claude Code config:</p>
-                    <pre><code>{
-  "mcpServers": {
-    "vire": {
-      "type": "streamable-http",
-      "url": "http://localhost:{{.Port}}/mcp"
-    }
-  }
-}</code></pre>
+            <!-- Loading state -->
+            <div x-show="loading" class="text-muted" style="padding: 2rem 0;">Loading portfolios...</div>
+
+            <!-- Error state -->
+            <div x-show="error" class="warning-banner" x-text="error"></div>
+
+            <!-- Portfolio selector row -->
+            <div class="portfolio-header" x-show="!loading && portfolios.length > 0">
+                <select x-model="selected" @change="loadPortfolio()" class="form-select portfolio-select">
+                    <template x-for="p in portfolios" :key="p.name">
+                        <option :value="p.name" x-text="p.name" :selected="p.name === selected"></option>
+                    </template>
+                </select>
+                <label class="portfolio-default-label">
+                    <input type="checkbox" :checked="isDefault" @change="toggleDefault()">
+                    <span>Default</span>
+                </label>
+            </div>
+
+            <!-- Empty state -->
+            <div x-show="!loading && portfolios.length === 0 && !error" class="text-muted" style="padding: 2rem 0;">
+                No portfolios found. Configure your Navexa API key in <a href="/settings">Settings</a>.
+            </div>
+
+            <!-- Holdings table -->
+            <section class="panel-headed" x-show="holdings.length > 0" x-cloak>
+                <div class="panel-header">HOLDINGS</div>
+                <div class="panel-content">
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead>
+                                <tr>
+                                    <th>Ticker</th>
+                                    <th>Name</th>
+                                    <th class="text-right">Value</th>
+                                    <th class="text-right">Weight%</th>
+                                    <th class="text-right">Gain%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="h in holdings" :key="h.ticker">
+                                    <tr>
+                                        <td class="tool-name" x-text="h.ticker"></td>
+                                        <td x-text="h.name"></td>
+                                        <td class="text-right" x-text="fmt(h.market_value)"></td>
+                                        <td class="text-right" x-text="pct(h.weight)"></td>
+                                        <td class="text-right" x-text="pct(h.total_gain_pct)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                {{if .DevMCPEndpoint}}
-                <div class="config-block" style="margin-top: 1rem; border-left: 3px solid #f59e0b; padding-left: 1rem;">
-                    <p><strong>DEV MODE:</strong> Authenticated endpoint (Claude Desktop):</p>
-                    <p><code style="word-break: break-all;">{{.DevMCPEndpoint}}</code></p>
-                    <p class="hint">Use this URL in Claude Desktop config. It authenticates as your user.</p>
-                </div>
-                {{end}}
             </section>
 
-            <section class="dashboard-section">
-                <h2 class="section-title">CONFIG</h2>
-                <div class="config-block">
-                    <p>Portfolios: {{if .Config.Portfolios}}{{.Config.Portfolios}}{{else}}(none){{end}}</p>
+            <!-- Strategy editor -->
+            <section class="panel-headed" x-show="selected" x-cloak>
+                <div class="panel-header">STRATEGY</div>
+                <div class="panel-content">
+                    <textarea x-model="strategy" class="form-textarea portfolio-editor" placeholder="No strategy defined"></textarea>
+                    <button @click="saveStrategy()" class="btn btn-primary mt">SAVE STRATEGY</button>
                 </div>
             </section>
 
-            <section class="dashboard-section">
-                <h2 class="section-title">TOOLS [{{.ToolStatus}}]</h2>
-                {{if .Tools}}
-                <div class="table-wrap">
-                    <table class="tool-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Description</th>
-                                <th>Method</th>
-                                <th>Path</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {{range .Tools}}
-                            <tr>
-                                <td class="tool-name">{{.Name}}</td>
-                                <td class="tool-desc">{{.Description}}</td>
-                                <td class="tool-method">{{.Method}}</td>
-                                <td class="tool-path">{{.Path}}</td>
-                            </tr>
-                            {{end}}
-                        </tbody>
-                    </table>
+            <!-- Plan editor -->
+            <section class="panel-headed" x-show="selected" x-cloak>
+                <div class="panel-header">PLAN</div>
+                <div class="panel-content">
+                    <textarea x-model="plan" class="form-textarea portfolio-editor" placeholder="No plan defined"></textarea>
+                    <button @click="savePlan()" class="btn btn-primary mt">SAVE PLAN</button>
                 </div>
-                {{else}}
-                <p class="no-tools">NO TOOLS available. Ensure vire-server is running.</p>
-                {{end}}
             </section>
 
         </div>
