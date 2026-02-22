@@ -1,11 +1,23 @@
 # /vire-portal-develop - Vire Portal Development Workflow
 
-Develop and test Vire portal features using an agent team.
+Develop and test Vire portal features using an agent team optimized for Claude models.
 
 ## Usage
 ```
 /vire-portal-develop <feature-description>
 ```
+
+## Model Selection Guide
+
+| Model | Best For | Avoid For |
+|-------|----------|-----------|
+| **haiku** | Simple reads, file searches, quick validations, repetitive tasks | Complex reasoning, security analysis, multi-file refactors |
+| **sonnet** | Most implementation work, code review, testing, documentation | Very complex architectural decisions |
+| **opus** | Complex reasoning, security auditing, architectural decisions, stress-testing | Simple tasks (wasteful) |
+
+**Default teammates use sonnet** — good balance of speed and capability. Switch to:
+- `haiku` for reviewer's documentation verification tasks
+- `opus` for devils-advocate when security is critical
 
 ## Outputs
 
@@ -51,6 +63,8 @@ Before creating the team, the team lead investigates the codebase directly:
 2. Determine the approach, files to change, and any risks
 3. Write this into `requirements.md` (created in Step 1) under the Approach section
 4. Use this knowledge to write detailed task descriptions — teammates should NOT need to re-investigate
+
+**Efficiency tip:** Write specific file paths and line numbers into task descriptions. This saves teammates from searching and reduces token usage.
 
 ### Step 3: Create Team and Tasks
 
@@ -125,79 +139,96 @@ prompt: |
   You are the implementer on a development team. You write tests and code.
 
   Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
-  Read .claude/skills/develop/SKILL.md Reference section for conventions, routes, config, and API details.
 
-  Workflow:
+  ## Key Files to Read First
+  - `.claude/skills/develop/SKILL.md` — Reference section for conventions, routes, config
+  - Task description in TaskList — contains approach, files, acceptance criteria
+
+  ## Workflow
   1. Read TaskList, claim your tasks (owner: "implementer") by setting status to "in_progress"
   2. Work through tasks in ID order, mark each completed before moving to the next
   3. After each task, check TaskList for your next available task
 
-  For implement tasks: write tests first, then implement to pass them.
-  For verify tasks: run go test ./..., go vet ./..., then build and restart:
-    ./scripts/run.sh restart
-    curl -s http://localhost:${PORTAL_PORT:-8881}/api/health
-    Leave the server running — subsequent tasks (UI verification, validation) need it.
-  For UI verification tasks: run UI tests against the running server (see .claude/skills/ui-test/SKILL.md).
-    Check results in tests/results/{timestamp}/ for screenshots and summary.
-  For documentation tasks: update affected files in docs/, README.md, and .claude/skills/.
+  ## Task Types
+  **Implement:** Write tests first, then implement to pass them. Use `go test -run TestName` for targeted testing.
+  **Verify:** Run `go test ./...`, `go vet ./...`, then `./scripts/run.sh restart`. Verify with `curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`. Leave server running.
+  **UI Verification:** Run UI tests against running server (see .claude/skills/ui-test/SKILL.md). Check results in `tests/results/{timestamp}/`.
+  **Documentation:** Update affected files in docs/, README.md, and .claude/skills/.
 
-  Do NOT send status messages. Only message teammates for: blocking issues, review findings, or questions.
-  Mark tasks completed via TaskUpdate — the system handles notifications.
+  ## Communication Rules
+  - Do NOT send status messages — use TaskUpdate for completion
+  - Message teammates only for: blocking issues, review findings that need fixes, questions
+  - Keep messages concise and actionable
 ```
 
 **reviewer:**
 ```
 name: "reviewer"
 subagent_type: "general-purpose"
-model: "sonnet"
+model: "haiku"
 team_name: "vire-portal-develop"
 run_in_background: true
 prompt: |
-  You are the reviewer on a development team. You review for code quality, pattern
-  consistency, test coverage, and documentation accuracy.
+  You are the reviewer on a development team. You review for code quality, pattern consistency, test coverage, and documentation accuracy.
 
   Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
-  Read .claude/skills/develop/SKILL.md Reference section for conventions, routes, config, and API details.
 
-  Workflow:
+  ## Key Files to Read First
+  - `.claude/skills/develop/SKILL.md` — Reference section for conventions, routes, config
+  - Task description in TaskList — scope and acceptance criteria
+
+  ## Workflow
   1. Read TaskList, claim your tasks (owner: "reviewer") by setting status to "in_progress"
   2. Work through tasks in ID order, mark each completed before moving to the next
   3. After each task, check TaskList for your next available task
 
-  When reviewing code: read changed files and surrounding context, check for bugs, verify
-  consistency with existing patterns, validate test coverage is adequate.
-  When reviewing docs: check accuracy against implementation, verify examples work.
-  When validating deployment: confirm health endpoint responds, test key routes.
+  ## Review Checklist
+  **Code:** Read changed files + surrounding context. Check: bugs, pattern consistency, test coverage, error handling.
+  **Docs:** Verify accuracy against implementation, check that examples work.
+  **Deployment:** Confirm health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`), test key routes.
 
-  Send findings to "implementer" via SendMessage only if fixes are needed.
-  Do NOT send status messages. Mark tasks completed via TaskUpdate — the system handles notifications.
+  ## Communication Rules
+  - Send findings to "implementer" via SendMessage ONLY if fixes are needed
+  - Format findings as: file, line, issue, suggested fix
+  - Do NOT send status messages — use TaskUpdate for completion
 ```
 
 **devils-advocate:**
 ```
 name: "devils-advocate"
 subagent_type: "general-purpose"
-model: "sonnet"
+model: "opus"
 team_name: "vire-portal-develop"
 run_in_background: true
 prompt: |
-  You are the devils-advocate on a development team. Your scope: security vulnerabilities,
-  failure modes, edge cases, and hostile inputs.
+  You are the devils-advocate on a development team. Your scope: security vulnerabilities, failure modes, edge cases, and hostile inputs.
 
   Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
-  Read .claude/skills/develop/SKILL.md Reference section for conventions, routes, config, and API details.
 
-  Workflow:
+  ## Key Files to Read First
+  - `.claude/skills/develop/SKILL.md` — Reference section for conventions, routes, config
+  - `.claude/skills/ui-test/SKILL.md` — If testing web endpoints
+  - Changed files from implementation
+
+  ## Workflow
   1. Read TaskList, claim your tasks (owner: "devils-advocate") by setting status to "in_progress"
   2. Work through tasks in ID order, mark each completed before moving to the next
   3. After each task, check TaskList for your next available task
 
-  Stress-test the implementation: input validation, injection attacks, broken auth flows,
-  missing error states, race conditions, resource leaks, crash recovery. Write stress tests
-  where appropriate. Play the role of a hostile input source.
+  ## Attack Surface Analysis
+  Check these categories systematically:
+  - **Input validation:** SQL injection, XSS, path traversal, command injection
+  - **Auth flows:** Broken auth, session fixation, CSRF, missing tokens
+  - **Error states:** Missing error handling, information leakage, panic recovery
+  - **Concurrency:** Race conditions, deadlocks, resource leaks
+  - **Edge cases:** Empty inputs, max values, unicode, special characters, nil/null
 
-  Send findings to "implementer" via SendMessage only if fixes are needed.
-  Do NOT send status messages. Mark tasks completed via TaskUpdate — the system handles notifications.
+  Write stress tests where appropriate. Think like an attacker.
+
+  ## Communication Rules
+  - Send findings to "implementer" via SendMessage ONLY if fixes are needed
+  - Format findings as: severity (critical/high/medium/low), location, issue, exploit scenario, fix
+  - Do NOT send status messages — use TaskUpdate for completion
 ```
 
 ### Step 5: Coordinate
@@ -207,6 +238,21 @@ As team lead, your job is lightweight coordination:
 1. **Relay information** — If one teammate's findings affect another, forward via `SendMessage`.
 2. **Resolve conflicts** — If the devils-advocate and implementer disagree, make the call.
 3. **Apply direct fixes** — For trivial issues (typos, missing imports), fix them directly rather than round-tripping through the implementer.
+
+## Token Efficiency Tips
+
+When working with Claude models, reduce context usage:
+
+| Technique | How |
+|-----------|-----|
+| **Read selectively** | Use `offset` and `limit` in Read tool for large files |
+| **Search first** | Use Grep to find relevant sections before reading entire files |
+| **Task descriptions** | Include only essential context; teammates read files directly |
+| **Avoid duplication** | Don't repeat information across task descriptions |
+| **Parallel reads** | Read multiple small files in one message, not sequentially |
+| **Summarize early** | Write findings to files, don't keep re-reading same content |
+
+**For teammates:** Read the task description, then read only the files mentioned. Don't re-explore the codebase — the lead already did that in Step 2.
 
 ### Step 6: Completion
 
@@ -359,3 +405,35 @@ When the feature affects user-facing behaviour or API contracts, update:
 - `README.md` — if new capabilities, changed routes, or prerequisites
 - `docs/requirements.md` — if API contracts or architecture changed
 - `.claude/skills/` — affected skill files
+
+## Claude-Specific Patterns
+
+These patterns improve reliability when working with Claude models:
+
+### Prompt Structure
+Good prompts for teammates follow this structure:
+1. **Role** — Clear statement of what they are
+2. **Context** — Team name, working directory, key files to read
+3. **Workflow** — Numbered steps for their tasks
+4. **Task-specific guidance** — What to do for each task type
+5. **Communication rules** — When and how to message teammates
+
+### Avoid These Anti-Patterns
+- ❌ Vague instructions like "do your best" or "be thorough"
+- ❌ Long prose without structure — use headers and lists
+- ❌ Repeating the same information multiple times
+- ❌ Asking teammates to "explore and understand" — lead does this in Step 2
+
+### Leverage Claude Strengths
+- ✅ **Pattern matching** — Claude excels at finding similar code patterns
+- ✅ **Code review** — Good at catching inconsistencies and missing edge cases
+- ✅ **Security analysis** — Opus especially good at identifying vulnerabilities
+- ✅ **Structured output** — Ask for specific formats (tables, checklists, severity ratings)
+
+### Team Communication
+Teammates should message each other only when:
+- Blocking issue discovered that prevents progress
+- Review found issues requiring fixes
+- Clarification needed on requirements
+
+All other updates go through TaskUpdate status changes — the system handles notifications automatically.
