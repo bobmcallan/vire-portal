@@ -201,6 +201,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set the session cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "vire_session",
 		Value:    result.Data.Token,
