@@ -55,5 +55,7 @@ config/*.toml
 !config/*.toml.docker
 docker/*.tomlbrowser-check
 
-# AI models
+# AI / MCP config
 .claude/settings.json
+.claude/settings.json.bak
+.mcp.json
