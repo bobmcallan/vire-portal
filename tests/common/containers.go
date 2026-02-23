@@ -19,8 +19,6 @@ import (
 var (
 	portalBuildOnce  sync.Once
 	portalBuildError error
-	serverBuildOnce  sync.Once
-	serverBuildError error
 	portalContainer  *PortalContainer
 	portalOnce       sync.Once
 	portalStartErr   error
@@ -129,39 +127,6 @@ func buildPortalImage() error {
 	return portalBuildError
 }
 
-// buildServerImage builds the vire-server:test Docker image from the sibling vire repo.
-func buildServerImage() error {
-	serverBuildOnce.Do(func() {
-		ctx := context.Background()
-
-		// Locate vire-server repo: VIRE_SERVER_ROOT env var or ../vire relative to portal root
-		serverRoot := os.Getenv("VIRE_SERVER_ROOT")
-		if serverRoot == "" {
-			serverRoot = filepath.Join(FindProjectRoot(), "..", "vire")
-		}
-
-		req := testcontainers.GenericContainerRequest{
-			ContainerRequest: testcontainers.ContainerRequest{
-				FromDockerfile: testcontainers.FromDockerfile{
-					Context:    serverRoot,
-					Dockerfile: "tests/docker/Dockerfile.server",
-					Repo:       "vire-server",
-					Tag:        "test",
-					KeepImage:  true,
-				},
-			},
-		}
-
-		_, serverBuildError = testcontainers.GenericContainer(ctx, req)
-		if serverBuildError != nil {
-			if strings.Contains(serverBuildError.Error(), "vire-server:test") {
-				serverBuildError = nil
-			}
-		}
-	})
-	return serverBuildError
-}
-
 // startTestEnvironment creates the full 3-container environment:
 // SurrealDB → vire-server → vire-portal, all on a shared Docker network.
 func startTestEnvironment() (*PortalContainer, error) {
@@ -174,10 +139,15 @@ func startTestEnvironment() (*PortalContainer, error) {
 		return nil, fmt.Errorf("create docker network: %w", err)
 	}
 
-	// 2. Start SurrealDB
+	// 2. Start SurrealDB (name suffixed with -tc to avoid conflicts with dev stack)
 	surrealContainer, err := testcontainers.Run(ctx, "surrealdb/surrealdb:v3.0.0",
 		testcontainers.WithExposedPorts("8000/tcp"),
 		testcontainers.WithCmd("start", "--user", "root", "--pass", "root"),
+		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				Name: "vire-db-tc",
+			},
+		}),
 		network.WithNetwork([]string{"surrealdb"}, testNet),
 		testcontainers.WithWaitStrategy(
 			wait.ForAll(
@@ -201,14 +171,23 @@ func startTestEnvironment() (*PortalContainer, error) {
 		return nil, fmt.Errorf("get surrealdb IP: %w", err)
 	}
 
-	// 4. Start vire-server
-	serverContainer, err := testcontainers.Run(ctx, "vire-server:test",
+	// 4. Start vire-server (pulled from GHCR, name suffixed to avoid conflicts with dev stack)
+	serverContainer, err := testcontainers.Run(ctx, "ghcr.io/bobmcallan/vire-server:latest",
 		testcontainers.WithExposedPorts("8080/tcp"),
+		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				Name: "vire-server-tc",
+			},
+		}),
 		network.WithNetwork([]string{"vire-server"}, testNet),
 		testcontainers.WithEnv(map[string]string{
-			"VIRE_STORAGE_ADDRESS": fmt.Sprintf("ws://%s:8000/rpc", surrealIP),
-			"VIRE_ENV":             "dev",
-			"VIRE_SERVER_HOST":     "0.0.0.0",
+			"VIRE_STORAGE_ADDRESS":   fmt.Sprintf("ws://%s:8000/rpc", surrealIP),
+			"VIRE_STORAGE_NAMESPACE": "vire",
+			"VIRE_STORAGE_DATABASE":  "vire_test",
+			"VIRE_STORAGE_USERNAME":  "root",
+			"VIRE_STORAGE_PASSWORD":  "root",
+			"VIRE_ENV":               "dev",
+			"VIRE_SERVER_HOST":       "0.0.0.0",
 		}),
 		testcontainers.WithWaitStrategy(
 			wait.ForHTTP("/api/health").WithPort("8080/tcp").WithStartupTimeout(30*time.Second),
@@ -231,9 +210,14 @@ func startTestEnvironment() (*PortalContainer, error) {
 		return nil, fmt.Errorf("get vire-server IP: %w", err)
 	}
 
-	// 6. Start vire-portal
+	// 6. Start vire-portal (name suffixed to avoid conflicts with dev stack)
 	portalCtr, err := testcontainers.Run(ctx, "vire-portal:test",
 		testcontainers.WithExposedPorts("8080/tcp"),
+		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				Name: "vire-portal-tc",
+			},
+		}),
 		network.WithNetwork([]string{"vire-portal"}, testNet),
 		testcontainers.WithEnv(map[string]string{
 			"VIRE_API_URL":         fmt.Sprintf("http://%s:8080", serverIP),
@@ -300,10 +284,6 @@ func StartPortal(t *testing.T) *PortalContainer {
 			portalStartErr = fmt.Errorf("build portal image: %w", err)
 			return
 		}
-		if err := buildServerImage(); err != nil {
-			portalStartErr = fmt.Errorf("build server image: %w", err)
-			return
-		}
 		var err error
 		portalContainer, err = startTestEnvironment()
 		if err != nil {
@@ -327,10 +307,6 @@ func StartPortalForTestMain() (*PortalContainer, error) {
 	portalOnce.Do(func() {
 		if err := buildPortalImage(); err != nil {
 			portalStartErr = fmt.Errorf("build portal image: %w", err)
-			return
-		}
-		if err := buildServerImage(); err != nil {
-			portalStartErr = fmt.Errorf("build server image: %w", err)
 			return
 		}
 		var err error

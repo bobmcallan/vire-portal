@@ -1,0 +1,79 @@
+# Vire portal test stack — portal + server + surrealdb
+# Images: vire-portal:test (built), ghcr.io/bobmcallan/vire-server, surrealdb/surrealdb
+#
+# Architecture (mirrors vire-infra/docker/vire-stack.yml):
+#   portal:8882 → server:8080 → surrealdb:8000
+#   SurrealDB is NOT exposed to host, only accessible via server
+#
+# Container names use -test suffix to avoid conflicts with dev stack.
+
+name: vire-portal-test
+
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:v3.0.0
+    container_name: vire-db-test
+    user: "0:0"
+    command: start --user root --pass root
+    networks:
+      - vire-test
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "/surreal", "isready", "--endpoint", "http://localhost:8000"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  server:
+    image: ghcr.io/bobmcallan/vire-server:latest
+    container_name: vire-server-test
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+    environment:
+      VIRE_ENV: dev
+      VIRE_SERVER_HOST: "0.0.0.0"
+      VIRE_STORAGE_ADDRESS: ws://surrealdb:8000/rpc
+      VIRE_STORAGE_NAMESPACE: vire
+      VIRE_STORAGE_DATABASE: vire_test
+      VIRE_STORAGE_USERNAME: root
+      VIRE_STORAGE_PASSWORD: root
+    networks:
+      - vire-test
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  portal:
+    build:
+      context: ../..
+      dockerfile: tests/docker/Dockerfile.server
+    container_name: vire-portal-test
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      VIRE_ENV: dev
+      VIRE_SERVER_HOST: "0.0.0.0"
+      VIRE_API_URL: http://server:8080
+      VIRE_AUTH_JWT_SECRET: change-me-in-production
+    ports:
+      - "8882:8080"
+    networks:
+      - vire-test
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+networks:
+  vire-test:
+    driver: bridge

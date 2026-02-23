@@ -62,18 +62,11 @@ go run ./cmd/vire-portal/ -p 9090
 # Run with custom config
 go run ./cmd/vire-portal/ -c custom.toml
 
-# Run all tests
+# Run unit tests
+go test ./internal/... -timeout 120s
+
+# Run all tests (unit + UI -- UI tests start Docker containers)
 go test ./...
-
-# Run tests verbose
-go test -v ./...
-
-# Run UI browser tests (requires running server)
-go test -v ./tests/ui -run "^TestSmoke" -timeout 60s
-go test -v ./tests/ui -run "^TestDashboard" -timeout 60s
-
-# Test results are written to tests/logs/{timestamp}/
-ls -la tests/logs/
 
 # Vet for issues
 go vet ./...
@@ -81,6 +74,40 @@ go vet ./...
 # Verify auth endpoints on a running server
 ./scripts/verify-auth.sh
 ```
+
+### Testing
+
+The test environment is fully self-contained -- no sibling repositories or local builds of vire-server are needed. UI tests use [testcontainers-go](https://golang.testcontainers.org/) to spin up a 3-container stack (SurrealDB, vire-server from GHCR, vire-portal) automatically.
+
+**Docker test stack** (`tests/docker/docker-compose.yml`):
+- **SurrealDB** -- in-memory database for vire-server
+- **vire-server** -- pulled from `ghcr.io/bobmcallan/vire-server:latest` (no local build)
+- **vire-portal** -- built from the local repo
+
+Run the full stack manually with compose:
+
+```bash
+docker compose -f tests/docker/docker-compose.yml up -d
+# Portal available at http://localhost:8881
+docker compose -f tests/docker/docker-compose.yml down
+```
+
+**UI test runner** (`scripts/ui-test.sh`):
+
+```bash
+# Run all UI test suites
+./scripts/ui-test.sh all
+
+# Run individual suites
+./scripts/ui-test.sh smoke
+./scripts/ui-test.sh dashboard
+./scripts/ui-test.sh nav
+./scripts/ui-test.sh auth
+```
+
+Results (logs and screenshots) are written to `tests/logs/{timestamp}/`.
+
+**CI** (`.github/workflows/test.yml`): Runs automatically on PR and push to main. Unit tests run first (`go vet` + `go test ./internal/...`), then UI tests with headless Chrome.
 
 ### Browser Tests
 
@@ -901,9 +928,11 @@ HEALTHCHECK NONE
 ENTRYPOINT ["./vire-portal"]
 ```
 
-## GitHub Actions Workflow
+## GitHub Actions Workflows
 
-`.github/workflows/release.yml` builds and pushes Docker images for vire-portal and vire-mcp to GHCR on push to main or version tags (matrix strategy):
+**Test** (`.github/workflows/test.yml`): Runs on PR and push to main. Two jobs: `unit-test` (go vet + go test ./internal/...) and `ui-test` (headless Chrome via `./scripts/ui-test.sh all`). Test artifacts are uploaded on failure.
+
+**Release** (`.github/workflows/release.yml`): Builds and pushes Docker images for vire-portal and vire-mcp to GHCR on push to main or version tags (matrix strategy):
 
 - Extracts version from `.version` file
 - Passes VERSION, BUILD, GIT_COMMIT as Docker build args
@@ -939,7 +968,8 @@ The API client is in `internal/client/vire_client.go`.
 vire-portal/
 ├── .github/
 │   └── workflows/
-│       └── release.yml              # Docker build + GHCR push (matrix: portal + mcp)
+│       ├── release.yml              # Docker build + GHCR push (matrix: portal + mcp)
+│       └── test.yml                 # CI: go vet, unit tests, UI tests on PR/push
 ├── cmd/
 │   ├── vire-portal/
 │   │   └── main.go                  # Portal entry point (flag parsing, config, graceful shutdown)
@@ -1010,10 +1040,15 @@ vire-portal/
 │       ├── interfaces/               # Service and storage interface contracts
 │       └── models/                   # Data structures (portfolio, market, strategy, etc.)
 ├── tests/
-│   ├── common/                       # Test utilities (browser, config, screenshot)
+│   ├── common/                       # Test utilities (browser, config, containers, screenshot)
 │   │   ├── browser.go                # chromedp helpers (NewBrowserContext, NavigateAndWait, etc.)
+│   │   ├── containers.go             # Docker test env (SurrealDB + vire-server + portal via testcontainers)
 │   │   ├── testconfig.go             # Test config loader (TOML, results dir, timestamps)
 │   │   └── screenshot.go             # Screenshot capture utility
+│   ├── docker/                       # Docker configs for test environment
+│   │   ├── docker-compose.yml        # Full test stack (SurrealDB + vire-server + portal)
+│   │   ├── Dockerfile.server         # Portal test image (multi-stage build)
+│   │   └── portal-test.toml          # Portal test configuration
 │   └── ui/                           # UI browser tests
 │       ├── test_config.toml          # Test configuration (server URL, browser settings)
 │       ├── ui_helpers_test.go        # Test helpers (newBrowser, isVisible, etc.)
@@ -1053,6 +1088,7 @@ vire-portal/
 │   ├── deploy.sh                     # Deploy orchestration (local/ghcr/down/prune)
 │   ├── build.sh                      # Docker image builder (--portal, --mcp, or both)
 │   ├── run.sh                        # Build + start/stop/restart server locally
+│   ├── ui-test.sh                    # UI test runner (smoke, dashboard, nav, auth, all)
 │   ├── verify-auth.sh                # Auth endpoint validation (health, login, OAuth, MCP)
 │   └── test-scripts.sh               # Validation suite for scripts and configs
 ├── .dockerignore
