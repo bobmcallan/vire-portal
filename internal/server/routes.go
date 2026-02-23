@@ -59,6 +59,8 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.HandleFunc("GET /api/auth/login/google", s.app.AuthHandler.HandleGoogleLogin)
 	mux.HandleFunc("GET /api/auth/login/github", s.app.AuthHandler.HandleGitHubLogin)
 	mux.HandleFunc("GET /auth/callback", s.app.AuthHandler.HandleOAuthCallback)
+	mux.HandleFunc("GET /api/auth/callback/google", s.app.AuthHandler.HandleGoogleCallback)
+	mux.HandleFunc("GET /api/auth/callback/github", s.app.AuthHandler.HandleGitHubCallback)
 
 	// API routes
 	mux.HandleFunc("/api/health", s.app.HealthHandler.ServeHTTP)

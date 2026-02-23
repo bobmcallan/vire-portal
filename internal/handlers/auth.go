@@ -279,6 +279,69 @@ func (h *AuthHandler) proxyOAuthRedirect(w http.ResponseWriter, r *http.Request,
 	http.Redirect(w, r, location, http.StatusFound)
 }
 
+// HandleGoogleCallback proxies the Google OAuth callback through vire-server.
+func (h *AuthHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Request) {
+	h.proxyOAuthCallback(w, r)
+}
+
+// HandleGitHubCallback proxies the GitHub OAuth callback through vire-server.
+func (h *AuthHandler) HandleGitHubCallback(w http.ResponseWriter, r *http.Request) {
+	h.proxyOAuthCallback(w, r)
+}
+
+// proxyOAuthCallback forwards the OAuth provider callback (with state & code params)
+// to vire-server and returns its response to the browser. Uses CheckRedirect to
+// prevent Go's HTTP client from following vire-server's redirect, so the browser
+// receives the redirect directly (preserving Set-Cookie headers, etc.).
+func (h *AuthHandler) proxyOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	targetURL := h.apiURL + r.URL.Path
+	if r.URL.RawQuery != "" {
+		targetURL += "?" + r.URL.RawQuery
+	}
+
+	req, err := http.NewRequest("GET", targetURL, nil)
+	if err != nil {
+		if h.logger != nil {
+			h.logger.Error().Str("error", err.Error()).Msg("OAuth callback: failed to build request")
+		}
+		http.Redirect(w, r, "/error?reason=auth_failed", http.StatusFound)
+		return
+	}
+
+	// Forward the portal's public Host so vire-server can reconstruct the
+	// redirect_uri for the token exchange (must match the original auth request).
+	if h.callbackURL != "" {
+		if u, err := url.Parse(h.callbackURL); err == nil {
+			req.Host = u.Host
+		}
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Timeout: 30 * time.Second,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		if h.logger != nil {
+			h.logger.Error().Str("error", err.Error()).Msg("OAuth callback: failed to reach vire-server")
+		}
+		http.Redirect(w, r, "/error?reason=auth_unavailable", http.StatusFound)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Forward all response headers and body to the browser.
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+}
+
 // HandleOAuthCallback handles the OAuth callback from vire-server.
 // GET /auth/callback?token=<jwt> -> sets vire_session cookie, redirects to /dashboard.
 // If mcp_session_id cookie is present, completes the MCP OAuth flow instead.
