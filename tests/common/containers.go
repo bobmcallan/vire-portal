@@ -12,20 +12,26 @@ import (
 	"time"
 
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 var (
 	portalBuildOnce  sync.Once
 	portalBuildError error
+	serverBuildOnce  sync.Once
+	serverBuildError error
 	portalContainer  *PortalContainer
 	portalOnce       sync.Once
 	portalStartErr   error
 )
 
-// PortalContainer wraps a testcontainers container running the portal server.
+// PortalContainer wraps a testcontainers environment: SurrealDB + vire-server + portal.
 type PortalContainer struct {
-	container testcontainers.Container
+	portal    testcontainers.Container
+	server    testcontainers.Container
+	surrealDB testcontainers.Container
+	network   *testcontainers.DockerNetwork
 	ctx       context.Context
 	cancel    context.CancelFunc
 	url       string
@@ -36,37 +42,59 @@ func (p *PortalContainer) URL() string {
 	return p.url
 }
 
-// CollectLogs saves container stdout/stderr to dir/container.log.
+// CollectLogs saves container stdout/stderr to dir/.
 func (p *PortalContainer) CollectLogs(dir string) {
-	if p == nil || p.container == nil {
+	if p == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	reader, err := p.container.Logs(ctx)
-	if err != nil {
-		return
-	}
-	defer reader.Close()
-
-	logs, err := io.ReadAll(reader)
-	if err != nil {
-		return
-	}
-
 	os.MkdirAll(dir, 0755)
-	os.WriteFile(filepath.Join(dir, "container.log"), logs, 0644)
+
+	collectContainerLog := func(c testcontainers.Container, name string) {
+		if c == nil {
+			return
+		}
+		reader, err := c.Logs(ctx)
+		if err != nil {
+			return
+		}
+		defer reader.Close()
+
+		logs, err := io.ReadAll(reader)
+		if err != nil {
+			return
+		}
+		os.WriteFile(filepath.Join(dir, name+".log"), logs, 0644)
+	}
+
+	collectContainerLog(p.portal, "portal")
+	collectContainerLog(p.server, "vire-server")
 }
 
-// Cleanup terminates the container and cancels the context.
+// Cleanup tears down all containers and the network.
+// Uses a fresh context for teardown in case the main context expired.
 func (p *PortalContainer) Cleanup() {
-	if p == nil || p.container == nil {
+	if p == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	p.container.Terminate(ctx)
+
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cleanupCancel()
+
+	if p.portal != nil {
+		p.portal.Terminate(cleanupCtx)
+	}
+	if p.server != nil {
+		p.server.Terminate(cleanupCtx)
+	}
+	if p.surrealDB != nil {
+		p.surrealDB.Terminate(cleanupCtx)
+	}
+	if p.network != nil {
+		p.network.Remove(cleanupCtx)
+	}
 	if p.cancel != nil {
 		p.cancel()
 	}
@@ -101,58 +129,165 @@ func buildPortalImage() error {
 	return portalBuildError
 }
 
-// startPortalContainer creates and starts a portal container, returning the mapped URL.
-func startPortalContainer() (*PortalContainer, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+// buildServerImage builds the vire-server:test Docker image from the sibling vire repo.
+func buildServerImage() error {
+	serverBuildOnce.Do(func() {
+		ctx := context.Background()
 
-	env := map[string]string{
-		"VIRE_ENV":         "dev",
-		"VIRE_SERVER_HOST": "0.0.0.0",
-	}
-	if apiURL := os.Getenv("VIRE_API_URL"); apiURL != "" {
-		env["VIRE_API_URL"] = apiURL
-	}
+		// Locate vire-server repo: VIRE_SERVER_ROOT env var or ../vire relative to portal root
+		serverRoot := os.Getenv("VIRE_SERVER_ROOT")
+		if serverRoot == "" {
+			serverRoot = filepath.Join(FindProjectRoot(), "..", "vire")
+		}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "vire-portal:test",
-			Name:         "vire-portal-test",
-			ExposedPorts: []string{"8080/tcp"},
-			Env:          env,
-			WaitingFor:   wait.ForHTTP("/api/health").WithPort("8080/tcp").WithStartupTimeout(30 * time.Second),
-		},
-		Started: true,
+		req := testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				FromDockerfile: testcontainers.FromDockerfile{
+					Context:    serverRoot,
+					Dockerfile: "tests/docker/Dockerfile.server",
+					Repo:       "vire-server",
+					Tag:        "test",
+					KeepImage:  true,
+				},
+			},
+		}
+
+		_, serverBuildError = testcontainers.GenericContainer(ctx, req)
+		if serverBuildError != nil {
+			if strings.Contains(serverBuildError.Error(), "vire-server:test") {
+				serverBuildError = nil
+			}
+		}
 	})
+	return serverBuildError
+}
+
+// startTestEnvironment creates the full 3-container environment:
+// SurrealDB → vire-server → vire-portal, all on a shared Docker network.
+func startTestEnvironment() (*PortalContainer, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+
+	// 1. Create Docker network
+	testNet, err := network.New(ctx, network.WithCheckDuplicate())
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("start portal container: %w", err)
+		return nil, fmt.Errorf("create docker network: %w", err)
 	}
 
-	mappedPort, err := container.MappedPort(ctx, "8080/tcp")
+	// 2. Start SurrealDB
+	surrealContainer, err := testcontainers.Run(ctx, "surrealdb/surrealdb:v3.0.0",
+		testcontainers.WithExposedPorts("8000/tcp"),
+		testcontainers.WithCmd("start", "--user", "root", "--pass", "root"),
+		network.WithNetwork([]string{"surrealdb"}, testNet),
+		testcontainers.WithWaitStrategy(
+			wait.ForAll(
+				wait.ForListeningPort("8000/tcp"),
+				wait.ForLog("Started web server"),
+			).WithDeadline(60*time.Second),
+		),
+	)
 	if err != nil {
-		container.Terminate(ctx)
+		testNet.Remove(ctx)
 		cancel()
-		return nil, fmt.Errorf("get mapped port: %w", err)
+		return nil, fmt.Errorf("start surrealdb: %w", err)
 	}
 
-	host, err := container.Host(ctx)
+	// 3. Get SurrealDB container IP (bypass Docker DNS for CGO_ENABLED=0)
+	surrealIP, err := surrealContainer.ContainerIP(ctx)
 	if err != nil {
-		container.Terminate(ctx)
+		surrealContainer.Terminate(ctx)
+		testNet.Remove(ctx)
 		cancel()
-		return nil, fmt.Errorf("get host: %w", err)
+		return nil, fmt.Errorf("get surrealdb IP: %w", err)
+	}
+
+	// 4. Start vire-server
+	serverContainer, err := testcontainers.Run(ctx, "vire-server:test",
+		testcontainers.WithExposedPorts("8080/tcp"),
+		network.WithNetwork([]string{"vire-server"}, testNet),
+		testcontainers.WithEnv(map[string]string{
+			"VIRE_STORAGE_ADDRESS": fmt.Sprintf("ws://%s:8000/rpc", surrealIP),
+			"VIRE_ENV":             "dev",
+			"VIRE_SERVER_HOST":     "0.0.0.0",
+		}),
+		testcontainers.WithWaitStrategy(
+			wait.ForHTTP("/api/health").WithPort("8080/tcp").WithStartupTimeout(30*time.Second),
+		),
+	)
+	if err != nil {
+		surrealContainer.Terminate(ctx)
+		testNet.Remove(ctx)
+		cancel()
+		return nil, fmt.Errorf("start vire-server: %w", err)
+	}
+
+	// 5. Get vire-server container IP
+	serverIP, err := serverContainer.ContainerIP(ctx)
+	if err != nil {
+		serverContainer.Terminate(ctx)
+		surrealContainer.Terminate(ctx)
+		testNet.Remove(ctx)
+		cancel()
+		return nil, fmt.Errorf("get vire-server IP: %w", err)
+	}
+
+	// 6. Start vire-portal
+	portalCtr, err := testcontainers.Run(ctx, "vire-portal:test",
+		testcontainers.WithExposedPorts("8080/tcp"),
+		network.WithNetwork([]string{"vire-portal"}, testNet),
+		testcontainers.WithEnv(map[string]string{
+			"VIRE_API_URL":         fmt.Sprintf("http://%s:8080", serverIP),
+			"VIRE_AUTH_JWT_SECRET": "change-me-in-production",
+			"VIRE_ENV":             "dev",
+			"VIRE_SERVER_HOST":     "0.0.0.0",
+		}),
+		testcontainers.WithWaitStrategy(
+			wait.ForHTTP("/api/health").WithPort("8080/tcp").WithStartupTimeout(30*time.Second),
+		),
+	)
+	if err != nil {
+		serverContainer.Terminate(ctx)
+		surrealContainer.Terminate(ctx)
+		testNet.Remove(ctx)
+		cancel()
+		return nil, fmt.Errorf("start vire-portal: %w", err)
+	}
+
+	// 7. Get mapped portal URL for browser tests
+	mappedPort, err := portalCtr.MappedPort(ctx, "8080/tcp")
+	if err != nil {
+		portalCtr.Terminate(ctx)
+		serverContainer.Terminate(ctx)
+		surrealContainer.Terminate(ctx)
+		testNet.Remove(ctx)
+		cancel()
+		return nil, fmt.Errorf("get portal mapped port: %w", err)
+	}
+
+	host, err := portalCtr.Host(ctx)
+	if err != nil {
+		portalCtr.Terminate(ctx)
+		serverContainer.Terminate(ctx)
+		surrealContainer.Terminate(ctx)
+		testNet.Remove(ctx)
+		cancel()
+		return nil, fmt.Errorf("get portal host: %w", err)
 	}
 
 	url := fmt.Sprintf("http://%s:%s", host, mappedPort.Port())
 
 	return &PortalContainer{
-		container: container,
+		portal:    portalCtr,
+		server:    serverContainer,
+		surrealDB: surrealContainer,
+		network:   testNet,
 		ctx:       ctx,
 		cancel:    cancel,
 		url:       url,
 	}, nil
 }
 
-// StartPortal starts a shared portal container (one per test process).
+// StartPortal starts the full test environment (one per test process).
 // Returns nil when VIRE_TEST_URL is set (manual mode -- tests use the existing server).
 func StartPortal(t *testing.T) *PortalContainer {
 	t.Helper()
@@ -165,20 +300,24 @@ func StartPortal(t *testing.T) *PortalContainer {
 			portalStartErr = fmt.Errorf("build portal image: %w", err)
 			return
 		}
+		if err := buildServerImage(); err != nil {
+			portalStartErr = fmt.Errorf("build server image: %w", err)
+			return
+		}
 		var err error
-		portalContainer, err = startPortalContainer()
+		portalContainer, err = startTestEnvironment()
 		if err != nil {
 			portalStartErr = err
 		}
 	})
 
 	if portalStartErr != nil {
-		t.Fatalf("Failed to start portal: %v", portalStartErr)
+		t.Fatalf("Failed to start test environment: %v", portalStartErr)
 	}
 	return portalContainer
 }
 
-// StartPortalForTestMain starts the portal container for use in TestMain (no *testing.T).
+// StartPortalForTestMain starts the full test environment for use in TestMain (no *testing.T).
 // Returns (nil, nil) when VIRE_TEST_URL is set (manual mode).
 func StartPortalForTestMain() (*PortalContainer, error) {
 	if os.Getenv("VIRE_TEST_URL") != "" {
@@ -190,8 +329,12 @@ func StartPortalForTestMain() (*PortalContainer, error) {
 			portalStartErr = fmt.Errorf("build portal image: %w", err)
 			return
 		}
+		if err := buildServerImage(); err != nil {
+			portalStartErr = fmt.Errorf("build server image: %w", err)
+			return
+		}
 		var err error
-		portalContainer, err = startPortalContainer()
+		portalContainer, err = startTestEnvironment()
 		if err != nil {
 			portalStartErr = err
 		}
