@@ -6,7 +6,7 @@ func NewDefaultConfig() *Config {
 		Environment: "prod",
 		Server: ServerConfig{
 			Port: 8080,
-			Host: "localhost",
+			Host: "0.0.0.0",
 		},
 		API: APIConfig{
 			URL: "http://localhost:8080",

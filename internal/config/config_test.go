@@ -14,8 +14,8 @@ func TestNewDefaultConfig(t *testing.T) {
 	if cfg.Server.Port != 8080 {
 		t.Errorf("expected default port 8080, got %d", cfg.Server.Port)
 	}
-	if cfg.Server.Host != "localhost" {
-		t.Errorf("expected default host localhost, got %s", cfg.Server.Host)
+	if cfg.Server.Host != "0.0.0.0" {
+		t.Errorf("expected default host 0.0.0.0, got %s", cfg.Server.Host)
 	}
 	if cfg.Logging.Level != "info" {
 		t.Errorf("expected default log level info, got %s", cfg.Logging.Level)
@@ -93,8 +93,8 @@ port = 3000
 		t.Errorf("expected port 3000, got %d", cfg.Server.Port)
 	}
 	// Host should remain the default
-	if cfg.Server.Host != "localhost" {
-		t.Errorf("expected default host localhost, got %s", cfg.Server.Host)
+	if cfg.Server.Host != "0.0.0.0" {
+		t.Errorf("expected default host 0.0.0.0, got %s", cfg.Server.Host)
 	}
 }
 
@@ -215,8 +215,8 @@ func TestApplyFlagOverrides_ZeroPortNoOverride(t *testing.T) {
 	if cfg.Server.Port != 8080 {
 		t.Errorf("expected default port 8080, got %d", cfg.Server.Port)
 	}
-	if cfg.Server.Host != "localhost" {
-		t.Errorf("expected default host localhost, got %s", cfg.Server.Host)
+	if cfg.Server.Host != "0.0.0.0" {
+		t.Errorf("expected default host 0.0.0.0, got %s", cfg.Server.Host)
 	}
 }
 
@@ -885,6 +885,124 @@ func TestBaseURL_DerivedFromEmptyHost(t *testing.T) {
 	got := cfg.BaseURL()
 	if got != "http://localhost:8500" {
 		t.Errorf("expected BaseURL() to substitute empty host with localhost, got %s", got)
+	}
+}
+
+// --- Validate Tests ---
+
+func TestValidate_DefaultConfigProd(t *testing.T) {
+	cfg := NewDefaultConfig() // environment=prod, jwt_secret=""
+	issues := cfg.Validate()
+
+	// Default prod config is missing jwt_secret
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 issue for default prod config, got %d: %v", len(issues), issues)
+	}
+	if !strings.Contains(issues[0], "auth.jwt_secret") {
+		t.Errorf("expected jwt_secret issue, got: %s", issues[0])
+	}
+}
+
+func TestValidate_DefaultConfigDev(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Environment = "dev"
+	issues := cfg.Validate()
+
+	// Dev mode should pass — jwt_secret not required
+	if len(issues) != 0 {
+		t.Errorf("expected no issues for dev config, got %v", issues)
+	}
+}
+
+func TestValidate_EmptyAPIURL(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Environment = "dev"
+	cfg.API.URL = ""
+	issues := cfg.Validate()
+
+	found := false
+	for _, issue := range issues {
+		if strings.Contains(issue, "api.url") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected api.url issue when URL is empty, got %v", issues)
+	}
+}
+
+func TestValidate_WhitespaceAPIURL(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Environment = "dev"
+	cfg.API.URL = "   "
+	issues := cfg.Validate()
+
+	found := false
+	for _, issue := range issues {
+		if strings.Contains(issue, "api.url") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected api.url issue when URL is whitespace, got %v", issues)
+	}
+}
+
+func TestValidate_InvalidPort(t *testing.T) {
+	tests := []struct {
+		port    int
+		wantErr bool
+	}{
+		{0, true},
+		{-1, true},
+		{65536, true},
+		{1, false},
+		{8080, false},
+		{65535, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("port_%d", tc.port), func(t *testing.T) {
+			cfg := NewDefaultConfig()
+			cfg.Environment = "dev"
+			cfg.Server.Port = tc.port
+			issues := cfg.Validate()
+
+			hasPortIssue := false
+			for _, issue := range issues {
+				if strings.Contains(issue, "server.port") {
+					hasPortIssue = true
+				}
+			}
+			if tc.wantErr && !hasPortIssue {
+				t.Errorf("expected server.port issue for port %d, got none", tc.port)
+			}
+			if !tc.wantErr && hasPortIssue {
+				t.Errorf("unexpected server.port issue for port %d", tc.port)
+			}
+		})
+	}
+}
+
+func TestValidate_ProdWithJWTSecret(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.Auth.JWTSecret = "my-secret"
+	issues := cfg.Validate()
+
+	if len(issues) != 0 {
+		t.Errorf("expected no issues for prod config with jwt_secret set, got %v", issues)
+	}
+}
+
+func TestValidate_MultipleIssues(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.API.URL = ""
+	cfg.Server.Port = 0
+	// environment defaults to prod, jwt_secret is empty → 3 issues total
+	issues := cfg.Validate()
+
+	if len(issues) != 3 {
+		t.Errorf("expected 3 issues, got %d: %v", len(issues), issues)
 	}
 }
 

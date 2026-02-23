@@ -59,6 +59,29 @@ func (c *Config) BaseURL() string {
 	return fmt.Sprintf("http://%s:%d", host, c.Server.Port)
 }
 
+// Validate checks mandatory configuration fields and returns a list of issues.
+// An empty slice means the configuration is valid.
+func (c *Config) Validate() []string {
+	var issues []string
+
+	// api.url is always required — the portal cannot function without vire-server.
+	if strings.TrimSpace(c.API.URL) == "" {
+		issues = append(issues, "api.url is required (set in TOML or via VIRE_API_URL)")
+	}
+
+	// auth.jwt_secret is required in production.
+	if !c.IsDevMode() && strings.TrimSpace(c.Auth.JWTSecret) == "" {
+		issues = append(issues, "auth.jwt_secret is required in production (set in TOML, via VIRE_AUTH_JWT_SECRET, or use environment=dev)")
+	}
+
+	// server.port must be in a valid range.
+	if c.Server.Port < 1 || c.Server.Port > 65535 {
+		issues = append(issues, fmt.Sprintf("server.port must be between 1 and 65535 (got %d)", c.Server.Port))
+	}
+
+	return issues
+}
+
 // APIConfig contains vire-server API connection settings.
 type APIConfig struct {
 	URL string `toml:"url"`

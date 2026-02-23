@@ -79,6 +79,21 @@ func main() {
 	// Apply CLI flag overrides (highest priority)
 	config.ApplyFlagOverrides(cfg, finalPort, *serverHost)
 
+	// Validate mandatory configuration
+	if issues := cfg.Validate(); len(issues) > 0 {
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Configuration error — mandatory fields are missing or invalid:")
+		fmt.Fprintln(os.Stderr, "")
+		for _, issue := range issues {
+			fmt.Fprintf(os.Stderr, "  - %s\n", issue)
+		}
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "See config/vire-portal.toml.minimal for the minimum required configuration.")
+		fmt.Fprintln(os.Stderr, "Values can be set via TOML file, VIRE_* environment variables, or CLI flags.")
+		fmt.Fprintln(os.Stderr, "")
+		os.Exit(1)
+	}
+
 	// Initialize logger
 	logger := setupLogger(cfg)
 

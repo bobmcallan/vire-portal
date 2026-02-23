@@ -1,0 +1,21 @@
+# VIRE Portal — Minimal Configuration
+# Only mandatory fields. All other settings use sensible defaults.
+# Priority: defaults < this file < environment variables (VIRE_*) < CLI flags
+#
+# Copy and edit:
+#   cp config/vire-portal.toml.minimal config/vire-portal.toml
+#
+# Equivalent environment variables:
+#   VIRE_API_URL            → api.url
+#   VIRE_AUTH_JWT_SECRET    → auth.jwt_secret   (required in production)
+#   VIRE_ENV                → environment         (dev | prod)
+#
+# Optional overrides (sensible defaults: 0.0.0.0:8080):
+#   VIRE_SERVER_PORT        → server.port        (or -port / -p flag)
+#   VIRE_SERVER_HOST        → server.host        (or -host flag)
+
+[api]
+url = "http://localhost:4242"          # vire-server URL (required)
+
+[auth]
+jwt_secret = ""                        # Required in production. Leave empty for dev.
