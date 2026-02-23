@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {{template "head.html" .}}
+    <title>VIRE STRATEGY</title>
+</head>
+
+<body>
+
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+
+    <main class="page" x-data="portfolioStrategy()" x-init="init()">
+        <div class="page-body">
+
+            {{if .NavexaKeyMissing}}
+            <div class="warning-banner">
+                <strong>WARNING:</strong> Navexa API key not configured.
+                <a href="/settings">Set your API key in Settings</a> to enable portfolio sync.
+            </div>
+            {{end}}
+
+            <!-- Loading state -->
+            <div x-show="loading" class="text-muted" style="padding: 2rem 0;">Loading portfolios...</div>
+
+            <!-- Error state -->
+            <div x-show="error" class="warning-banner" x-text="error"></div>
+
+            <!-- Portfolio selector row -->
+            <div class="portfolio-header" x-show="!loading && portfolios.length > 0">
+                <select x-model="selected" @change="loadPortfolio()" class="form-select portfolio-select">
+                    <template x-for="p in portfolios" :key="p.name">
+                        <option :value="p.name" x-text="p.name" :selected="p.name === selected"></option>
+                    </template>
+                </select>
+                <label class="portfolio-default-label">
+                    <input type="checkbox" :checked="isDefault" @change="toggleDefault()">
+                    <span>Default</span>
+                </label>
+            </div>
+
+            <!-- Empty state -->
+            <div x-show="!loading && portfolios.length === 0 && !error" class="text-muted" style="padding: 2rem 0;">
+                No portfolios found. Configure your Navexa API key in <a href="/settings">Settings</a>.
+            </div>
+
+            <!-- Strategy editor -->
+            <section class="panel-headed" x-show="selected" x-cloak>
+                <div class="panel-header">STRATEGY</div>
+                <div class="panel-content">
+                    <textarea x-model="strategy" class="form-textarea portfolio-editor" placeholder="No strategy defined"></textarea>
+                    <button @click="saveStrategy()" class="btn btn-primary mt">SAVE STRATEGY</button>
+                </div>
+            </section>
+
+            <!-- Plan editor -->
+            <section class="panel-headed" x-show="selected" x-cloak>
+                <div class="panel-header">PLAN</div>
+                <div class="panel-content">
+                    <textarea x-model="plan" class="form-textarea portfolio-editor" placeholder="No plan defined"></textarea>
+                    <button @click="savePlan()" class="btn btn-primary mt">SAVE PLAN</button>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    {{template "footer.html" .}}
+
+</body>
+
+</html>

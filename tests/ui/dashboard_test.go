@@ -18,6 +18,8 @@ func TestDashboardAuthLoad(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
+	takeScreenshot(t, ctx, "dashboard", "auth-load.png")
+
 	visible, err := isVisible(ctx, ".page")
 	if err != nil {
 		t.Fatalf("error checking dashboard visibility: %v", err)
@@ -37,6 +39,8 @@ func TestDashboardNoJSErrors(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
+	takeScreenshot(t, ctx, "dashboard", "no-js-errors.png")
+
 	if jsErrs := errs.Errors(); len(jsErrs) > 0 {
 		t.Errorf("JS errors on dashboard:\n  %s", strings.Join(jsErrs, "\n  "))
 	}
@@ -50,6 +54,8 @@ func TestDashboardAlpineInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
+
+	takeScreenshot(t, ctx, "dashboard", "alpine-init.png")
 
 	alpineReady, err := commontest.EvalBool(ctx, `typeof Alpine !== 'undefined'`)
 	if err != nil {
@@ -72,6 +78,8 @@ func TestDashboardPortfolioDropdown(t *testing.T) {
 	// Wait for Alpine to load portfolio data
 	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 
+	takeScreenshot(t, ctx, "dashboard", "portfolio-dropdown.png")
+
 	visible, err := isVisible(ctx, "select.portfolio-select")
 	if err != nil {
 		t.Fatalf("error checking portfolio dropdown visibility: %v", err)
@@ -92,6 +100,8 @@ func TestDashboardHoldingsTable(t *testing.T) {
 
 	// Wait for Alpine to load holdings data
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "holdings-table.png")
 
 	visible, err := isVisible(ctx, ".tool-table")
 	if err != nil {
@@ -142,6 +152,8 @@ func TestDashboardShowClosedCheckbox(t *testing.T) {
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
 
+	takeScreenshot(t, ctx, "dashboard", "show-closed-checkbox.png")
+
 	count, err := elementCount(ctx, ".portfolio-filter-label input[type='checkbox']")
 	if err != nil {
 		t.Fatalf("error checking show-closed checkbox: %v", err)
@@ -177,6 +189,8 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
 
+	takeScreenshot(t, ctx, "dashboard", "portfolio-summary.png")
+
 	// Check if portfolio summary is visible (only shows when filteredHoldings > 0)
 	visible, err := isVisible(ctx, ".portfolio-summary")
 	if err != nil {
@@ -195,12 +209,12 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Errorf("portfolio summary item count = %d, want 4", count)
 	}
 
-	// Verify the 4 summary labels are "TOTAL VALUE", "TOTAL COST", "TOTAL GAIN $", "TOTAL GAIN %"
+	// Verify the 4 summary labels are "TOTAL VALUE", "TOTAL COST", "NET RETURN $", "NET RETURN %"
 	labelsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
 			const labels = document.querySelectorAll('.portfolio-summary-item .label');
 			if (labels.length !== 4) return false;
-			const expected = ['TOTAL VALUE', 'TOTAL COST', 'TOTAL GAIN $', 'TOTAL GAIN %'];
+			const expected = ['TOTAL VALUE', 'TOTAL COST', 'NET RETURN $', 'NET RETURN %'];
 			for (let i = 0; i < 4; i++) {
 				if (labels[i].textContent.trim() !== expected[i]) return false;
 			}
@@ -211,7 +225,7 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Fatalf("error checking summary labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, TOTAL COST, TOTAL GAIN $, TOTAL GAIN %")
+		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, TOTAL COST, NET RETURN $, NET RETURN %")
 	}
 
 	// Verify summary spans full content width (justify-content: space-between)
@@ -253,7 +267,7 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	summaryGainColored, err := commontest.EvalBool(ctx, `
 		(() => {
 			const items = document.querySelectorAll('.portfolio-summary-item .text-bold');
-			// Items 2 and 3 are TOTAL GAIN $ and TOTAL GAIN % — should have gain class if non-zero
+			// Items 2 and 3 are NET RETURN $ and NET RETURN % — should have gain class if non-zero
 			let hasGainClass = false;
 			for (let i = 2; i < items.length; i++) {
 				if (items[i].classList.contains('gain-positive') || items[i].classList.contains('gain-negative')) {
@@ -282,6 +296,8 @@ func TestDashboardColumnAlignment(t *testing.T) {
 
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "column-alignment.png")
 
 	// Check if holdings table is visible
 	visible, err := isVisible(ctx, ".tool-table")
@@ -324,6 +340,8 @@ func TestDashboardGainColors(t *testing.T) {
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
 
+	takeScreenshot(t, ctx, "dashboard", "gain-colors.png")
+
 	// 1. Verify gain CSS rules exist in stylesheets
 	var cssResult string
 	err = chromedp.Run(ctx, chromedp.Evaluate(`
@@ -363,23 +381,23 @@ func TestDashboardGainColors(t *testing.T) {
 		(() => {
 			const ths = document.querySelectorAll('.tool-table th');
 			const headers = Array.from(ths).map(th => th.textContent.trim());
-			return headers.includes('Gain $') && headers.includes('Gain %');
+			return headers.includes('Return $') && headers.includes('Return %');
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking Gain column headers: %v", err)
+		t.Fatalf("error checking Return column headers: %v", err)
 	}
 	if !gainHeadersFound {
-		t.Error("Gain $ and Gain % column headers not found in holdings table")
+		t.Error("Return $ and Return % column headers not found in holdings table")
 	}
 
-	// 3. Verify gain values are displayed in table rows (not empty) — last TWO cells are gain columns
+	// 3. Verify return values are displayed in table rows (not empty) — last TWO cells are return columns
 	var gainInfo string
 	err = chromedp.Run(ctx, chromedp.Evaluate(`
 		(() => {
 			const rows = document.querySelectorAll('.tool-table tbody tr');
 			if (rows.length === 0) return 'no-rows';
-			// Last two cells in each row are Gain $ and Gain %
+			// Last two cells in each row are Return $ and Return %
 			const gainCells = [];
 			for (const r of rows) {
 				const cells = r.querySelectorAll('td');
@@ -400,7 +418,7 @@ func TestDashboardGainColors(t *testing.T) {
 	}
 	t.Logf("table gain info: %s", gainInfo)
 	if strings.HasPrefix(gainInfo, "empty:") {
-		t.Errorf("gain columns have empty cells: %s", gainInfo)
+		t.Errorf("return columns have empty cells: %s", gainInfo)
 	}
 
 	// 4. Verify gain colors in portfolio summary (if visible)
@@ -413,7 +431,7 @@ func TestDashboardGainColors(t *testing.T) {
 			(() => {
 				const items = document.querySelectorAll('.portfolio-summary-item .text-bold');
 				if (items.length < 4) return 'items:' + items.length;
-				// Items at index 2 and 3 are gain $ and gain %
+				// Items at index 2 and 3 are return $ and return %
 				const gainItems = [items[2], items[3]];
 				const colored = gainItems.filter(i => i.classList.contains('gain-positive') || i.classList.contains('gain-negative'));
 				const values = gainItems.map(i => i.textContent.trim());
@@ -424,77 +442,6 @@ func TestDashboardGainColors(t *testing.T) {
 			t.Fatalf("error checking summary gain: %v", err)
 		}
 		t.Logf("summary gain info: %s", summaryGainInfo)
-	}
-}
-
-func TestDashboardStrategyEditor(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	// Wait for Alpine to render
-	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
-
-	visible, err := isVisible(ctx, "textarea.portfolio-editor")
-	if err != nil {
-		t.Fatalf("error checking strategy editor visibility: %v", err)
-	}
-	if !visible {
-		t.Skip("strategy editor not visible (no portfolio selected)")
-	}
-
-	// Verify the STRATEGY panel header exists
-	strategyFound, err := commontest.EvalBool(ctx, `
-		(() => {
-			const headers = document.querySelectorAll('.panel-header');
-			return Array.from(headers).some(h => h.textContent.includes('STRATEGY'));
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking STRATEGY header: %v", err)
-	}
-	if !strategyFound {
-		t.Fatal("STRATEGY panel header not found")
-	}
-}
-
-func TestDashboardPlanEditor(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	// Wait for Alpine to render
-	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
-
-	// Check that there are at least 2 portfolio-editor textareas (strategy + plan)
-	count, err := elementCount(ctx, "textarea.portfolio-editor")
-	if err != nil {
-		t.Fatalf("error counting portfolio editors: %v", err)
-	}
-	if count < 2 {
-		t.Skip("plan editor not visible (no portfolio selected)")
-	}
-
-	// Verify the PLAN panel header exists
-	planFound, err := commontest.EvalBool(ctx, `
-		(() => {
-			const headers = document.querySelectorAll('.panel-header');
-			return Array.from(headers).some(h => h.textContent.includes('PLAN'));
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking PLAN header: %v", err)
-	}
-	if !planFound {
-		t.Fatal("PLAN panel header not found")
 	}
 }
 
@@ -509,6 +456,8 @@ func TestDashboardDefaultCheckbox(t *testing.T) {
 
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+
+	takeScreenshot(t, ctx, "dashboard", "default-checkbox.png")
 
 	count, err := elementCount(ctx, ".portfolio-default-label input[type='checkbox']")
 	if err != nil {
@@ -527,6 +476,8 @@ func TestDashboardNoTemplateMarkers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
+
+	takeScreenshot(t, ctx, "dashboard", "no-template-markers.png")
 
 	var bodyText string
 	err = chromedp.Run(ctx, chromedp.Evaluate(`document.body.innerText`, &bodyText))
@@ -551,6 +502,8 @@ func TestDashboardDesign(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
+
+	takeScreenshot(t, ctx, "dashboard", "design.png")
 
 	// Check font-family
 	var fontFamily string

@@ -43,6 +43,7 @@ type App struct {
 	VersionHandler      *handlers.VersionHandler
 	AuthHandler         *handlers.AuthHandler
 	DashboardHandler    *handlers.DashboardHandler
+	StrategyHandler     *handlers.StrategyHandler
 	MCPPageHandler      *handlers.MCPPageHandler
 	SettingsHandler     *handlers.SettingsHandler
 	ServerHealthHandler *handlers.ServerHealthHandler
@@ -122,6 +123,14 @@ func (a *App) initHandlers() {
 		userLookup,
 	)
 	a.DashboardHandler.SetAPIURL(a.Config.API.URL)
+
+	a.StrategyHandler = handlers.NewStrategyHandler(
+		a.Logger,
+		a.Config.IsDevMode(),
+		jwtSecret,
+		userLookup,
+	)
+	a.StrategyHandler.SetAPIURL(a.Config.API.URL)
 
 	a.MCPPageHandler = handlers.NewMCPPageHandler(
 		a.Logger,

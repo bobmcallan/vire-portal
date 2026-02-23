@@ -2618,6 +2618,122 @@ func TestSettingsHandler_ContainsVersionFooter(t *testing.T) {
 	}
 }
 
+// --- Strategy Handler Tests ---
+
+func TestStrategyHandler_Returns200(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if len(body) == 0 {
+		t.Error("expected non-empty HTML body")
+	}
+}
+
+func TestStrategyHandler_RedirectsUnauthenticated(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected redirect 302, got %d", w.Code)
+	}
+	loc := w.Header().Get("Location")
+	if loc != "/" {
+		t.Errorf("expected redirect to /, got %s", loc)
+	}
+}
+
+func TestStrategyHandler_PageIdentifier(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	// The nav template uses .Page to set the active class
+	if !strings.Contains(body, `class="active"`) {
+		t.Error("expected active class in nav for strategy page")
+	}
+}
+
+func TestStrategyHandler_ContainsStrategyEditor(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "STRATEGY") {
+		t.Error("expected STRATEGY header in page body")
+	}
+	if !strings.Contains(body, "PLAN") {
+		t.Error("expected PLAN header in page body")
+	}
+	if !strings.Contains(body, "portfolio-editor") {
+		t.Error("expected portfolio-editor textarea in page body")
+	}
+}
+
+func TestStrategyHandler_NavexaKeyMissing_WhenEmpty(t *testing.T) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
+	}
+
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), lookupFn)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "dev_user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "WARNING") {
+		t.Error("expected WARNING banner when Navexa key is empty")
+	}
+	if !strings.Contains(body, "/settings") {
+		t.Error("expected link to /settings in warning banner")
+	}
+}
+
+func TestStrategyHandler_NavexaKeyMissing_WhenSet(t *testing.T) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: "ekey"}, nil
+	}
+
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), lookupFn)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "dev_user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if strings.Contains(body, "WARNING") {
+		t.Error("expected no WARNING banner when Navexa key is set")
+	}
+}
+
 // --- Test Helpers ---
 
 func buildTestJWT(sub string) string {

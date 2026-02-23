@@ -17,6 +17,8 @@ func TestNavBrandText(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	takeScreenshot(t, ctx, "nav", "brand-text.png")
+
 	containsBrand, brand, err := common.TextContains(ctx, ".nav-brand", "VIRE")
 	if err != nil {
 		t.Fatal(err)
@@ -35,6 +37,8 @@ func TestNavHamburgerVisible(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	takeScreenshot(t, ctx, "nav", "hamburger-visible.png")
+
 	visible, err := isVisible(ctx, ".nav-hamburger")
 	if err != nil {
 		t.Fatal(err)
@@ -52,6 +56,8 @@ func TestNavDropdownHiddenByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	takeScreenshot(t, ctx, "nav", "dropdown-hidden.png")
 
 	hidden, err := isHidden(ctx, ".nav-dropdown")
 	if err != nil {
@@ -79,6 +85,8 @@ func TestNavDropdownOpensOnClick(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	takeScreenshot(t, ctx, "nav", "dropdown-opens.png")
+
 	visible, err := isVisible(ctx, ".nav-dropdown")
 	if err != nil {
 		t.Fatal(err)
@@ -96,6 +104,8 @@ func TestNavLinksPresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	takeScreenshot(t, ctx, "nav", "links-present.png")
 
 	count, err := elementCount(ctx, ".nav-links li")
 	if err != nil {
@@ -123,6 +133,8 @@ func TestNavSettingsInDropdown(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	takeScreenshot(t, ctx, "nav", "settings-in-dropdown.png")
+
 	exists, err := common.Exists(ctx, ".nav-dropdown a[href='/settings']")
 	if err != nil {
 		t.Fatal(err)
@@ -148,6 +160,8 @@ func TestNavLogoutInDropdown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	takeScreenshot(t, ctx, "nav", "logout-in-dropdown.png")
 
 	visible, err := isVisible(ctx, ".nav-dropdown-logout")
 	if err != nil {
@@ -177,6 +191,8 @@ func TestNavMobileNavLinksHidden(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	takeScreenshot(t, ctx, "nav", "mobile-links-hidden.png")
+
 	hidden, err := isHidden(ctx, ".nav-links")
 	if err != nil {
 		t.Fatal(err)
@@ -205,6 +221,8 @@ func TestNavMobileHamburgerVisible(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	takeScreenshot(t, ctx, "nav", "mobile-hamburger-visible.png")
+
 	visible, err := isVisible(ctx, ".nav-hamburger")
 	if err != nil {
 		t.Fatal(err)
@@ -232,6 +250,8 @@ func TestNavMobileMenuClosedOnLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	takeScreenshot(t, ctx, "nav", "mobile-menu-closed.png")
 
 	hidden, err := isHidden(ctx, ".mobile-menu")
 	if err != nil {
@@ -274,6 +294,8 @@ func TestNavMobileMenuOpensCloses(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	takeScreenshot(t, ctx, "nav", "mobile-menu-open.png")
+
 	visible, err := isVisible(ctx, ".mobile-menu")
 	if err != nil {
 		t.Fatal(err)
@@ -289,6 +311,8 @@ func TestNavMobileMenuOpensCloses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	takeScreenshot(t, ctx, "nav", "mobile-menu-closed-after.png")
 
 	hidden, err := isHidden(ctx, ".mobile-menu")
 	if err != nil {
@@ -318,12 +342,34 @@ func TestNavDesktopLinksVisible(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	takeScreenshot(t, ctx, "nav", "desktop-links-visible.png")
+
 	visible, err := isVisible(ctx, ".nav-links")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !visible {
 		t.Error("nav-links should be visible on desktop viewport")
+	}
+}
+
+func TestNavStrategyLinkPresent(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "nav", "strategy-link-present.png")
+
+	exists, err := common.Exists(ctx, `.nav-links a[href="/strategy"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Error("Strategy link (a[href='/strategy']) not found in .nav-links")
 	}
 }
 
@@ -335,6 +381,8 @@ func TestNavMCPLinkPresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	takeScreenshot(t, ctx, "nav", "mcp-link-present.png")
 
 	exists, err := common.Exists(ctx, `.nav-links a[href="/mcp-info"]`)
 	if err != nil {

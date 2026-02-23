@@ -532,7 +532,7 @@ func TestDashboardHandler_StressPortfolioSummarySection(t *testing.T) {
 		t.Error("portfolio summary should be conditional on filteredHoldings.length > 0")
 	}
 	// Verify all four summary items exist
-	summaryLabels := []string{"TOTAL VALUE", "TOTAL COST", "TOTAL GAIN $", "TOTAL GAIN %"}
+	summaryLabels := []string{"TOTAL VALUE", "TOTAL COST", "NET RETURN $", "NET RETURN %"}
 	for _, label := range summaryLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected summary label %q in dashboard", label)
@@ -633,5 +633,364 @@ func TestPortfolioDashboard_StressJSONResponseShapes(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// =============================================================================
+// Strategy Handler Stress Tests
+// =============================================================================
+
+// --- Strategy Auth: Unauthenticated Access ---
+
+func TestStrategyHandler_StressUnauthenticatedRedirect(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("SECURITY: unauthenticated strategy access returned %d, expected 302 redirect", w.Code)
+	}
+	location := w.Header().Get("Location")
+	if location != "/" {
+		t.Errorf("expected redirect to /, got %s", location)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, "portfolioStrategy") {
+		t.Error("SECURITY: strategy HTML rendered for unauthenticated user")
+	}
+}
+
+func TestStrategyHandler_StressExpiredTokenRedirect(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildExpiredJWT("alice")})
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expired token should redirect from strategy page, got %d", w.Code)
+	}
+}
+
+func TestStrategyHandler_StressGarbageTokenRedirect(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	garbageTokens := []string{
+		"not-a-jwt",
+		"a.b.c",
+		"<script>alert(1)</script>",
+		strings.Repeat("A", 10000),
+		"",
+	}
+
+	for _, token := range garbageTokens {
+		req := httptest.NewRequest("GET", "/strategy", nil)
+		if token != "" {
+			req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		}
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusFound {
+			t.Errorf("garbage token %q: expected 302, got %d", truncStr(token, 20), w.Code)
+		}
+	}
+}
+
+// --- Strategy: XSS Safety ---
+
+func TestStrategyHandler_StressTemplateUsesXTextNotXHtml(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if strings.Contains(body, "x-html") {
+		t.Error("SECURITY: strategy template uses x-html which renders raw HTML — use x-text instead")
+	}
+	if !strings.Contains(body, "x-text=") {
+		t.Error("expected x-text directives for data display")
+	}
+}
+
+func TestStrategyHandler_StressErrorDisplayIsTextOnly(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if strings.Contains(body, `x-html="error"`) {
+		t.Error("SECURITY: error message rendered with x-html — XSS via error messages")
+	}
+	if !strings.Contains(body, `x-text="error"`) {
+		t.Error("expected error banner to use x-text for safe rendering")
+	}
+}
+
+func TestStrategyHandler_StressNoInlineEventHandlers(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	dangerousAttrs := []string{
+		` onclick=`, ` onerror=`, ` onload=`, ` onmouseover=`,
+		` onfocus=`, ` onsubmit=`, ` onchange=`,
+	}
+	for _, attr := range dangerousAttrs {
+		if strings.Contains(strings.ToLower(body), attr) {
+			t.Errorf("SECURITY: found dangerous inline handler %q in strategy template", attr)
+		}
+	}
+}
+
+// --- Strategy: Template Content Verification ---
+
+func TestStrategyHandler_StressUsesCorrectAlpineComponent(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, `x-data="portfolioStrategy()"`) {
+		t.Error("expected strategy page to use portfolioStrategy() component")
+	}
+	// Must NOT use the dashboard component
+	if strings.Contains(body, `x-data="portfolioDashboard()"`) {
+		t.Error("strategy page should not use portfolioDashboard() component")
+	}
+}
+
+func TestStrategyHandler_StressEditorSectionsPresent(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Strategy editor section
+	if !strings.Contains(body, `x-model="strategy"`) {
+		t.Error("expected strategy textarea with x-model binding")
+	}
+	if !strings.Contains(body, `saveStrategy()`) {
+		t.Error("expected saveStrategy() button in strategy page")
+	}
+
+	// Plan editor section
+	if !strings.Contains(body, `x-model="plan"`) {
+		t.Error("expected plan textarea with x-model binding")
+	}
+	if !strings.Contains(body, `savePlan()`) {
+		t.Error("expected savePlan() button in strategy page")
+	}
+}
+
+func TestStrategyHandler_StressPortfolioSelectorPresent(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, `class="form-select portfolio-select"`) {
+		t.Error("expected portfolio selector in strategy page")
+	}
+	if !strings.Contains(body, `x-text="p.name"`) {
+		t.Error("expected portfolio name display with x-text (safe)")
+	}
+}
+
+// --- Strategy: Dashboard Must NOT Have Strategy/Plan ---
+
+func TestDashboardHandler_StressNoStrategyEditor(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if strings.Contains(body, `x-model="strategy"`) {
+		t.Error("dashboard should no longer contain strategy editor (moved to /strategy)")
+	}
+	if strings.Contains(body, `x-model="plan"`) {
+		t.Error("dashboard should no longer contain plan editor (moved to /strategy)")
+	}
+	if strings.Contains(body, `saveStrategy()`) {
+		t.Error("dashboard should no longer have saveStrategy button")
+	}
+	if strings.Contains(body, `savePlan()`) {
+		t.Error("dashboard should no longer have savePlan button")
+	}
+}
+
+// --- Strategy: Concurrent Access ---
+
+func TestStrategyHandler_StressConcurrentAccess(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			req := httptest.NewRequest("GET", "/strategy", nil)
+			addAuthCookie(req, fmt.Sprintf("user-%d", n))
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("concurrent strategy request %d got status %d", n, w.Code)
+			}
+		}(i)
+	}
+	wg.Wait()
+}
+
+func TestStrategyHandler_StressTemplateDataIsolation(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	var wg sync.WaitGroup
+	results := make([]int, 100)
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			req := httptest.NewRequest("GET", "/strategy", nil)
+			if n%2 == 0 {
+				addAuthCookie(req, fmt.Sprintf("user-%d", n))
+			}
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+			results[n] = w.Code
+		}(i)
+	}
+	wg.Wait()
+
+	for i, code := range results {
+		if i%2 == 0 && code != http.StatusOK {
+			t.Errorf("authenticated strategy request %d got %d, expected 200", i, code)
+		}
+		if i%2 == 1 && code != http.StatusFound {
+			t.Errorf("unauthenticated strategy request %d got %d, expected 302", i, code)
+		}
+	}
+}
+
+// --- Strategy: Nil UserLookup Panic Safety ---
+
+func TestStrategyHandler_StressNilUserLookup(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 with nil userLookupFn, got %d", w.Code)
+	}
+}
+
+// --- Strategy: Nav Active State ---
+
+func TestStrategyHandler_StressNavActiveState(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Strategy link must be active
+	if !strings.Contains(body, `href="/strategy" class="active"`) {
+		t.Error("expected strategy nav link to have active class")
+	}
+	// Dashboard link must NOT be active
+	if strings.Contains(body, `href="/dashboard" class="active"`) {
+		t.Error("dashboard nav link should not be active on strategy page")
+	}
+	// MCP link must NOT be active
+	if strings.Contains(body, `href="/mcp-info" class="active"`) {
+		t.Error("MCP nav link should not be active on strategy page")
+	}
+}
+
+// --- Strategy: Mobile Nav Link Present ---
+
+func TestStrategyHandler_StressMobileNavPresent(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, `href="/strategy">Strategy</a>`) {
+		t.Error("expected strategy link in mobile nav menu")
+	}
+}
+
+// --- Strategy: CSS Reference ---
+
+func TestStrategyHandler_StressCSSReference(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, "portal.css") {
+		t.Error("expected portal.css to be referenced in strategy template")
 	}
 }

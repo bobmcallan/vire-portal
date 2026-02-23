@@ -180,8 +180,6 @@ function portfolioDashboard() {
         defaultPortfolio: '',
         holdings: [],
         showClosed: false,
-        strategy: '',
-        plan: '',
         portfolioGain: 0,
         portfolioGainPct: 0,
         portfolioCost: 0,
@@ -241,11 +239,7 @@ function portfolioDashboard() {
         async loadPortfolio() {
             if (!this.selected) return;
             try {
-                const [holdingsRes, strategyRes, planRes] = await Promise.all([
-                    vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected)),
-                    vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/strategy'),
-                    vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/plan'),
-                ]);
+                const holdingsRes = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected));
 
                 if (holdingsRes.ok) {
                     const holdingsData = await holdingsRes.json();
@@ -258,20 +252,6 @@ function portfolioDashboard() {
                     this.portfolioGain = 0;
                     this.portfolioGainPct = 0;
                     this.portfolioCost = 0;
-                }
-
-                if (strategyRes.ok) {
-                    const strategyData = await strategyRes.json();
-                    this.strategy = strategyData.notes || JSON.stringify(strategyData.strategy || strategyData, null, 2);
-                } else {
-                    this.strategy = '';
-                }
-
-                if (planRes.ok) {
-                    const planData = await planRes.json();
-                    this.plan = planData.notes || JSON.stringify(planData.plan || planData, null, 2);
-                } else {
-                    this.plan = '';
                 }
             } catch (e) {
                 debugError('portfolioDashboard', 'loadPortfolio failed', e);
@@ -302,6 +282,102 @@ function portfolioDashboard() {
             }
         },
 
+        fmt(val) {
+            return val != null ? Number(val).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+        },
+        pct(val) {
+            return val != null ? Number(val).toFixed(2) + '%' : '-';
+        },
+    };
+}
+
+// Portfolio Strategy component
+function portfolioStrategy() {
+    return {
+        portfolios: [],
+        selected: '',
+        defaultPortfolio: '',
+        strategy: '',
+        plan: '',
+        loading: true,
+        error: '',
+        get isDefault() { return this.selected === this.defaultPortfolio; },
+
+        async init() {
+            try {
+                const res = await vireStore.fetch('/api/portfolios');
+                if (!res.ok) {
+                    this.error = 'Failed to load portfolios';
+                    this.loading = false;
+                    return;
+                }
+                const data = await res.json();
+                this.portfolios = vireStore.dedup(data.portfolios || [], 'name');
+                this.defaultPortfolio = data.default || '';
+                if (this.defaultPortfolio) {
+                    this.selected = this.defaultPortfolio;
+                } else if (this.portfolios.length > 0) {
+                    this.selected = this.portfolios[0].name;
+                }
+                if (this.selected) await this.loadPortfolio();
+            } catch (e) {
+                debugError('portfolioStrategy', 'init failed', e);
+                this.error = 'Failed to connect to server';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadPortfolio() {
+            if (!this.selected) return;
+            try {
+                const [strategyRes, planRes] = await Promise.all([
+                    vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/strategy'),
+                    vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/plan'),
+                ]);
+
+                if (strategyRes.ok) {
+                    const strategyData = await strategyRes.json();
+                    this.strategy = strategyData.notes || JSON.stringify(strategyData.strategy || strategyData, null, 2);
+                } else {
+                    this.strategy = '';
+                }
+
+                if (planRes.ok) {
+                    const planData = await planRes.json();
+                    this.plan = planData.notes || JSON.stringify(planData.plan || planData, null, 2);
+                } else {
+                    this.plan = '';
+                }
+            } catch (e) {
+                debugError('portfolioStrategy', 'loadPortfolio failed', e);
+            }
+        },
+
+        async toggleDefault() {
+            try {
+                if (this.isDefault) {
+                    await fetch('/api/portfolios/default', {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({}),
+                    });
+                    this.defaultPortfolio = '';
+                } else {
+                    await fetch('/api/portfolios/default', {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ name: this.selected }),
+                    });
+                    this.defaultPortfolio = this.selected;
+                }
+                vireStore.invalidate('/api/portfolios');
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Default updated' } }));
+            } catch (e) {
+                debugError('portfolioStrategy', 'toggleDefault failed', e);
+            }
+        },
+
         async saveStrategy() {
             try {
                 await fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/strategy', {
@@ -312,7 +388,7 @@ function portfolioDashboard() {
                 vireStore.invalidate('/api/portfolios');
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Strategy saved' } }));
             } catch (e) {
-                debugError('portfolioDashboard', 'saveStrategy failed', e);
+                debugError('portfolioStrategy', 'saveStrategy failed', e);
             }
         },
 
@@ -326,15 +402,8 @@ function portfolioDashboard() {
                 vireStore.invalidate('/api/portfolios');
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Plan saved' } }));
             } catch (e) {
-                debugError('portfolioDashboard', 'savePlan failed', e);
+                debugError('portfolioStrategy', 'savePlan failed', e);
             }
-        },
-
-        fmt(val) {
-            return val != null ? Number(val).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
-        },
-        pct(val) {
-            return val != null ? Number(val).toFixed(2) + '%' : '-';
         },
     };
 }

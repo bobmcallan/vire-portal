@@ -55,11 +55,11 @@
                     <span class="text-bold" x-text="fmt(totalCost)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">TOTAL GAIN $</span>
+                    <span class="label">NET RETURN $</span>
                     <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">TOTAL GAIN %</span>
+                    <span class="label">NET RETURN %</span>
                     <span class="text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></span>
                 </div>
             </div>
@@ -80,8 +80,8 @@
                                     <th>Name</th>
                                     <th class="text-right">Value</th>
                                     <th class="text-right">Weight%</th>
-                                    <th class="text-right">Gain $</th>
-                                    <th class="text-right">Gain %</th>
+                                    <th class="text-right">Return $</th>
+                                    <th class="text-right">Return %</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -98,24 +98,6 @@
                             </tbody>
                         </table>
                     </div>
-                </div>
-            </section>
-
-            <!-- Strategy editor -->
-            <section class="panel-headed" x-show="selected" x-cloak>
-                <div class="panel-header">STRATEGY</div>
-                <div class="panel-content">
-                    <textarea x-model="strategy" class="form-textarea portfolio-editor" placeholder="No strategy defined"></textarea>
-                    <button @click="saveStrategy()" class="btn btn-primary mt">SAVE STRATEGY</button>
-                </div>
-            </section>
-
-            <!-- Plan editor -->
-            <section class="panel-headed" x-show="selected" x-cloak>
-                <div class="panel-header">PLAN</div>
-                <div class="panel-content">
-                    <textarea x-model="plan" class="form-textarea portfolio-editor" placeholder="No plan defined"></textarea>
-                    <button @click="savePlan()" class="btn btn-primary mt">SAVE PLAN</button>
                 </div>
             </section>
 
