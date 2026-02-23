@@ -60,6 +60,7 @@ Read the target test files and check each mandatory rule:
 | 3 | Correct selectors | CSS selectors match current HTML in `pages/` | Update selectors to match current templates |
 | 4 | No stale references | No selectors for removed/renamed elements | Remove or update stale selectors |
 | 5 | Standard Go patterns | Uses `t.Fatal()`, `t.Error()`, `t.Skip()` correctly | Fix assertion patterns |
+| 6 | Validation screenshots | Every test calls `takeScreenshot()` after page load, before assertions | Add `takeScreenshot(t, ctx, "suite", "name.png")` call |
 
 For each non-compliant item: fix the test file directly, then document what was changed.
 
@@ -97,6 +98,9 @@ func TestFeature(t *testing.T) {
         t.Fatalf("login failed: %v", err)
     }
 
+    // MANDATORY: capture validation screenshot before assertions
+    takeScreenshot(t, ctx, "feature", "page-state.png")
+
     // Check element visibility
     visible, err := isVisible(ctx, ".target-element")
     if err != nil {
@@ -115,11 +119,6 @@ func TestFeature(t *testing.T) {
     if err := assertElementCount(ctx, ".items li", 3, "list items"); err != nil {
         t.Error(err)
     }
-
-    // Take screenshot on failure
-    if t.Failed() {
-        takeScreenshot(t, ctx, "feature", "failure.png")
-    }
 }
 
 func TestFeatureSubtests(t *testing.T) {
@@ -130,6 +129,9 @@ func TestFeatureSubtests(t *testing.T) {
     if err != nil {
         t.Fatalf("login failed: %v", err)
     }
+
+    // MANDATORY: capture validation screenshot before assertions
+    takeScreenshot(t, ctx, "feature", "subtests.png")
 
     t.Run("section_visible", func(t *testing.T) {
         if err := assertVisible(ctx, ".section", "main section"); err != nil {
@@ -188,7 +190,7 @@ Before completing any create or review action:
 - [ ] Selectors match current HTML templates in `pages/`
 - [ ] Both success and error paths tested
 - [ ] Proper cleanup via `defer cancel()`
-- [ ] Screenshots on failure where appropriate
+- [ ] **Validation screenshot in every test** via `takeScreenshot(t, ctx, "suite", "name.png")` — placed after page load, before assertions
 - [ ] Module path is `github.com/bobmcallan/vire-portal`
 - [ ] Executable via `go test` without Claude
 - [ ] Uses helpers from `ui_helpers_test.go`

@@ -1009,8 +1009,36 @@ code {
 
 
 /* ============================================================
-   SETTINGS (legacy compat)
+   SETTINGS
    ============================================================ */
+
+.dashboard-section {
+    border: 2px solid #000;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.dashboard-field {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.dashboard-field:last-of-type {
+    border-bottom: none;
+}
+
+.dashboard-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #888;
+    min-width: 8rem;
+    flex-shrink: 0;
+}
 
 .settings-key-status {
     font-size: 0.875rem;

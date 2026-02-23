@@ -6,8 +6,8 @@
 </head>
 <body>
     {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
-    <main class="dashboard">
-        <div class="dashboard-inner">
+    <main class="page">
+        <div class="page-body">
             {{if .Saved}}
             <div class="success-banner">Settings saved successfully.</div>
             {{end}}

@@ -35,12 +35,46 @@ tests/logs/{YYYYMMDD-HHMMSS}/
 ├── {suite}.log       # Full test output (REQUIRED)
 ├── summary.md        # Pass/fail summary (REQUIRED)
 ├── container.log     # Portal container logs (Docker mode)
-└── *.png             # Screenshots from failures (if any)
+└── {suite}/          # Validation screenshots (REQUIRED, see Rule 4)
+    └── *.png         # One per test — visual proof of page state
 ```
 
 This is achieved by running tests via `./scripts/ui-test.sh` which captures output via `tee` and generates `summary.md`. Container logs are collected automatically by `TestMain`.
 
-### Rule 4: test-execute Is Read-Only
+### Rule 4: Validation Screenshots Are Mandatory
+
+Every UI test MUST capture at least one validation screenshot using `takeScreenshot(t, ctx, "suite", "name.png")`. Screenshots are the primary evidence that the test saw the correct page state. They are NOT optional and NOT only for failures.
+
+**Where to place the screenshot call:**
+- After navigation/login completes and the page is in the state being validated
+- Before assertions run (so the screenshot captures the state regardless of pass/fail)
+- After interactions that change page state (clicks, scrolls, form submissions)
+
+**Naming convention:** `takeScreenshot(t, ctx, "<suite>", "<test-slug>.png")`
+- Suite matches the test file name (e.g., `settings`, `dashboard`, `nav`)
+- Test slug is a short kebab-case description (e.g., `page-layout`, `form-elements`, `section-border`)
+
+**Example:**
+```go
+func TestSettingsPageLayout(t *testing.T) {
+    ctx, cancel := newBrowser(t)
+    defer cancel()
+
+    err := loginAndNavigate(ctx, serverURL()+"/settings")
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    takeScreenshot(t, ctx, "settings", "page-layout.png")  // MANDATORY
+
+    visible, err := isVisible(ctx, "main.page")
+    // ... assertions ...
+}
+```
+
+Screenshots are saved to `tests/logs/{timestamp}/{suite}/name.png` and serve as visual proof that the page rendered correctly. A test without a screenshot is incomplete.
+
+### Rule 5: test-execute Is Read-Only
 
 `/test-execute` MUST NEVER modify or update test files. Its role is:
 1. Validate test structure compliance (Rules 1-3) before running
