@@ -79,6 +79,29 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
+  deploy:
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: fly-deploy-portal
+      cancel-in-progress: false
+
+    steps:
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          fly deploy \
+            --app vire-pprod-portal \
+            --image ${{ env.REGISTRY }}/${{ github.repository_owner }}/vire-portal:latest \
+            --strategy rolling \
+            --wait-timeout 300 \
+            --yes
+
   create-release:
     needs: build-and-push
     runs-on: ubuntu-latest
