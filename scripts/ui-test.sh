@@ -38,6 +38,10 @@ else
             PATTERN="^TestDevAuth"
             SUITE_NAME="devauth"
             ;;
+        mcp)
+            PATTERN="^TestMCP"
+            SUITE_NAME="mcp"
+            ;;
         *)
             # Capitalize first letter (smoke -> Smoke)
             TITLE_CASE="$(tr '[:lower:]' '[:upper:]' <<< ${CATEGORY:0:1})${CATEGORY:1}"

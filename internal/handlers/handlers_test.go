@@ -351,6 +351,7 @@ func TestMCPPageHandler_ContainsMCPConnectionConfig(t *testing.T) {
 	catalogFn := func() []MCPPageTool { return nil }
 
 	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
+	handler.SetBaseURL("http://localhost:8500")
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -1870,19 +1871,59 @@ func TestSettingsHandler_CSRFTokenXSSEscaped(t *testing.T) {
 // --- Port Configuration Stress Tests ---
 
 func TestMCPPageHandler_PortInMCPEndpoint(t *testing.T) {
-	// Verify port is correctly embedded in the MCP endpoint URL
+	// Verify base URL is correctly used in the MCP endpoint URL
 	catalogFn := func() []MCPPageTool { return nil }
 
-	// Test with default port 8080
 	handler := NewMCPPageHandler(nil, false, 8080, []byte(testJWTSecret), catalogFn)
+	handler.SetBaseURL("http://localhost:8080")
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	body := w.Body.String()
-	if !strings.Contains(body, "localhost:8080/mcp") {
-		t.Error("expected MCP endpoint to use port 8080")
+	if !strings.Contains(body, "http://localhost:8080/mcp") {
+		t.Error("expected MCP endpoint to contain http://localhost:8080/mcp")
+	}
+}
+
+func TestMCPPageHandler_BaseURLDeployed(t *testing.T) {
+	// When base URL is set to an external domain, the endpoint should use it
+	catalogFn := func() []MCPPageTool { return nil }
+
+	handler := NewMCPPageHandler(nil, false, 8080, []byte(testJWTSecret), catalogFn)
+	handler.SetBaseURL("https://vire-pprod-portal.fly.dev")
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "https://vire-pprod-portal.fly.dev/mcp") {
+		t.Error("expected MCP endpoint to contain deployed URL")
+	}
+	if strings.Contains(body, "localhost") {
+		t.Error("expected no localhost reference when base URL is set to external domain")
+	}
+}
+
+func TestMCPPageHandler_BaseURLFallback(t *testing.T) {
+	// When base URL is not set, should fall back to localhost:{port}
+	catalogFn := func() []MCPPageTool { return nil }
+
+	handler := NewMCPPageHandler(nil, false, 9999, []byte(testJWTSecret), catalogFn)
+	// Intentionally NOT calling SetBaseURL
+	req := httptest.NewRequest("GET", "/mcp-info", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "http://localhost:9999/mcp") {
+		t.Error("expected MCP endpoint to fall back to localhost:9999/mcp")
+	}
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for fallback, got %d", w.Code)
 	}
 }
 

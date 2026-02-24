@@ -28,6 +28,7 @@ type MCPPageHandler struct {
 	catalogFn      func() []MCPPageTool
 	devMCPEndpoint func(userID string) string
 	apiURL         string
+	baseURL        string
 }
 
 // NewMCPPageHandler creates a new MCP page handler.
@@ -52,6 +53,11 @@ func (h *MCPPageHandler) SetAPIURL(apiURL string) {
 	h.apiURL = apiURL
 }
 
+// SetBaseURL sets the base URL used to construct the MCP endpoint.
+func (h *MCPPageHandler) SetBaseURL(url string) {
+	h.baseURL = url
+}
+
 // SetDevMCPEndpointFn sets the function to generate dev-mode MCP endpoints.
 func (h *MCPPageHandler) SetDevMCPEndpointFn(fn func(userID string) string) {
 	h.devMCPEndpoint = fn
@@ -74,7 +80,11 @@ func (h *MCPPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		toolStatus = fmt.Sprintf("%d", toolCount)
 	}
 
-	mcpEndpoint := fmt.Sprintf("http://localhost:%d/mcp", h.port)
+	base := h.baseURL
+	if base == "" {
+		base = fmt.Sprintf("http://localhost:%d", h.port)
+	}
+	mcpEndpoint := base + "/mcp"
 
 	var devMCPEndpoint string
 	if h.devMCPEndpoint != nil && claims != nil && claims.Sub != "" {

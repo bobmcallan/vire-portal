@@ -17,6 +17,8 @@ func TestMCPPageLoads(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
+	takeScreenshot(t, ctx, "mcp", "page-loads.png")
+
 	visible, err := isVisible(ctx, ".page")
 	if err != nil {
 		t.Fatalf("error checking page visibility: %v", err)
@@ -34,6 +36,8 @@ func TestMCPConnectionSection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
+
+	takeScreenshot(t, ctx, "mcp", "connection-section.png")
 
 	found, err := commontest.EvalBool(ctx, `
 		(() => {
@@ -57,6 +61,8 @@ func TestMCPToolsTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
+
+	takeScreenshot(t, ctx, "mcp", "tools-table.png")
 
 	count, err := elementCount(ctx, ".tool-table")
 	if err != nil {
@@ -85,6 +91,8 @@ func TestMCPNoJSErrors(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
+	takeScreenshot(t, ctx, "mcp", "no-js-errors.png")
+
 	if jsErrs := errs.Errors(); len(jsErrs) > 0 {
 		t.Errorf("JS errors on MCP page:\n  %s", strings.Join(jsErrs, "\n  "))
 	}
@@ -99,13 +107,28 @@ func TestMCPEndpointURL(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	var bodyText string
-	err = chromedp.Run(ctx, chromedp.Evaluate(`document.body.innerText`, &bodyText))
+	takeScreenshot(t, ctx, "mcp", "endpoint-url.png")
+
+	// Verify the rendered MCPEndpoint value in the connection section <code> element.
+	// Template: <p>Endpoint: <code>{{.MCPEndpoint}}</code></p>
+	var endpointText string
+	err = chromedp.Run(ctx, chromedp.Evaluate(`
+		(() => {
+			const section = document.querySelector('.panel-headed .panel-content');
+			if (!section) return '';
+			const code = section.querySelector('code');
+			return code ? code.textContent.trim() : '';
+		})()
+	`, &endpointText))
 	if err != nil {
-		t.Fatalf("error getting body text: %v", err)
+		t.Fatalf("error getting endpoint text: %v", err)
 	}
 
-	if !strings.Contains(bodyText, "/mcp") {
-		t.Fatal("page does not contain /mcp endpoint text")
+	if endpointText == "" {
+		t.Fatal("MCP endpoint <code> element is empty or not found")
+	}
+
+	if !strings.Contains(endpointText, "/mcp") {
+		t.Errorf("MCP endpoint = %q, want contains '/mcp'", endpointText)
 	}
 }

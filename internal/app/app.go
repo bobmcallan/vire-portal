@@ -140,6 +140,7 @@ func (a *App) initHandlers() {
 		catalogAdapter(a.MCPHandler),
 	)
 	a.MCPPageHandler.SetAPIURL(a.Config.API.URL)
+	a.MCPPageHandler.SetBaseURL(a.Config.BaseURL())
 
 	if a.MCPDevHandler != nil {
 		a.MCPPageHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
