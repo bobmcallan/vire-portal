@@ -760,8 +760,8 @@ func TestNewDefaultConfig_AuthDefaults(t *testing.T) {
 	if cfg.Auth.JWTSecret != "" {
 		t.Errorf("expected empty default jwt_secret, got %s", cfg.Auth.JWTSecret)
 	}
-	if cfg.Auth.CallbackURL != "http://localhost:8500/auth/callback" {
-		t.Errorf("expected default callback_url http://localhost:8500/auth/callback, got %s", cfg.Auth.CallbackURL)
+	if cfg.Auth.CallbackURL != "http://localhost:8080/auth/callback" {
+		t.Errorf("expected default callback_url http://localhost:8080/auth/callback, got %s", cfg.Auth.CallbackURL)
 	}
 }
 

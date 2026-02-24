@@ -383,11 +383,15 @@ func TestRoutes_LandingPage_DevMode(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !containsString(body, "DEV LOGIN") {
-		t.Error("expected landing page to contain DEV LOGIN button in dev mode")
+	if !containsString(body, "SIGN IN") {
+		t.Error("expected landing page to contain SIGN IN button in dev mode")
 	}
 	if !containsString(body, "/api/auth/login") {
 		t.Error("expected landing page to contain /api/auth/login action in dev mode")
+	}
+	// In dev mode, form should be pre-filled with dev credentials
+	if !containsString(body, "dev_user") {
+		t.Error("expected landing page to pre-fill username in dev mode")
 	}
 }
 
@@ -472,9 +476,9 @@ func TestRoutes_DashboardContainsMCPConfig(t *testing.T) {
 		t.Error("expected dashboard to contain MCP endpoint reference /mcp")
 	}
 
-	// Should contain Claude Code config snippet
-	if !containsString(body, "mcpServers") {
-		t.Error("expected dashboard to contain mcpServers config snippet")
+	// Should contain portfolio-related content
+	if !containsString(body, "portfolioDashboard") {
+		t.Error("expected dashboard to contain portfolioDashboard Alpine component")
 	}
 }
 
@@ -497,9 +501,9 @@ func TestRoutes_DashboardContainsToolSection(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Should contain tools section (even if empty, should show NO TOOLS message)
-	if !containsString(body, "TOOLS") {
-		t.Error("expected dashboard to contain TOOLS section")
+	// Should contain holdings section
+	if !containsString(body, "HOLDINGS") {
+		t.Error("expected dashboard to contain HOLDINGS section")
 	}
 }
 
@@ -524,14 +528,13 @@ func TestRoutes_DashboardContainsConfigStatus(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Should contain config status section
-	if !containsString(body, "CONFIG") {
-		t.Error("expected dashboard to contain CONFIG section")
+	// Dashboard uses Alpine.js to load portfolios client-side via API.
+	// Verify the portfolio selector and summary structure are present.
+	if !containsString(body, "portfolio-select") {
+		t.Error("expected dashboard to contain portfolio selector")
 	}
-
-	// Should show portfolios
-	if !containsString(body, "SMSF") {
-		t.Error("expected dashboard to show portfolio name")
+	if !containsString(body, "TOTAL VALUE") {
+		t.Error("expected dashboard to contain portfolio summary")
 	}
 }
 
@@ -689,7 +692,7 @@ func TestRoutes_SettingsPostBlockedByCSRF(t *testing.T) {
 func TestREADME_PortConventions(t *testing.T) {
 	// Verify README documents the correct port conventions:
 	// - Code default: 8080 (Cloud Run standard)
-	// - Docker local dev: 8500 (via config override)
+	// - Docker local dev: 8881 (via docker-compose port mapping)
 	readme, err := os.ReadFile("../../README.md")
 	if err != nil {
 		t.Skipf("could not read README.md: %v (test must run from project root or internal/server/)", err)
@@ -702,14 +705,14 @@ func TestREADME_PortConventions(t *testing.T) {
 		t.Error("expected README config table to show 8080 as default port")
 	}
 
-	// Docker local dev sections should reference 8500
-	if !containsString(content, "localhost:8500") {
-		t.Error("expected README to reference localhost:8500 for local dev")
+	// Docker local dev sections should reference 8881 (docker-compose mapped port)
+	if !containsString(content, "localhost:8881") {
+		t.Error("expected README to reference localhost:8881 for Docker local dev")
 	}
 
-	// MCP config should show 8500 for local connection
-	if !containsString(content, "localhost:8500/mcp") {
-		t.Error("expected README MCP config to use localhost:8500/mcp for local dev")
+	// MCP config should show 8881 for local connection
+	if !containsString(content, "localhost:8881/mcp") {
+		t.Error("expected README MCP config to use localhost:8881/mcp for local dev")
 	}
 }
 
