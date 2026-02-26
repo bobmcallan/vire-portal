@@ -45,6 +45,14 @@ func newTestApp(t *testing.T) *app.App {
 	t.Helper()
 
 	cfg := config.NewDefaultConfig()
+	// Create a mock server that immediately returns 503 to avoid slow connection timeouts.
+	// This allows the MCP handler's catalog fetch to fail fast instead of waiting 10s per retry.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(mockServer.Close)
+
+	cfg.API.URL = mockServer.URL
 
 	logger := common.NewSilentLogger()
 
@@ -313,8 +321,20 @@ func TestRoutes_MCPUnauthenticatedReturns401(t *testing.T) {
 }
 
 // newTestAppWithConfig creates a test app with a custom config.
+// It automatically sets up a mock API server to avoid slow connection timeouts
+// when vire-server is unavailable.
 func newTestAppWithConfig(t *testing.T, cfg *config.Config) *app.App {
 	t.Helper()
+
+	// If the config doesn't already have a mock server URL set, create one.
+	// This avoids the MCP handler's catalog fetch waiting 10s per retry.
+	if cfg.API.URL == "" || cfg.API.URL == "http://localhost:8080" {
+		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}))
+		t.Cleanup(mockServer.Close)
+		cfg.API.URL = mockServer.URL
+	}
 
 	logger := common.NewSilentLogger()
 

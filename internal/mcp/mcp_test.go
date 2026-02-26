@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,27 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
 
+// --- Test Setup ---
+
+// mockAPIServer is a shared mock server that returns 503 for all requests.
+// This allows tests to fail fast instead of waiting for connection timeouts
+// when vire-server is unavailable.
+var mockAPIServer *httptest.Server
+
+func TestMain(m *testing.M) {
+	// Start a mock API server that immediately returns 503 for all requests.
+	// This is used by testConfig() to avoid slow connection timeouts.
+	mockAPIServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"error":"mock server - service unavailable"}`))
+	}))
+
+	code := m.Run()
+
+	mockAPIServer.Close()
+	os.Exit(code)
+}
+
 // --- Helpers ---
 
 func testLogger() *common.Logger {
@@ -27,7 +49,9 @@ func testLogger() *common.Logger {
 
 func testConfig() *config.Config {
 	cfg := config.NewDefaultConfig()
-	cfg.API.URL = "http://localhost:4242"
+	// Use the shared mock API server to avoid slow connection timeouts.
+	// Tests that need a real API should override this with their own mock server URL.
+	cfg.API.URL = mockAPIServer.URL
 	cfg.User.Portfolios = []string{"SMSF", "Personal"}
 	cfg.User.DisplayCurrency = "AUD"
 	return cfg
@@ -1581,9 +1605,8 @@ func TestGenericHandler_DefaultFrom_APIFallback(t *testing.T) {
 // --- Handler Startup Tests ---
 
 func TestNewHandler_CatalogUnavailable(t *testing.T) {
-	// Point to a server that doesn't exist
+	// testConfig() uses a mock server that returns 503, simulating an unavailable catalog
 	cfg := testConfig()
-	cfg.API.URL = "http://127.0.0.1:1"
 
 	handler := NewHandler(cfg, testLogger())
 

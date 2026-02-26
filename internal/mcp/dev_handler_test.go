@@ -10,16 +10,29 @@ import (
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
+// testConfigWithMockAPI creates a config with a mock API server that immediately
+// returns 503 to avoid slow connection timeouts when vire-server is unavailable.
+func testConfigWithMockAPI(t *testing.T, env, jwtSecret string) (*config.Config, *httptest.Server) {
+	t.Helper()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(mockServer.Close)
+
+	cfg := &config.Config{
+		Environment: env,
+		API:         config.APIConfig{URL: mockServer.URL},
+		Auth:        config.AuthConfig{JWTSecret: jwtSecret},
+	}
+	return cfg, mockServer
+}
+
 func TestDevHandler_EncryptDecrypt(t *testing.T) {
 	logger := common.NewSilentLogger()
 	jwtSecret := []byte("test-secret-key-32-bytes-long!!")
 
-	// Create base handler
-	cfg := &config.Config{
-		Environment: "dev",
-		API:         config.APIConfig{URL: "http://localhost:8080"},
-		Auth:        config.AuthConfig{JWTSecret: string(jwtSecret)},
-	}
+	// Create base handler with mock API to avoid slow connection timeouts
+	cfg, _ := testConfigWithMockAPI(t, "dev", string(jwtSecret))
 	handler := NewHandler(cfg, logger)
 
 	// Create dev handler
@@ -64,11 +77,7 @@ func TestDevHandler_GenerateEndpoint(t *testing.T) {
 	logger := common.NewSilentLogger()
 	jwtSecret := []byte("test-secret-key-32-bytes-long!!")
 
-	cfg := &config.Config{
-		Environment: "dev",
-		API:         config.APIConfig{URL: "http://localhost:8080"},
-		Auth:        config.AuthConfig{JWTSecret: string(jwtSecret)},
-	}
+	cfg, _ := testConfigWithMockAPI(t, "dev", string(jwtSecret))
 	handler := NewHandler(cfg, logger)
 	devHandler := NewDevHandler(handler, jwtSecret, true, "http://localhost:8881", logger)
 
@@ -97,11 +106,7 @@ func TestDevHandler_GenerateEndpoint_ProdMode(t *testing.T) {
 	logger := common.NewSilentLogger()
 	jwtSecret := []byte("test-secret-key-32-bytes-long!!")
 
-	cfg := &config.Config{
-		Environment: "prod",
-		API:         config.APIConfig{URL: "http://localhost:8080"},
-		Auth:        config.AuthConfig{JWTSecret: string(jwtSecret)},
-	}
+	cfg, _ := testConfigWithMockAPI(t, "prod", string(jwtSecret))
 	handler := NewHandler(cfg, logger)
 	devHandler := NewDevHandler(handler, jwtSecret, false, "http://localhost:8881", logger)
 
@@ -116,11 +121,7 @@ func TestDevHandler_ServeHTTP_InvalidEndpoint(t *testing.T) {
 	logger := common.NewSilentLogger()
 	jwtSecret := []byte("test-secret-key-32-bytes-long!!")
 
-	cfg := &config.Config{
-		Environment: "dev",
-		API:         config.APIConfig{URL: "http://localhost:8080"},
-		Auth:        config.AuthConfig{JWTSecret: string(jwtSecret)},
-	}
+	cfg, _ := testConfigWithMockAPI(t, "dev", string(jwtSecret))
 	handler := NewHandler(cfg, logger)
 	devHandler := NewDevHandler(handler, jwtSecret, true, "http://localhost:8881", logger)
 
@@ -140,11 +141,7 @@ func TestDevHandler_ServeHTTP_ProdMode(t *testing.T) {
 	logger := common.NewSilentLogger()
 	jwtSecret := []byte("test-secret-key-32-bytes-long!!")
 
-	cfg := &config.Config{
-		Environment: "prod",
-		API:         config.APIConfig{URL: "http://localhost:8080"},
-		Auth:        config.AuthConfig{JWTSecret: string(jwtSecret)},
-	}
+	cfg, _ := testConfigWithMockAPI(t, "prod", string(jwtSecret))
 	handler := NewHandler(cfg, logger)
 	devHandler := NewDevHandler(handler, jwtSecret, false, "http://localhost:8881", logger)
 

@@ -57,7 +57,8 @@ func TestVersionToolHandler_Combined(t *testing.T) {
 }
 
 func TestVersionToolHandler_ServerUnreachable(t *testing.T) {
-	proxy := NewMCPProxy("http://127.0.0.1:1", testLogger(), testConfig())
+	// Use the shared mock API server which returns 503 (simulating unreachable server)
+	proxy := NewMCPProxy(mockAPIServer.URL, testLogger(), testConfig())
 	handler := VersionToolHandler(proxy)
 
 	result, err := handler(t.Context(), mcpgo.CallToolRequest{})
