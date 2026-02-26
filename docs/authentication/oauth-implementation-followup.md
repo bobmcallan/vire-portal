@@ -174,10 +174,11 @@ Verify token expiry is reasonable for MCP use cases (currently 24h).
 
 ## Success Criteria
 
-- [ ] Unauthenticated `/mcp` requests return 401 with WWW-Authenticate header
-- [ ] WWW-Authenticate header contains valid `resource_metadata` URL
-- [ ] Protected resource metadata includes `bearer_methods_supported`
+- [x] Unauthenticated `/mcp` requests return 401 with WWW-Authenticate header
+- [x] WWW-Authenticate header contains valid `resource_metadata` URL
+- [x] Protected resource metadata includes `bearer_methods_supported`
+- [x] All OAuth-related tests pass
+- [x] Changes committed and pushed (`7808fde`)
 - [ ] Claude Desktop triggers OAuth flow when adding MCP server
 - [ ] ChatGPT maintains connection after OAuth (doesn't "stop working")
-- [ ] All tests pass
 - [ ] Deployed to pprod
