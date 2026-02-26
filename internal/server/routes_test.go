@@ -220,13 +220,27 @@ func TestRoutes_CSRFCookieOnLandingPage(t *testing.T) {
 
 // --- MCP Route Tests ---
 
+// buildTestJWT creates a minimal unsigned JWT for testing.
+func buildTestJWT(sub string) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
+	claims, _ := json.Marshal(map[string]interface{}{
+		"sub": sub,
+		"iss": "vire-test",
+		"exp": time.Now().Add(24 * time.Hour).Unix(),
+	})
+	payload := base64.RawURLEncoding.EncodeToString(claims)
+	return header + "." + payload + "."
+}
+
 func TestRoutes_MCPEndpointAcceptsPost(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
 	// POST /mcp should return a valid MCP response (not 403, 404, or 501)
+	// Include Bearer token for authentication (required per RFC 9728)
 	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}`))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+buildTestJWT("test-user"))
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
@@ -252,6 +266,7 @@ func TestRoutes_MCPNotBlockedByCSRF(t *testing.T) {
 	srv := New(application)
 
 	// POST /mcp without CSRF token should NOT be rejected with 403
+	// (Authentication is a separate concern - this tests CSRF exemption)
 	req := httptest.NewRequest("POST", "/mcp", nil)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -275,6 +290,25 @@ func TestRoutes_MCPHasCorrelationID(t *testing.T) {
 
 	if w.Header().Get("X-Correlation-ID") == "" {
 		t.Error("expected X-Correlation-ID header on /mcp response")
+	}
+}
+
+func TestRoutes_MCPUnauthenticatedReturns401(t *testing.T) {
+	application := newTestApp(t)
+	srv := New(application)
+
+	// POST /mcp without authentication should return 401 per RFC 9728
+	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("POST /mcp without auth expected 401, got %d", w.Code)
+	}
+	if w.Header().Get("WWW-Authenticate") == "" {
+		t.Error("expected WWW-Authenticate header on 401 response")
 	}
 }
 

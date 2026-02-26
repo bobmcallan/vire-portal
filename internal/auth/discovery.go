@@ -79,9 +79,10 @@ func handleProtectedResource(w http.ResponseWriter, r *http.Request, baseURL str
 	}
 
 	metadata := map[string]interface{}{
-		"resource":              baseURL,
-		"authorization_servers": []string{baseURL},
-		"scopes_supported":      []string{"portfolio:read", "portfolio:write", "tools:invoke"},
+		"resource":                 baseURL,
+		"authorization_servers":    []string{baseURL},
+		"scopes_supported":         []string{"portfolio:read", "portfolio:write", "tools:invoke"},
+		"bearer_methods_supported": []string{"header"}, // Per RFC 9728
 	}
 
 	w.Header().Set("Content-Type", "application/json")

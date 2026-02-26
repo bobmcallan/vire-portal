@@ -105,9 +105,46 @@ func (h *Handler) Catalog() []CatalogTool {
 
 // ServeHTTP extracts user context from the session cookie (if present)
 // and delegates to the mcp-go StreamableHTTPServer.
+// If no valid user context is found, returns 401 with WWW-Authenticate header
+// per RFC 9728 to trigger OAuth discovery.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = h.withUserContext(r)
+
+	// Check if user context exists - if not, require authentication per RFC 9728
+	if _, ok := GetUserContext(r.Context()); !ok {
+		scheme := "http"
+		if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+			scheme = "https"
+		}
+
+		// Sanitize host to prevent header injection attacks
+		host := sanitizeHost(r.Host)
+		resourceMetadata := fmt.Sprintf("%s://%s/.well-known/oauth-protected-resource",
+			scheme, host)
+
+		w.Header().Set("WWW-Authenticate",
+			fmt.Sprintf(`Bearer resource_metadata="%s"`, resourceMetadata))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":             "unauthorized",
+			"error_description": "Authentication required to access MCP endpoint",
+		})
+		return
+	}
+
 	h.streamable.ServeHTTP(w, r)
+}
+
+// sanitizeHost removes dangerous characters from the Host header to prevent
+// header injection attacks. It strips CR, LF, and quote characters.
+func sanitizeHost(host string) string {
+	// Remove CR and LF to prevent header injection
+	host = strings.ReplaceAll(host, "\r", "")
+	host = strings.ReplaceAll(host, "\n", "")
+	// Remove quotes to prevent breaking out of the resource_metadata value
+	host = strings.ReplaceAll(host, `"`, "")
+	return host
 }
 
 // withUserContext extracts user identity from Bearer token or vire_session cookie,

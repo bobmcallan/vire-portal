@@ -2529,11 +2529,12 @@ func TestIntegration_CatalogToToolCall(t *testing.T) {
 	// Verify we can call tools through the full stack
 	// We need to test via HTTP since NewHandler wraps everything
 	rec := httptest.NewRecorder()
-	// Send an MCP initialize request
+	// Send an MCP initialize request with authentication
 	initReq := httptest.NewRequest("POST", "/mcp", strings.NewReader(
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}`,
 	))
 	initReq.Header.Set("Content-Type", "application/json")
+	initReq.Header.Set("Authorization", "Bearer "+buildTestJWT("test-user"))
 	handler.ServeHTTP(rec, initReq)
 
 	if rec.Code != http.StatusOK {

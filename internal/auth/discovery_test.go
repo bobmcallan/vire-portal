@@ -128,6 +128,8 @@ func TestHandleProtectedResource_ReturnsCorrectMetadata(t *testing.T) {
 
 	assertStringSlice(t, body, "authorization_servers", []string{"http://localhost:8500"})
 	assertStringSlice(t, body, "scopes_supported", []string{"portfolio:read", "portfolio:write", "tools:invoke"})
+	// Per RFC 9728, bearer_methods_supported indicates how Bearer tokens can be presented
+	assertStringSlice(t, body, "bearer_methods_supported", []string{"header"})
 }
 
 func TestHandleProtectedResource_MethodNotAllowed(t *testing.T) {

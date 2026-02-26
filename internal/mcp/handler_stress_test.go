@@ -1,8 +1,10 @@
 package mcp
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -561,4 +563,245 @@ func TestBearer_StressConcurrentMixedAuth(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// =============================================================================
+// 401 Response Stress Tests (RFC 9728)
+// =============================================================================
+
+// --- Host Header Injection Tests ---
+
+func TestServeHTTP_StressHostHeaderInjection(t *testing.T) {
+	h := &Handler{}
+
+	// These Host headers attempt to inject malicious content into the
+	// resource_metadata URL in the WWW-Authenticate header.
+	hostileHosts := []struct {
+		name string
+		host string
+		desc string
+	}{
+		{"external_domain", "evil.com", "Points to attacker-controlled domain"},
+		{"with_port", "evil.com:8080", "External domain with custom port"},
+		{"path_injection", "evil.com/path", "Attempts to add path to host"},
+		{"query_injection", "evil.com?x=1", "Query string in host"},
+		{"fragment_injection", "evil.com#frag", "Fragment in host"},
+		{" userinfo", "user:pass@evil.com", "Userinfo in host (URL injection)"},
+		{"ipv4_localhost", "127.0.0.1", "Loopback address"},
+		{"ipv6_localhost", "[::1]", "IPv6 loopback"},
+		{"newline_attempt", "evil.com\r\nX-Injected: evil", "Header injection via newline"},
+		{"quote_attempt", `evil.com"`, "Quote to break out of resource_metadata"},
+		{"unicode_host", "evil.com", "Unicode characters in host"},
+		{"very_long_host", strings.Repeat("a", 255), "Very long hostname"},
+		{"empty_host", "", "Empty host"},
+	}
+
+	for _, tc := range hostileHosts {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/mcp", nil)
+			req.Host = tc.host
+			rec := httptest.NewRecorder()
+
+			// Must not panic
+			h.ServeHTTP(rec, req)
+
+			wwwAuth := rec.Header().Get("WWW-Authenticate")
+
+			// SECURITY CHECK 1: Ensure no header injection (no CRLF)
+			if strings.Contains(wwwAuth, "\r") || strings.Contains(wwwAuth, "\n") {
+				t.Errorf("SECURITY: WWW-Authenticate contains newline characters: %q", wwwAuth)
+			}
+
+			// SECURITY CHECK 2: If quote is in the host, ensure it doesn't break out
+			// The value should be enclosed in quotes
+			if strings.Contains(tc.host, `"`) {
+				// Count quotes - should be exactly 2 (opening and closing)
+				quoteCount := strings.Count(wwwAuth, `"`)
+				if quoteCount != 2 {
+					t.Errorf("SECURITY: Unexpected quote count in WWW-Authenticate: %q (count=%d)", wwwAuth, quoteCount)
+				}
+			}
+
+			// Log what was generated for analysis
+			t.Logf("Host=%q -> WWW-Authenticate=%q", tc.host, wwwAuth)
+		})
+	}
+}
+
+// --- WWW-Authenticate Format Validation ---
+
+func TestServeHTTP_StressWWWAuthenticateFormat(t *testing.T) {
+	h := &Handler{}
+
+	// Verify that the WWW-Authenticate header is properly formatted
+	// per RFC 9728 / RFC 6750
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Host = "portal.example.com"
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	wwwAuth := rec.Header().Get("WWW-Authenticate")
+
+	// Must start with "Bearer"
+	if !strings.HasPrefix(wwwAuth, "Bearer ") {
+		t.Errorf("WWW-Authenticate must start with 'Bearer ', got: %q", wwwAuth)
+	}
+
+	// Must contain resource_metadata parameter
+	if !strings.Contains(wwwAuth, `resource_metadata="`) {
+		t.Errorf("WWW-Authenticate must contain resource_metadata parameter, got: %q", wwwAuth)
+	}
+
+	// resource_metadata value must be a valid URL
+	// Extract the URL from the header
+	startIdx := strings.Index(wwwAuth, `resource_metadata="`)
+	if startIdx == -1 {
+		t.Fatalf("Could not find resource_metadata in header")
+	}
+	urlStart := startIdx + len(`resource_metadata="`)
+	urlEnd := strings.Index(wwwAuth[urlStart:], `"`)
+	if urlEnd == -1 {
+		t.Fatalf("Could not find closing quote for resource_metadata")
+	}
+	metadataURL := wwwAuth[urlStart : urlStart+urlEnd]
+
+	// URL must start with http:// or https://
+	if !strings.HasPrefix(metadataURL, "http://") && !strings.HasPrefix(metadataURL, "https://") {
+		t.Errorf("resource_metadata URL must use http or https scheme, got: %q", metadataURL)
+	}
+
+	// URL must end with .well-known/oauth-protected-resource
+	if !strings.HasSuffix(metadataURL, "/.well-known/oauth-protected-resource") {
+		t.Errorf("resource_metadata URL must end with /.well-known/oauth-protected-resource, got: %q", metadataURL)
+	}
+
+	t.Logf("Valid resource_metadata URL: %s", metadataURL)
+}
+
+// --- Scheme Detection Tests ---
+
+func TestServeHTTP_StressSchemeDetection(t *testing.T) {
+	h := &Handler{}
+
+	tests := []struct {
+		name           string
+		tls            bool
+		xfwdProto      string
+		expectedScheme string
+	}{
+		{"plain_http", false, "", "http"},
+		{"tls_connection", true, "", "https"},
+		{"xfwd_proto_https", false, "https", "https"},
+		{"xfwd_proto_HTTps_case_insensitive", false, "HtTpS", "https"},
+		{"xfwd_proto_http", false, "http", "http"},
+		{"tls_overrides_xfwd", true, "http", "https"}, // TLS takes precedence
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/mcp", nil)
+			req.Host = "example.com"
+			if tc.tls {
+				req.TLS = &tls.ConnectionState{}
+			}
+			if tc.xfwdProto != "" {
+				req.Header.Set("X-Forwarded-Proto", tc.xfwdProto)
+			}
+			rec := httptest.NewRecorder()
+
+			h.ServeHTTP(rec, req)
+
+			wwwAuth := rec.Header().Get("WWW-Authenticate")
+			expectedPrefix := "Bearer resource_metadata=\"" + tc.expectedScheme + "://"
+			if !strings.HasPrefix(wwwAuth, expectedPrefix) {
+				t.Errorf("expected scheme %s, got: %q", tc.expectedScheme, wwwAuth)
+			}
+		})
+	}
+}
+
+// --- JSON Response Validation ---
+
+func TestServeHTTP_StressJSONResponseFormat(t *testing.T) {
+	h := &Handler{}
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	// Verify Content-Type
+	contentType := rec.Header().Get("Content-Type")
+	if contentType != "application/json" {
+		t.Errorf("expected Content-Type application/json, got: %q", contentType)
+	}
+
+	// Verify response body is valid JSON
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("response body is not valid JSON: %v", err)
+	}
+
+	// Verify required fields exist
+	if _, ok := resp["error"]; !ok {
+		t.Error("response must contain 'error' field")
+	}
+	if _, ok := resp["error_description"]; !ok {
+		t.Error("response must contain 'error_description' field")
+	}
+
+	// Ensure no sensitive information is leaked
+	bodyStr := rec.Body.String()
+	sensitivePatterns := []string{
+		"password", "secret", "key", "token", "credential",
+		"stack", "trace", "panic", "error type",
+		"internal", "debug",
+	}
+	for _, pattern := range sensitivePatterns {
+		if strings.Contains(strings.ToLower(bodyStr), pattern) {
+			// Note: "error" and "error_description" are expected, so exclude those
+			if pattern != "error" && pattern != "error description" {
+				t.Errorf("SECURITY: Response may leak sensitive information (%s): %s", pattern, bodyStr)
+			}
+		}
+	}
+}
+
+// --- Concurrent 401 Response Tests ---
+
+func TestServeHTTP_StressConcurrent401Responses(t *testing.T) {
+	h := &Handler{}
+
+	var wg sync.WaitGroup
+	errors := make(chan error, 200)
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			req := httptest.NewRequest("POST", "/mcp", nil)
+			req.Host = "test.example.com"
+			rec := httptest.NewRecorder()
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				errors <- fmt.Errorf("goroutine %d: expected 401, got %d", n, rec.Code)
+				return
+			}
+
+			wwwAuth := rec.Header().Get("WWW-Authenticate")
+			if wwwAuth == "" {
+				errors <- fmt.Errorf("goroutine %d: missing WWW-Authenticate header", n)
+				return
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errors)
+
+	for err := range errors {
+		t.Error(err)
+	}
 }

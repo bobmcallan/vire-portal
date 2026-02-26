@@ -1,10 +1,12 @@
 package mcp
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -212,5 +214,157 @@ func TestExtractJWTSub_SingleDot(t *testing.T) {
 	// "dot" is valid base64 but decodes to garbage JSON
 	if sub != "" {
 		t.Errorf("expected empty string for single-dot token, got %s", sub)
+	}
+}
+
+// --- ServeHTTP 401 Response Tests (RFC 9728 compliance) ---
+
+func TestServeHTTP_UnauthenticatedReturns401(t *testing.T) {
+	h := &Handler{}
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized, got %d", rec.Code)
+	}
+}
+
+func TestServeHTTP_UnauthenticatedHasWWWAuthenticateHeader(t *testing.T) {
+	h := &Handler{}
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	wwwAuth := rec.Header().Get("WWW-Authenticate")
+	if wwwAuth == "" {
+		t.Error("expected WWW-Authenticate header to be set")
+	}
+	if !strings.Contains(wwwAuth, "Bearer") {
+		t.Error("expected WWW-Authenticate to contain 'Bearer'")
+	}
+	if !strings.Contains(wwwAuth, `resource_metadata=`) {
+		t.Error("expected WWW-Authenticate to contain 'resource_metadata='")
+	}
+}
+
+func TestServeHTTP_WWWAuthenticateResourceMetadataHTTP(t *testing.T) {
+	h := &Handler{}
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Host = "localhost:8883"
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	wwwAuth := rec.Header().Get("WWW-Authenticate")
+	expected := `Bearer resource_metadata="http://localhost:8883/.well-known/oauth-protected-resource"`
+	if wwwAuth != expected {
+		t.Errorf("expected WWW-Authenticate %q, got %q", expected, wwwAuth)
+	}
+}
+
+func TestServeHTTP_WWWAuthenticateResourceMetadataHTTPS(t *testing.T) {
+	h := &Handler{}
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Host = "portal.example.com"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	wwwAuth := rec.Header().Get("WWW-Authenticate")
+	expected := `Bearer resource_metadata="https://portal.example.com/.well-known/oauth-protected-resource"`
+	if wwwAuth != expected {
+		t.Errorf("expected WWW-Authenticate %q, got %q", expected, wwwAuth)
+	}
+}
+
+func TestServeHTTP_WWWAuthenticateResourceMetadataTLS(t *testing.T) {
+	h := &Handler{}
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Host = "secure.example.com"
+	req.TLS = &tls.ConnectionState{} // Simulate TLS connection
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	wwwAuth := rec.Header().Get("WWW-Authenticate")
+	expected := `Bearer resource_metadata="https://secure.example.com/.well-known/oauth-protected-resource"`
+	if wwwAuth != expected {
+		t.Errorf("expected WWW-Authenticate %q, got %q", expected, wwwAuth)
+	}
+}
+
+func TestServeHTTP_UnauthenticatedJSONResponse(t *testing.T) {
+	h := &Handler{}
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	contentType := rec.Header().Get("Content-Type")
+	if contentType != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %s", contentType)
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse JSON response: %v", err)
+	}
+	if resp["error"] != "unauthorized" {
+		t.Errorf("expected error 'unauthorized', got %q", resp["error"])
+	}
+	if resp["error_description"] != "Authentication required to access MCP endpoint" {
+		t.Errorf("unexpected error_description: %q", resp["error_description"])
+	}
+}
+
+// TestServeHTTP_AuthenticatedBearerNoWWWAuthenticate tests that authenticated
+// requests with Bearer token do NOT get a WWW-Authenticate header (they pass through).
+func TestServeHTTP_AuthenticatedBearerNoWWWAuthenticate(t *testing.T) {
+	jwt := buildTestJWT("bearer-user")
+
+	h := &Handler{}
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer "+jwt)
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	// Authenticated requests should NOT get a 401 or WWW-Authenticate header
+	// They will likely error because streamable is nil, but that's expected
+	// The key assertion is no WWW-Authenticate header
+	wwwAuth := rec.Header().Get("WWW-Authenticate")
+	if wwwAuth != "" {
+		t.Errorf("expected no WWW-Authenticate header for authenticated request, got %q", wwwAuth)
+	}
+}
+
+// TestServeHTTP_AuthenticatedCookieNoWWWAuthenticate tests that authenticated
+// requests with session cookie do NOT get a WWW-Authenticate header (they pass through).
+func TestServeHTTP_AuthenticatedCookieNoWWWAuthenticate(t *testing.T) {
+	jwt := buildTestJWT("cookie-user")
+
+	h := &Handler{}
+
+	req := httptest.NewRequest("POST", "/mcp", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: jwt})
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	// Authenticated requests should NOT get a WWW-Authenticate header
+	wwwAuth := rec.Header().Get("WWW-Authenticate")
+	if wwwAuth != "" {
+		t.Errorf("expected no WWW-Authenticate header for authenticated request, got %q", wwwAuth)
 	}
 }
