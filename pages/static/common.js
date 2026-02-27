@@ -180,6 +180,7 @@ function portfolioDashboard() {
         defaultPortfolio: '',
         holdings: [],
         showClosed: false,
+        portfolioTotalValue: 0,
         portfolioGain: 0,
         portfolioGainPct: 0,
         portfolioCost: 0,
@@ -208,7 +209,7 @@ function portfolioDashboard() {
             return h;
         },
         get totalValue() {
-            return this.filteredHoldings.reduce((sum, h) => sum + (Number(h.market_value) || 0), 0);
+            return this.portfolioTotalValue;
         },
         get totalCost() {
             return this.portfolioCost;
@@ -257,6 +258,7 @@ function portfolioDashboard() {
                 if (holdingsRes.ok) {
                     const holdingsData = await holdingsRes.json();
                     this.holdings = vireStore.dedup(holdingsData.holdings || [], 'ticker');
+                    this.portfolioTotalValue = Number(holdingsData.total_value) || 0;
                     this.portfolioGain = Number(holdingsData.total_net_return) || 0;
                     this.portfolioGainPct = Number(holdingsData.total_net_return_pct) || 0;
                     this.portfolioCost = Number(holdingsData.total_cost) || 0;
@@ -277,6 +279,7 @@ function portfolioDashboard() {
                     }
                 } else {
                     this.holdings = [];
+                    this.portfolioTotalValue = 0;
                     this.portfolioGain = 0;
                     this.portfolioGainPct = 0;
                     this.portfolioCost = 0;
@@ -355,7 +358,7 @@ function portfolioDashboard() {
                 const d = new Date(p.Date);
                 return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             });
-            const totalValues = this.growthData.map(p => p.TotalValue);
+            const totalValues = this.growthData.map(p => p.TotalValue + (p.ExternalBalance || 0));
             const totalCosts = this.growthData.map(p => p.TotalCost);
             const capitalLine = this.growthData.map(() => this.capitalInvested);
 
@@ -485,6 +488,7 @@ function portfolioDashboard() {
                 if (res.ok) {
                     const data = await res.json();
                     this.holdings = vireStore.dedup(data.holdings || [], 'ticker');
+                    this.portfolioTotalValue = Number(data.total_value) || 0;
                     this.portfolioGain = Number(data.total_net_return) || 0;
                     this.portfolioGainPct = Number(data.total_net_return_pct) || 0;
                     this.portfolioCost = Number(data.total_cost) || 0;
