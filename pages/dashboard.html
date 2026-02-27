@@ -37,7 +37,7 @@
                     <input type="checkbox" :checked="isDefault" @change="toggleDefault()">
                     <span>Default</span>
                 </label>
-                <button class="btn btn-secondary btn-sm" @click="refreshPortfolio()" :disabled="refreshing">
+                <button class="btn btn-secondary btn-sm" style="margin-left:auto" @click="refreshPortfolio()" :disabled="refreshing">
                     <span x-show="!refreshing">REFRESH</span>
                     <span x-show="refreshing">REFRESHING...</span>
                 </button>

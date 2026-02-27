@@ -619,6 +619,24 @@ func TestDashboardRefreshButton(t *testing.T) {
 	if !refreshExists {
 		t.Error("refresh button not found in portfolio header")
 	}
+
+	// Verify refresh button is right-aligned (margin-left: auto)
+	rightAligned, err := commontest.EvalBool(ctx, `
+		(() => {
+			const header = document.querySelector('.portfolio-header');
+			if (!header) return false;
+			const btn = header.querySelector('button');
+			if (!btn) return false;
+			const style = getComputedStyle(btn);
+			return style.marginLeft === 'auto';
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking refresh button alignment: %v", err)
+	}
+	if !rightAligned {
+		t.Error("refresh button should have margin-left: auto (right-aligned in flex container)")
+	}
 }
 
 func TestDashboardIndicators(t *testing.T) {

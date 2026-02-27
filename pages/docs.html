@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{template "head.html" .}}
+    <title>VIRE DOCS</title>
+</head>
+<body>
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+    <main class="page">
+        <div class="page-body">
+
+            <section class="dashboard-section">
+                <h2 class="section-title">WHAT IS VIRE</h2>
+                <p>Vire is an investment portfolio tracking platform. It connects to your brokerage data via Navexa and exposes portfolio analytics through a web dashboard and an MCP (Model Context Protocol) endpoint for Claude.</p>
+                <p style="margin-top:1rem">With Vire you can view holdings, track capital performance, monitor technical indicators, and query your portfolio data conversationally through Claude Desktop or Claude Code.</p>
+            </section>
+
+            <section class="dashboard-section">
+                <h2 class="section-title">NAVEXA</h2>
+                <p>Vire syncs portfolio data from <a href="https://www.navexa.com">Navexa</a>, an investment portfolio tracker that aggregates holdings, transactions, and performance metrics from brokers and exchanges.</p>
+                <p style="margin-top:1rem">You need a Navexa account and API key to use Vire. If you do not have a Navexa account, create one at <a href="https://www.navexa.com">navexa.com</a>.</p>
+            </section>
+
+            <section class="dashboard-section">
+                <h2 class="section-title">GETTING YOUR API KEY</h2>
+                <ol style="padding-left:1.5rem;margin-top:0.5rem;line-height:2">
+                    <li>Sign in to your Navexa account at <a href="https://www.navexa.com">navexa.com</a></li>
+                    <li>Open <strong>Account Settings</strong></li>
+                    <li>Navigate to the <strong>API</strong> section</li>
+                    <li>Generate or copy your API key</li>
+                </ol>
+            </section>
+
+            <section class="dashboard-section">
+                <h2 class="section-title">CONFIGURING VIRE</h2>
+                <p>Once you have your Navexa API key:</p>
+                <ol style="padding-left:1.5rem;margin-top:0.5rem;line-height:2">
+                    <li>Go to <a href="/settings">Settings</a> in Vire</li>
+                    <li>Paste your Navexa API key into the API KEY field</li>
+                    <li>Click <strong>SAVE</strong></li>
+                </ol>
+                <p style="margin-top:1rem">Vire will sync your portfolios automatically. Return to the <a href="/dashboard">Dashboard</a> to view your holdings and performance data.</p>
+            </section>
+
+        </div>
+    </main>
+    {{template "footer.html" .}}
+</body>
+</html>

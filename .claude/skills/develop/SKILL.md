@@ -379,6 +379,7 @@ The portal is stateless -- all user data is managed by vire-server via REST API 
 | `GET /strategy` | StrategyHandler | No |
 | `GET /capital` | CapitalHandler | No |
 | `GET /mcp-info` | MCPPageHandler | No |
+| `GET /docs` | PageHandler | No |
 | `GET /static/*` | PageHandler | No |
 | `POST /mcp` | MCPHandler | Bearer token or session cookie |
 | `GET /api/health` | HealthHandler | No |

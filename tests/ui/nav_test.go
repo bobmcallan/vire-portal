@@ -392,3 +392,120 @@ func TestNavMCPLinkPresent(t *testing.T) {
 		t.Error("MCP link (a[href='/mcp-info']) not found in .nav-links")
 	}
 }
+
+func TestNavBrandHref(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "nav", "brand-href.png")
+
+	href, err := common.EvalBool(ctx, `
+		(() => {
+			const a = document.querySelector('.nav-brand');
+			return a && a.getAttribute('href') === '/dashboard';
+		})()
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !href {
+		t.Error("nav-brand href should be /dashboard (not /)")
+	}
+}
+
+func TestNavDocsLinkPresent(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "nav", "docs-link-present.png")
+
+	exists, err := common.Exists(ctx, `.nav-links a[href="/docs"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Error("Docs link (a[href='/docs']) not found in .nav-links")
+	}
+}
+
+func TestNavMobileDocsLink(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = chromedp.Run(ctx,
+		chromedp.EmulateViewport(375, 812),
+		chromedp.Navigate(serverURL()+"/dashboard"),
+		chromedp.WaitVisible("body", chromedp.ByQuery),
+		chromedp.Sleep(800*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Open mobile menu
+	count, _ := elementCount(ctx, ".nav-hamburger")
+	if count == 0 {
+		t.Skip("no nav-hamburger found")
+	}
+
+	err = chromedp.Run(ctx,
+		chromedp.Click(".nav-hamburger", chromedp.ByQuery),
+		chromedp.Sleep(500*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "nav", "mobile-docs-link.png")
+
+	exists, err := common.Exists(ctx, `.mobile-menu a[href="/docs"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Error("Docs link (a[href='/docs']) not found in .mobile-menu")
+	}
+}
+
+func TestNavDropdownDocsLink(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = chromedp.Run(ctx,
+		chromedp.Click(".nav-hamburger", chromedp.ByQuery),
+		chromedp.Sleep(300*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "nav", "dropdown-docs-link.png")
+
+	exists, err := common.Exists(ctx, `.nav-dropdown a[href="/docs"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Error("Docs link (a[href='/docs']) not found in .nav-dropdown")
+	}
+}

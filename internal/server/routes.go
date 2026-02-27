@@ -35,6 +35,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.HandleFunc("GET /strategy", s.app.StrategyHandler.ServeHTTP)
 	mux.HandleFunc("GET /capital", s.app.CapitalHandler.ServeHTTP)
 	mux.HandleFunc("GET /mcp-info", s.app.MCPPageHandler.ServeHTTP)
+	mux.HandleFunc("GET /docs", s.app.PageHandler.ServePage("docs.html", "docs"))
 	mux.HandleFunc("GET /error", s.app.PageHandler.ServePage("error.html", "error"))
 	mux.HandleFunc("/", s.app.PageHandler.ServePage("landing.html", "home"))
 

@@ -27,6 +27,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `GET /strategy` | StrategyHandler | No | Strategy page (portfolio strategy and plan editors) |
 | `GET /capital` | CapitalHandler | No | Capital page (cash transactions ledger, paged table) |
 | `GET /mcp-info` | MCPPageHandler | No | MCP info page (connection config, tools catalog) |
+| `GET /docs` | PageHandler | No | Docs page (Navexa setup instructions) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP transport, dynamic tools) |
 | `GET /.well-known/oauth-authorization-server` | OAuthServer | No | OAuth 2.1 authorization server metadata |
