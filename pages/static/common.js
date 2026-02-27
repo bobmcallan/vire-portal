@@ -593,14 +593,16 @@ function cashTransactions() {
             if (!this.selected) return;
             this.currentPage = 1;
             try {
-                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/cash-transactions');
+                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/cashflows');
                 if (res.ok) {
                     const data = await res.json();
-                    this.transactions = data.transactions || [];
-                    const summary = data.summary || {};
-                    this.totalDeposits = Number(summary.total_deposits) || 0;
-                    this.totalWithdrawals = Number(summary.total_withdrawals) || 0;
-                    this.netCashFlow = Number(summary.net_cash_flow) || 0;
+                    const txns = data.transactions || [];
+                    txns.sort((a, b) => new Date(b.date) - new Date(a.date));
+                    this.transactions = txns;
+                    const credits = ['deposit', 'contribution', 'transfer_in', 'dividend'];
+                    this.totalDeposits = txns.filter(t => credits.includes(t.type)).reduce((s, t) => s + Number(t.amount), 0);
+                    this.totalWithdrawals = txns.filter(t => !credits.includes(t.type)).reduce((s, t) => s + Number(t.amount), 0);
+                    this.netCashFlow = this.totalDeposits - this.totalWithdrawals;
                 } else {
                     this.transactions = [];
                     this.totalDeposits = 0;
