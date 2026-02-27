@@ -82,7 +82,11 @@ Test containers use the `-tc` suffix (`vire-db-tc`, `vire-server-tc`, `vire-port
 2. **NEVER touch containers without the `-tc` suffix.** The user's dev stack containers (`vire-server`, `vire-surrealdb`, etc.) must never be stopped, removed, or modified by tests or test tooling.
 3. If a container name conflict occurs, the fix belongs in `containers.go` (code), not in a manual shell command.
 
-### Rule 6: test-execute Is Read-Only
+### Rule 6: No Files in Project Root
+
+Tests and test tooling MUST NEVER create files in the project root directory. All test output goes to `tests/logs/{timestamp}/`. Never redirect test output to ad-hoc files like `test_execution.log`, `output.log`, etc. in the project root or anywhere outside `tests/logs/`.
+
+### Rule 7: test-execute Is Read-Only
 
 `/test-execute` MUST NEVER modify or update test files. Its role is:
 1. Validate test structure compliance (Rules 1-3) before running

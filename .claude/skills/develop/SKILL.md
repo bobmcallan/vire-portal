@@ -231,13 +231,16 @@ DOCKER SAFETY: NEVER run docker rm, docker stop, docker kill, or any destructive
 command. If containers conflict, report the error — do not attempt to fix it yourself.
 The test infrastructure (containers.go, ui-test.sh) handles cleanup automatically.
 
+FILE SAFETY: NEVER create files in the project root. All test output goes to tests/logs/.
+Do not redirect test output to ad-hoc log files.
+
 Read before executing:
-1. .claude/skills/test-common/SKILL.md — mandatory rules (including Docker safety)
+1. .claude/skills/test-common/SKILL.md — mandatory rules (including Docker and file safety)
 2. .claude/skills/test-execute/SKILL.md — execution workflow
 
 Workflow:
 1. Read TaskList, claim tasks (owner: "test-executor") by setting status to "in_progress"
-2. Validate test structure compliance (Rules 1-5 from test-common)
+2. Validate test structure compliance (Rules 1-6 from test-common)
 3. Run tests via wrapper script (NEVER raw `go test`):
    ./scripts/ui-test.sh all
    # Or individual suites: smoke, dashboard, nav, devauth, mcp, settings
