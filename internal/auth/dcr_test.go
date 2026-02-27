@@ -9,7 +9,7 @@ import (
 )
 
 func newTestOAuthServer() *OAuthServer {
-	return NewOAuthServer("http://localhost:8500", []byte("test-secret"), nil)
+	return NewOAuthServer("http://localhost:8500", "", []byte("test-secret"), nil)
 }
 
 func TestHandleRegister_Success(t *testing.T) {

@@ -14,7 +14,7 @@ Email/password login is implemented. The portal forwards credentials to vire-ser
 | JWT validation | Done | Signature + expiry checked on every request via `IsLoggedIn` |
 | Google OAuth redirect | Stub | Portal redirects to vire-server; server-side exchange not yet wired |
 | GitHub OAuth redirect | Stub | Same pattern as Google |
-| MCP OAuth 2.1 | Done | DCR, authorize, token endpoints; Bearer token on `/mcp`; in-memory stores |
+| MCP OAuth 2.1 | Done | DCR, authorize, token endpoints; Bearer token on `/mcp`; in-memory L1 cache with write-through to vire-server |
 
 ## Architecture
 
@@ -166,9 +166,10 @@ Effects on auth:
 
 | File | Purpose |
 |------|---------|
-| `internal/auth/server.go` | OAuthServer (central state, JWT minting, auth completion) |
-| `internal/auth/store.go` | ClientStore, CodeStore, TokenStore (in-memory, mutex-protected) |
-| `internal/auth/session.go` | SessionStore for pending MCP auth sessions (TTL 10 min) |
+| `internal/auth/server.go` | OAuthServer (central state, JWT minting, auth completion, backend initialization) |
+| `internal/auth/backend.go` | OAuthBackend (HTTP client for vire-server internal OAuth API, write-through/read-through persistence) |
+| `internal/auth/store.go` | ClientStore, CodeStore, TokenStore (L1 in-memory cache with write-through to backend) |
+| `internal/auth/session.go` | SessionStore for pending MCP auth sessions (L1 in-memory cache with read-through to backend, TTL 10 min) |
 | `internal/auth/pkce.go` | PKCE S256 verification (constant-time compare) |
 | `internal/auth/dcr.go` | HandleRegister (POST /register, RFC 7591 DCR) |
 | `internal/auth/authorize.go` | HandleAuthorize (GET /authorize, PKCE + session + redirect) |
@@ -197,7 +198,7 @@ Implementation:
 - `POST /token` -- Token exchange (authorization_code grant with PKCE verification, refresh_token grant with token rotation)
 - Bearer token on `POST /mcp` -- JWT signature + expiry validation, cookie fallback for web dashboard
 
-Storage: in-memory stores with `sync.RWMutex` for clients, sessions (10 min TTL), auth codes (5 min TTL, single-use), and refresh tokens (7 day TTL). Production will need persistent storage.
+Storage: L1 in-memory cache (RWMutex-protected) for clients, sessions (10 min TTL), auth codes (5 min TTL, single-use), and refresh tokens (7 day TTL). All writes are persisted to vire-server's internal OAuth API for L2 persistence across restarts. Reads fall back to backend on cache miss.
 
 ## Phases
 

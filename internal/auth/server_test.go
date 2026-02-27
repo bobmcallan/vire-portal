@@ -138,7 +138,7 @@ func TestMintAccessToken_ValidJWT(t *testing.T) {
 }
 
 func TestNewOAuthServer_TrimsBaseURL(t *testing.T) {
-	srv := NewOAuthServer("  http://localhost:8500/  ", []byte("secret"), nil)
+	srv := NewOAuthServer("  http://localhost:8500/  ", "", []byte("secret"), nil)
 	if srv.baseURL != "http://localhost:8500" {
 		t.Errorf("expected trimmed baseURL, got %q", srv.baseURL)
 	}
@@ -146,7 +146,7 @@ func TestNewOAuthServer_TrimsBaseURL(t *testing.T) {
 
 func TestOAuthServer_DiscoveryHandlers(t *testing.T) {
 	// Verify OAuthServer has HandleAuthorizationServer and HandleProtectedResource
-	srv := NewOAuthServer("http://localhost:8500", []byte("secret"), nil)
+	srv := NewOAuthServer("http://localhost:8500", "", []byte("secret"), nil)
 	if srv == nil {
 		t.Fatal("expected non-nil OAuthServer")
 	}

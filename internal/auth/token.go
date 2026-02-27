@@ -41,18 +41,11 @@ func (s *OAuthServer) handleAuthCodeGrant(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	authCode, ok := s.codes.Get(code)
+	authCode, ok := s.codes.ConsumeCode(code)
 	if !ok {
-		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "authorization code not found or expired")
+		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "authorization code not found, expired, or already used")
 		return
 	}
-
-	if authCode.Used {
-		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "authorization code already used")
-		return
-	}
-
-	s.codes.MarkUsed(code)
 
 	if authCode.ClientID != clientID {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "client_id mismatch")

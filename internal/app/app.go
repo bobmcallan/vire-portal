@@ -156,7 +156,7 @@ func (a *App) initHandlers() {
 		a.SettingsHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
 	}
 
-	a.OAuthServer = auth.NewOAuthServer(a.Config.BaseURL(), jwtSecret, a.Logger)
+	a.OAuthServer = auth.NewOAuthServer(a.Config.BaseURL(), a.Config.API.URL, jwtSecret, a.Logger)
 	a.AuthHandler.SetOAuthServer(a.OAuthServer)
 
 	a.Logger.Debug().Msg("HTTP handlers initialized")

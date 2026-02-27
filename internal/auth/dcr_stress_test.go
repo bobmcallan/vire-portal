@@ -11,7 +11,7 @@ import (
 )
 
 func newStressOAuthServer() *OAuthServer {
-	return NewOAuthServer("http://localhost:8500", []byte("test-secret-32-bytes-long!!!!!!"), nil)
+	return NewOAuthServer("http://localhost:8500", "", []byte("test-secret-32-bytes-long!!!!!!"), nil)
 }
 
 // =============================================================================

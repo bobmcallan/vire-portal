@@ -614,7 +614,7 @@ func TestToken_StressMethodNotAllowed(t *testing.T) {
 func TestToken_StressEmptySecretMinting(t *testing.T) {
 	// If jwtSecret is empty, the access token is signed with an empty key.
 	// This means anyone can forge access tokens by signing with empty HMAC.
-	srv := NewOAuthServer("http://localhost:8500", []byte{}, nil)
+	srv := NewOAuthServer("http://localhost:8500", "", []byte{}, nil)
 
 	token, err := srv.mintAccessToken("user-1", "openid", "client-1", "http://localhost:8500")
 	if err != nil {

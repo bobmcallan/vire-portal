@@ -27,8 +27,10 @@ type OAuthServer struct {
 }
 
 // NewOAuthServer creates a new OAuthServer with the given base URL and JWT secret.
-func NewOAuthServer(baseURL string, jwtSecret []byte, logger *common.Logger) *OAuthServer {
-	return &OAuthServer{
+// If apiURL is non-empty, a backend is created for write-through/read-through
+// persistence to vire-server's internal OAuth API.
+func NewOAuthServer(baseURL, apiURL string, jwtSecret []byte, logger *common.Logger) *OAuthServer {
+	s := &OAuthServer{
 		baseURL:   strings.TrimRight(strings.TrimSpace(baseURL), "/"),
 		jwtSecret: jwtSecret,
 		clients:   NewClientStore(),
@@ -37,6 +39,16 @@ func NewOAuthServer(baseURL string, jwtSecret []byte, logger *common.Logger) *OA
 		tokens:    NewTokenStore(),
 		logger:    logger,
 	}
+
+	if apiURL != "" {
+		backend := NewOAuthBackend(apiURL, logger)
+		s.clients.SetBackend(backend)
+		s.sessions.SetBackend(backend)
+		s.codes.SetBackend(backend)
+		s.tokens.SetBackend(backend)
+	}
+
+	return s
 }
 
 // CompleteAuthorization looks up a pending session, creates an authorization code,

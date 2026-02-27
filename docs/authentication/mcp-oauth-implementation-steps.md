@@ -137,11 +137,12 @@ Goal: Claude CLI calls `POST /register` to register itself as an OAuth client be
 
 **File:** `internal/auth/store.go` (new)
 
-For local dev, an in-memory map is fine:
+Implemented as L1 in-memory cache with write-through to vire-server backend:
 ```go
 type ClientStore struct {
     mu      sync.RWMutex
     clients map[string]*OAuthClient
+    backend *OAuthBackend  // write-through on Put, read-through on Get miss
 }
 
 type OAuthClient struct {
@@ -153,7 +154,7 @@ type OAuthClient struct {
 }
 ```
 
-Production will need persistent storage (Postgres or vire-server API).
+The backend is vire-server's internal OAuth API (`/api/internal/oauth/`). In-memory stores are authoritative during process lifetime; backend is source-of-truth across restarts.
 
 ### 3.2 Add `/register` handler
 
@@ -476,9 +477,10 @@ config/vire-portal.toml.example — Added portal_url setting under [auth]
 ## Files Created in Phases 3–6
 
 ```
-internal/auth/server.go             — OAuthServer struct (central state: stores, JWT minting, auth completion)
-internal/auth/store.go              — ClientStore, CodeStore, TokenStore (in-memory, mutex-protected)
-internal/auth/session.go            — SessionStore for pending MCP auth sessions (TTL 10 min)
+internal/auth/server.go             — OAuthServer struct (central state: stores, JWT minting, auth completion, backend init)
+internal/auth/backend.go            — OAuthBackend (HTTP client for vire-server internal OAuth API, write-through/read-through persistence)
+internal/auth/store.go              — ClientStore, CodeStore, TokenStore (L1 in-memory cache with write-through to backend)
+internal/auth/session.go            — SessionStore for pending MCP auth sessions (L1 in-memory cache with read-through to backend, TTL 10 min)
 internal/auth/pkce.go               — PKCE S256 verification (constant-time compare)
 internal/auth/dcr.go                — HandleRegister (POST /register, RFC 7591 DCR)
 internal/auth/authorize.go          — HandleAuthorize (GET /authorize, PKCE + session + redirect)

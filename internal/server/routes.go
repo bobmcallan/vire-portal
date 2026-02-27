@@ -3,6 +3,7 @@ package server
 import (
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/cache"
@@ -106,6 +107,12 @@ func (s *Server) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
 	apiURL := s.app.Config.API.URL
 	if apiURL == "" {
 		http.Error(w, `{"error":"API server not configured"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	// Block internal API paths — these are server-to-server only
+	if strings.HasPrefix(r.URL.Path, "/api/internal/") {
+		http.Error(w, `{"error":"Not Found"}`, http.StatusNotFound)
 		return
 	}
 
