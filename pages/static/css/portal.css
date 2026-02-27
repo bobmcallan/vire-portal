@@ -990,6 +990,9 @@ code {
     white-space: nowrap;
 }
 
+.pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 1rem 0; font-size: 0.75rem; letter-spacing: 0.1em; }
+.pagination-info { color: #888; }
+
 .portfolio-filter-label {
     display: flex;
     align-items: center;

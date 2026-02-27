@@ -25,6 +25,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `GET /` | PageHandler | No | Landing page (server-rendered HTML template) |
 | `GET /dashboard` | DashboardHandler | No | Dashboard (portfolio management, holdings, capital performance, indicators, growth chart) |
 | `GET /strategy` | StrategyHandler | No | Strategy page (portfolio strategy and plan editors) |
+| `GET /capital` | CapitalHandler | No | Capital page (cash transactions ledger, paged table) |
 | `GET /mcp-info` | MCPPageHandler | No | MCP info page (connection config, tools catalog) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP transport, dynamic tools) |
@@ -130,6 +131,7 @@ Test categories:
 - **Smoke tests** (`TestSmoke*`): Landing page, login buttons, branding, dashboard loads
 - **Dashboard tests** (`TestDashboard*`): Sections, panels, portfolio UI, capital performance, indicators, growth chart, refresh button, design rules
 - **Strategy tests** (`TestStrategy*`): Strategy/plan editors, nav active state, Alpine init
+- **Capital tests** (`TestCapital*`): Cash transactions table, pagination, summary row, transaction colors
 - **Nav tests** (`TestNav*`): Hamburger menu, dropdown, mobile nav
 - **Auth tests** (`TestAuth*`): OAuth redirect flows
 
@@ -1056,11 +1058,13 @@ vire-portal/
 │       ├── smoke_test.go             # Smoke tests (landing, dashboard, branding)
 │       ├── dashboard_test.go         # Dashboard tests (sections, panels, growth chart, design rules)
 │       ├── strategy_test.go         # Strategy page tests (editors, nav, portfolio selector)
+│       ├── capital_test.go          # Capital page tests (cash transactions, pagination, summary)
 │       ├── nav_test.go               # Navigation tests (hamburger, dropdown, mobile)
 │       └── auth_test.go              # Auth tests (Google/GitHub login redirects)
 ├── pages/
 │   ├── dashboard.html                # Dashboard page (portfolio selector, holdings, capital performance, indicators, growth chart, refresh)
 │   ├── strategy.html                # Strategy page (portfolio strategy and plan editors)
+│   ├── capital.html                  # Capital page (cash transactions ledger, paged table)
 │   ├── mcp.html                     # MCP info page (connection details, tools table)
 │   ├── landing.html                  # Landing page (Go html/template)
 │   ├── settings.html                 # Settings page (Navexa API key management)
@@ -1071,7 +1075,7 @@ vire-portal/
 │   └── static/
 │       ├── css/
 │       │   └── portal.css            # 80s B&W aesthetic (no border-radius, no box-shadow)
-│       └── common.js                 # Client logging, Alpine.js init, vireStore (fetch cache/dedup), portfolioDashboard() (growth chart), portfolioStrategy()
+│       └── common.js                 # Client logging, Alpine.js init, vireStore (fetch cache/dedup), portfolioDashboard() (growth chart), cashTransactions(), portfolioStrategy()
 ├── docker/
 │   ├── Dockerfile                    # Portal multi-stage build (golang:1.25 -> alpine)
 │   ├── Dockerfile.mcp               # MCP stdio binary build (golang:1.25 -> alpine)

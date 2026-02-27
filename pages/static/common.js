@@ -530,6 +530,127 @@ function portfolioDashboard() {
     };
 }
 
+// Cash Transactions component
+function cashTransactions() {
+    return {
+        portfolios: [],
+        selected: '',
+        defaultPortfolio: '',
+        transactions: [],
+        totalDeposits: 0,
+        totalWithdrawals: 0,
+        netCashFlow: 0,
+        loading: true,
+        error: '',
+        currentPage: 1,
+        pageSize: 100,
+        get isDefault() { return this.selected === this.defaultPortfolio; },
+        get hasTransactions() { return this.transactions.length > 0; },
+        get totalPages() { return Math.max(1, Math.ceil(this.transactions.length / this.pageSize)); },
+        get pagedTransactions() {
+            const start = (this.currentPage - 1) * this.pageSize;
+            return this.transactions.slice(start, start + this.pageSize);
+        },
+        gainClass(val) {
+            if (val == null || val === 0) return '';
+            return val > 0 ? 'gain-positive' : 'gain-negative';
+        },
+        txnClass(type) {
+            const credits = ['deposit', 'contribution', 'transfer_in', 'dividend'];
+            return credits.includes(type) ? 'gain-positive' : 'gain-negative';
+        },
+
+        async init() {
+            try {
+                const res = await vireStore.fetch('/api/portfolios');
+                if (!res.ok) {
+                    this.error = 'Failed to load portfolios';
+                    this.loading = false;
+                    return;
+                }
+                const data = await res.json();
+                this.portfolios = vireStore.dedup(data.portfolios || [], 'name');
+                this.defaultPortfolio = data.default || '';
+                if (this.defaultPortfolio) {
+                    this.selected = this.defaultPortfolio;
+                } else if (this.portfolios.length > 0) {
+                    this.selected = this.portfolios[0].name;
+                }
+                if (this.selected) await this.loadTransactions();
+            } catch (e) {
+                debugError('cashTransactions', 'init failed', e);
+                this.error = 'Failed to connect to server';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadTransactions() {
+            if (!this.selected) return;
+            this.currentPage = 1;
+            try {
+                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/cash-transactions');
+                if (res.ok) {
+                    const data = await res.json();
+                    this.transactions = data.transactions || [];
+                    const summary = data.summary || {};
+                    this.totalDeposits = Number(summary.total_deposits) || 0;
+                    this.totalWithdrawals = Number(summary.total_withdrawals) || 0;
+                    this.netCashFlow = Number(summary.net_cash_flow) || 0;
+                } else {
+                    this.transactions = [];
+                    this.totalDeposits = 0;
+                    this.totalWithdrawals = 0;
+                    this.netCashFlow = 0;
+                }
+            } catch (e) {
+                debugError('cashTransactions', 'loadTransactions failed', e);
+            }
+        },
+
+        async toggleDefault() {
+            try {
+                if (this.isDefault) {
+                    await fetch('/api/portfolios/default', {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({}),
+                    });
+                    this.defaultPortfolio = '';
+                } else {
+                    await fetch('/api/portfolios/default', {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ name: this.selected }),
+                    });
+                    this.defaultPortfolio = this.selected;
+                }
+                vireStore.invalidate('/api/portfolios');
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Default updated' } }));
+            } catch (e) {
+                debugError('cashTransactions', 'toggleDefault failed', e);
+            }
+        },
+
+        prevPage() {
+            if (this.currentPage > 1) this.currentPage--;
+        },
+        nextPage() {
+            if (this.currentPage < this.totalPages) this.currentPage++;
+        },
+
+        fmt(val) {
+            return val != null ? Number(val).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+        },
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            return d.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
+        },
+    };
+}
+
 // Portfolio Strategy component
 function portfolioStrategy() {
     return {

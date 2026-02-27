@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {{template "head.html" .}}
+    <title>VIRE CAPITAL</title>
+</head>
+
+<body>
+
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+
+    <main class="page" x-data="cashTransactions()" x-init="init()">
+        <div class="page-body">
+
+            {{if .NavexaKeyMissing}}
+            <div class="warning-banner">
+                <strong>WARNING:</strong> Navexa API key not configured.
+                <a href="/settings">Set your API key in Settings</a> to enable portfolio sync.
+            </div>
+            {{end}}
+
+            <!-- Loading state -->
+            <div x-show="loading" class="text-muted" style="padding: 2rem 0;">Loading portfolios...</div>
+
+            <!-- Error state -->
+            <div x-show="error" class="warning-banner" x-text="error"></div>
+
+            <!-- Portfolio selector row -->
+            <div class="portfolio-header" x-show="!loading && portfolios.length > 0">
+                <select x-model="selected" @change="loadTransactions()" class="form-select portfolio-select">
+                    <template x-for="p in portfolios" :key="p.name">
+                        <option :value="p.name" x-text="p.name" :selected="p.name === selected"></option>
+                    </template>
+                </select>
+                <label class="portfolio-default-label">
+                    <input type="checkbox" :checked="isDefault" @change="toggleDefault()">
+                    <span>Default</span>
+                </label>
+            </div>
+
+            <!-- Empty state -->
+            <div x-show="!loading && portfolios.length === 0 && !error" class="text-muted" style="padding: 2rem 0;">
+                No portfolios found. Configure your Navexa API key in <a href="/settings">Settings</a>.
+            </div>
+
+            <!-- Summary row -->
+            <div class="portfolio-summary" x-show="hasTransactions" x-cloak>
+                <div class="portfolio-summary-item">
+                    <span class="label">TOTAL DEPOSITS</span>
+                    <span class="text-bold gain-positive" x-text="fmt(totalDeposits)"></span>
+                </div>
+                <div class="portfolio-summary-item">
+                    <span class="label">TOTAL WITHDRAWALS</span>
+                    <span class="text-bold gain-negative" x-text="fmt(totalWithdrawals)"></span>
+                </div>
+                <div class="portfolio-summary-item">
+                    <span class="label">NET CASH FLOW</span>
+                    <span class="text-bold" :class="gainClass(netCashFlow)" x-text="fmt(netCashFlow)"></span>
+                </div>
+            </div>
+
+            <!-- Transactions table -->
+            <section class="panel-headed" x-show="hasTransactions" x-cloak>
+                <div class="panel-header">CASH TRANSACTIONS</div>
+                <div class="panel-content">
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead>
+                                <tr>
+                                    <th>DATE</th>
+                                    <th>TYPE</th>
+                                    <th class="text-right">AMOUNT</th>
+                                    <th>DESCRIPTION</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="txn in pagedTransactions" :key="txn.id">
+                                    <tr>
+                                        <td class="tool-name" x-text="formatDate(txn.date)"></td>
+                                        <td x-text="txn.type.toUpperCase()"></td>
+                                        <td class="text-right" :class="txnClass(txn.type)" x-text="fmt(txn.amount)"></td>
+                                        <td x-text="txn.description"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Pagination -->
+            <div class="pagination" x-show="totalPages > 1" x-cloak>
+                <button class="btn btn-secondary btn-sm" @click="prevPage()" :disabled="currentPage <= 1">PREV</button>
+                <span class="pagination-info" x-text="'PAGE ' + currentPage + ' OF ' + totalPages"></span>
+                <button class="btn btn-secondary btn-sm" @click="nextPage()" :disabled="currentPage >= totalPages">NEXT</button>
+            </div>
+
+        </div>
+    </main>
+
+    {{template "footer.html" .}}
+
+</body>
+
+</html>
