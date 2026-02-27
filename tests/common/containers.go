@@ -11,10 +11,42 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/client"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
+
+// testContainerNames lists all container names created by the test environment.
+// Only these containers are cleaned up — dev/production containers are never touched.
+var testContainerNames = []string{"vire-db-tc", "vire-server-tc", "vire-portal-tc"}
+
+// removeStaleTestContainers removes any leftover test containers from previous runs.
+// This prevents "container name already in use" errors without manual intervention.
+// Only removes containers matching testContainerNames — never touches other containers.
+func removeStaleTestContainers(ctx context.Context) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return
+	}
+	defer cli.Close()
+
+	for _, name := range testContainerNames {
+		f := filters.NewArgs(filters.Arg("name", "^/"+name+"$"))
+		containers, err := cli.ContainerList(ctx, container.ListOptions{
+			All:     true,
+			Filters: f,
+		})
+		if err != nil || len(containers) == 0 {
+			continue
+		}
+		for _, c := range containers {
+			_ = cli.ContainerRemove(ctx, c.ID, container.RemoveOptions{Force: true})
+		}
+	}
+}
 
 var (
 	portalBuildOnce  sync.Once
@@ -131,6 +163,9 @@ func buildPortalImage() error {
 // SurrealDB → vire-server → vire-portal, all on a shared Docker network.
 func startTestEnvironment() (*PortalContainer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+
+	// 0. Remove stale test containers from previous runs (only -tc suffixed names)
+	removeStaleTestContainers(ctx)
 
 	// 1. Create Docker network
 	testNet, err := network.New(ctx, network.WithCheckDuplicate())

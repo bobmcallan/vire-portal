@@ -74,7 +74,15 @@ func TestSettingsPageLayout(t *testing.T) {
 
 Screenshots are saved to `tests/logs/{timestamp}/{suite}/name.png` and serve as visual proof that the page rendered correctly. A test without a screenshot is incomplete.
 
-### Rule 5: test-execute Is Read-Only
+### Rule 5: Docker Container Safety
+
+Test containers use the `-tc` suffix (`vire-db-tc`, `vire-server-tc`, `vire-portal-tc`) and are managed exclusively by `containers.go` and `ui-test.sh`. These rules are non-negotiable:
+
+1. **NEVER run `docker rm`, `docker stop`, `docker kill`, or any destructive Docker command** outside of the test infrastructure code. The test setup handles stale container cleanup automatically.
+2. **NEVER touch containers without the `-tc` suffix.** The user's dev stack containers (`vire-server`, `vire-surrealdb`, etc.) must never be stopped, removed, or modified by tests or test tooling.
+3. If a container name conflict occurs, the fix belongs in `containers.go` (code), not in a manual shell command.
+
+### Rule 6: test-execute Is Read-Only
 
 `/test-execute` MUST NEVER modify or update test files. Its role is:
 1. Validate test structure compliance (Rules 1-3) before running

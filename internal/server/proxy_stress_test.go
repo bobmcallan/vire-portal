@@ -444,6 +444,328 @@ func TestAPIProxy_StressSuite(t *testing.T) {
 	})
 }
 
+// --- Dashboard capital performance stress tests ---
+
+// TestDashboardCapitalPerformance_StressSuite tests the new capital performance,
+// indicators, and refresh features for edge cases, injection, and race conditions.
+func TestDashboardCapitalPerformance_StressSuite(t *testing.T) {
+	application := newTestApp(t)
+
+	t.Run("CapitalPerformance_UnexpectedValues", func(t *testing.T) {
+		// Attack vector: API response contains unexpected values (null, NaN,
+		// extremely large numbers, negative zero). The JS client uses
+		// Number(...) || 0 which handles most edge cases. Verify the proxy
+		// faithfully passes them through without modification.
+		edgeCaseResponses := []struct {
+			name string
+			body string
+		}{
+			{"null_fields", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":null,"current_portfolio_value":null,"simple_return_pct":null,"annualized_return_pct":null,"transaction_count":1}}`},
+			{"nan_strings", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":"NaN","current_portfolio_value":"NaN","simple_return_pct":"NaN","annualized_return_pct":"NaN","transaction_count":1}}`},
+			{"huge_numbers", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":999999999999999,"current_portfolio_value":999999999999999,"simple_return_pct":99999.99,"annualized_return_pct":99999.99,"transaction_count":1}}`},
+			{"negative_zero", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":-0,"current_portfolio_value":-0,"simple_return_pct":-0,"annualized_return_pct":-0,"transaction_count":1}}`},
+			{"negative_values", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":-100000,"current_portfolio_value":-50000,"simple_return_pct":-150.5,"annualized_return_pct":-999.99,"transaction_count":1}}`},
+			{"zero_capital_deployed", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":0,"current_portfolio_value":50000,"simple_return_pct":0,"annualized_return_pct":0,"transaction_count":1}}`},
+			{"missing_capital_performance", `{"holdings":[],"total_cost":0}`},
+			{"empty_capital_performance", `{"holdings":[],"total_cost":0,"capital_performance":{}}`},
+			{"zero_transaction_count", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":100000,"current_portfolio_value":110000,"simple_return_pct":10,"annualized_return_pct":12,"transaction_count":0}}`},
+		}
+
+		for _, tc := range edgeCaseResponses {
+			t.Run(tc.name, func(t *testing.T) {
+				backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(tc.body))
+				}))
+				defer backend.Close()
+
+				application.Config.API.URL = backend.URL
+				secret := application.Config.Auth.JWTSecret
+				token := createTestJWT("edge-case-user", secret)
+				srv := New(application)
+
+				req := httptest.NewRequest("GET", "/api/portfolios/test-portfolio", nil)
+				req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+				w := httptest.NewRecorder()
+				srv.Handler().ServeHTTP(w, req)
+
+				if w.Code != http.StatusOK {
+					t.Errorf("expected 200, got %d", w.Code)
+				}
+				// Proxy should pass through the response body unmodified
+				if w.Body.String() != tc.body {
+					t.Errorf("proxy modified response body for %s", tc.name)
+				}
+			})
+		}
+	})
+
+	t.Run("IndicatorsEndpoint_ErrorResponses", func(t *testing.T) {
+		// Attack vector: indicators API returns 500, malformed JSON, or timeout.
+		// The client-side JS uses .catch(() => { this.hasIndicators = false })
+		// so the proxy just needs to faithfully pass errors through.
+		errorResponses := []struct {
+			name       string
+			statusCode int
+			body       string
+		}{
+			{"server_error_500", http.StatusInternalServerError, `{"error":"internal server error"}`},
+			{"bad_gateway_502", http.StatusBadGateway, `{"error":"bad gateway"}`},
+			{"malformed_json", http.StatusOK, `{not valid json`},
+			{"html_error_page", http.StatusOK, `<html><body>Error</body></html>`},
+			{"empty_response", http.StatusOK, ``},
+			{"null_response", http.StatusOK, `null`},
+		}
+
+		for _, tc := range errorResponses {
+			t.Run(tc.name, func(t *testing.T) {
+				backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(tc.statusCode)
+					w.Write([]byte(tc.body))
+				}))
+				defer backend.Close()
+
+				application.Config.API.URL = backend.URL
+				srv := New(application)
+
+				req := httptest.NewRequest("GET", "/api/portfolios/test-portfolio/indicators", nil)
+				w := httptest.NewRecorder()
+				srv.Handler().ServeHTTP(w, req)
+
+				if w.Code != tc.statusCode {
+					t.Errorf("expected %d, got %d", tc.statusCode, w.Code)
+				}
+			})
+		}
+	})
+
+	t.Run("XSSInIndicatorValues", func(t *testing.T) {
+		// Attack vector: malicious server response injects scripts via
+		// trend/rsi_signal strings. Alpine.js x-text uses textContent (not
+		// innerHTML) so XSS is prevented at the template level. The proxy
+		// should not attempt to sanitize — verify pass-through.
+		xssPayloads := []struct {
+			name string
+			body string
+		}{
+			{"script_in_trend", `{"trend":"<script>alert('xss')</script>","rsi_signal":"neutral","data_points":10}`},
+			{"event_handler_in_rsi", `{"trend":"bullish","rsi_signal":"\" onmouseover=\"alert(1)","data_points":10}`},
+			{"img_onerror", `{"trend":"<img src=x onerror=alert(1)>","rsi_signal":"normal","data_points":10}`},
+			{"svg_onload", `{"trend":"<svg/onload=alert(1)>","rsi_signal":"normal","data_points":10}`},
+			{"unicode_homograph", `{"trend":"bul\u200blish","rsi_signal":"over\u200Dbought","data_points":10}`},
+		}
+
+		for _, tc := range xssPayloads {
+			t.Run(tc.name, func(t *testing.T) {
+				backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(tc.body))
+				}))
+				defer backend.Close()
+
+				application.Config.API.URL = backend.URL
+				srv := New(application)
+
+				req := httptest.NewRequest("GET", "/api/portfolios/test-portfolio/indicators", nil)
+				w := httptest.NewRecorder()
+				srv.Handler().ServeHTTP(w, req)
+
+				if w.Code != http.StatusOK {
+					t.Errorf("expected 200, got %d", w.Code)
+				}
+				// Proxy should NOT modify the body (XSS prevention is client-side via x-text)
+				if w.Body.String() != tc.body {
+					t.Errorf("proxy modified XSS payload body — should pass through unmodified")
+				}
+			})
+		}
+	})
+
+	t.Run("ForceRefresh_RapidCalls", func(t *testing.T) {
+		// Attack vector: rapidly calling refreshPortfolio() — the JS guard
+		// `if (this.refreshing) return` prevents concurrent calls, but the
+		// proxy should handle rapid requests without breaking.
+		var requestCount int64
+		var mu sync.Mutex
+
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			requestCount++
+			mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":100000,"current_portfolio_value":110000,"simple_return_pct":10,"annualized_return_pct":12,"transaction_count":5}}`))
+		}))
+		defer backend.Close()
+
+		application.Config.API.URL = backend.URL
+		srv := New(application)
+
+		// Fire 50 concurrent force_refresh requests
+		var wg sync.WaitGroup
+		for i := 0; i < 50; i++ {
+			wg.Add(1)
+			go func(n int) {
+				defer wg.Done()
+				req := httptest.NewRequest("GET", "/api/portfolios/test?force_refresh=true", nil)
+				w := httptest.NewRecorder()
+				srv.Handler().ServeHTTP(w, req)
+
+				if w.Code != http.StatusOK {
+					t.Errorf("concurrent refresh %d got status %d", n, w.Code)
+				}
+			}(i)
+		}
+		wg.Wait()
+
+		mu.Lock()
+		count := requestCount
+		mu.Unlock()
+		// All 50 requests should reach the backend (force_refresh has no
+		// server-side dedup in the proxy — rate limiting is vire-server's job)
+		if count != 50 {
+			t.Errorf("expected 50 backend requests, got %d", count)
+		}
+	})
+
+	t.Run("ForceRefresh_CacheBypass", func(t *testing.T) {
+		// Verify that force_refresh=true still gets cached in the proxy
+		// (the query string is part of the cache key, so ?force_refresh=true
+		// and the bare URL are separate cache entries).
+		var backendHits int
+		var mu sync.Mutex
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			backendHits++
+			mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"holdings":[]}`))
+		}))
+		defer backend.Close()
+
+		application.Config.API.URL = backend.URL
+		secret := application.Config.Auth.JWTSecret
+		token := createTestJWT("cache-bypass-user", secret)
+		srv := New(application)
+
+		// Request 1: normal GET (populates cache)
+		req1 := httptest.NewRequest("GET", "/api/portfolios/test", nil)
+		req1.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		w1 := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w1, req1)
+
+		// Request 2: force_refresh GET (different cache key due to query string)
+		req2 := httptest.NewRequest("GET", "/api/portfolios/test?force_refresh=true", nil)
+		req2.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		w2 := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w2, req2)
+
+		mu.Lock()
+		hits := backendHits
+		mu.Unlock()
+		// Both should hit backend (different cache keys)
+		if hits != 2 {
+			t.Errorf("expected 2 backend hits (different cache keys), got %d", hits)
+		}
+	})
+
+	t.Run("IndicatorsCacheIndependent", func(t *testing.T) {
+		// The indicators endpoint should have its own cache entry,
+		// independent from the portfolio data endpoint.
+		var paths []string
+		var mu sync.Mutex
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			paths = append(paths, r.URL.Path)
+			mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			if strings.Contains(r.URL.Path, "/indicators") {
+				w.Write([]byte(`{"trend":"bullish","rsi_signal":"overbought","data_points":65}`))
+			} else {
+				w.Write([]byte(`{"holdings":[]}`))
+			}
+		}))
+		defer backend.Close()
+
+		application.Config.API.URL = backend.URL
+		secret := application.Config.Auth.JWTSecret
+		token := createTestJWT("indicators-cache-user", secret)
+		srv := New(application)
+
+		// Fetch portfolio data
+		req1 := httptest.NewRequest("GET", "/api/portfolios/test", nil)
+		req1.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		w1 := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w1, req1)
+
+		// Fetch indicators
+		req2 := httptest.NewRequest("GET", "/api/portfolios/test/indicators", nil)
+		req2.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		w2 := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w2, req2)
+
+		// Fetch portfolio data again (should come from cache)
+		req3 := httptest.NewRequest("GET", "/api/portfolios/test", nil)
+		req3.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
+		w3 := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w3, req3)
+
+		mu.Lock()
+		hitCount := len(paths)
+		mu.Unlock()
+		// Should be 2 backend hits: portfolio + indicators (third is cached)
+		if hitCount != 2 {
+			t.Errorf("expected 2 backend hits, got %d (paths: %v)", hitCount, paths)
+		}
+	})
+
+	t.Run("PortfolioNameEncoding", func(t *testing.T) {
+		// The JS client uses encodeURIComponent(this.selected). Verify
+		// the proxy handles URL-encoded portfolio names correctly.
+		var receivedPaths []string
+		var mu sync.Mutex
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			mu.Lock()
+			receivedPaths = append(receivedPaths, r.URL.Path)
+			mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"holdings":[]}`))
+		}))
+		defer backend.Close()
+
+		application.Config.API.URL = backend.URL
+		srv := New(application)
+
+		encodedNames := []struct {
+			name    string
+			urlPath string
+		}{
+			{"spaces", "/api/portfolios/My%20Portfolio"},
+			{"ampersand", "/api/portfolios/Test%26Portfolio"},
+			{"slash", "/api/portfolios/A%2FB"},
+			{"unicode", "/api/portfolios/%E4%B8%AD%E6%96%87"},
+			{"special_chars", "/api/portfolios/test%21%40%23%24"},
+		}
+
+		for _, tc := range encodedNames {
+			t.Run(tc.name, func(t *testing.T) {
+				req := httptest.NewRequest("GET", tc.urlPath, nil)
+				w := httptest.NewRecorder()
+				srv.Handler().ServeHTTP(w, req)
+
+				if w.Code != http.StatusOK {
+					t.Errorf("portfolio name encoding %s: expected 200, got %d", tc.name, w.Code)
+				}
+			})
+		}
+	})
+}
+
 // --- Route tests that don't need a backend ---
 
 func TestRoutes_MCPInfoPage_Unauthenticated(t *testing.T) {

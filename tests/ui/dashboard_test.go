@@ -200,8 +200,8 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Skip("portfolio summary not visible (no holdings data available)")
 	}
 
-	// Verify 4 summary items exist
-	count, err := elementCount(ctx, ".portfolio-summary .portfolio-summary-item")
+	// Verify the first .portfolio-summary row has 4 items (cost-basis row)
+	count, err := elementCount(ctx, ".portfolio-summary:not(.portfolio-summary-capital) .portfolio-summary-item")
 	if err != nil {
 		t.Fatalf("error counting summary items: %v", err)
 	}
@@ -212,7 +212,9 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	// Verify the 4 summary labels are "TOTAL VALUE", "TOTAL COST", "NET RETURN $", "NET RETURN %"
 	labelsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
-			const labels = document.querySelectorAll('.portfolio-summary-item .label');
+			const row = document.querySelector('.portfolio-summary:not(.portfolio-summary-capital)');
+			if (!row) return false;
+			const labels = row.querySelectorAll('.portfolio-summary-item .label');
 			if (labels.length !== 4) return false;
 			const expected = ['TOTAL VALUE', 'TOTAL COST', 'NET RETURN $', 'NET RETURN %'];
 			for (let i = 0; i < 4; i++) {
@@ -226,6 +228,15 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	}
 	if !labelsCorrect {
 		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, TOTAL COST, NET RETURN $, NET RETURN %")
+	}
+
+	// If capital performance row exists, verify it also has 4 items
+	capitalCount, err := elementCount(ctx, ".portfolio-summary-capital .portfolio-summary-item")
+	if err != nil {
+		t.Fatalf("error counting capital summary items: %v", err)
+	}
+	if capitalCount > 0 && capitalCount != 4 {
+		t.Errorf("capital summary item count = %d, want 4", capitalCount)
 	}
 
 	// Verify summary spans full content width (justify-content: space-between)
@@ -490,6 +501,172 @@ func TestDashboardNoTemplateMarkers(t *testing.T) {
 		if strings.Contains(bodyText, marker) {
 			t.Fatalf("raw template marker %q found in page body", marker)
 		}
+	}
+}
+
+func TestDashboardCapitalPerformance(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render
+	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "capital-performance.png")
+
+	// Check if capital performance row exists (only shown when capital data available)
+	capitalVisible, err := isVisible(ctx, ".portfolio-summary-capital")
+	if err != nil {
+		t.Fatalf("error checking capital performance visibility: %v", err)
+	}
+	if !capitalVisible {
+		t.Skip("capital performance row not visible (no capital data available)")
+	}
+
+	// Verify 4 capital summary items
+	count, err := elementCount(ctx, ".portfolio-summary-capital .portfolio-summary-item")
+	if err != nil {
+		t.Fatalf("error counting capital summary items: %v", err)
+	}
+	if count != 4 {
+		t.Errorf("capital summary item count = %d, want 4", count)
+	}
+
+	// Verify capital summary labels
+	labelsCorrect, err := commontest.EvalBool(ctx, `
+		(() => {
+			const row = document.querySelector('.portfolio-summary-capital');
+			if (!row) return false;
+			const labels = row.querySelectorAll('.portfolio-summary-item .label');
+			if (labels.length !== 4) return false;
+			const expected = ['CAPITAL INVESTED', 'CAPITAL GAIN $', 'SIMPLE RETURN %', 'ANNUALIZED %'];
+			for (let i = 0; i < 4; i++) {
+				if (labels[i].textContent.trim() !== expected[i]) return false;
+			}
+			return true;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking capital labels: %v", err)
+	}
+	if !labelsCorrect {
+		t.Error("capital summary labels do not match expected: CAPITAL INVESTED, CAPITAL GAIN $, SIMPLE RETURN %, ANNUALIZED %")
+	}
+
+	// Verify capital gain values have color classes applied
+	capitalGainColored, err := commontest.EvalBool(ctx, `
+		(() => {
+			const row = document.querySelector('.portfolio-summary-capital');
+			if (!row) return false;
+			const items = row.querySelectorAll('.portfolio-summary-item .text-bold');
+			// Items 1, 2, 3 are CAPITAL GAIN $, SIMPLE RETURN %, ANNUALIZED %
+			let hasGainClass = false;
+			for (let i = 1; i < items.length; i++) {
+				if (items[i].classList.contains('gain-positive') || items[i].classList.contains('gain-negative')) {
+					hasGainClass = true;
+				}
+			}
+			return hasGainClass;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking capital gain colors: %v", err)
+	}
+	if !capitalGainColored {
+		t.Log("capital gain values have no color class (gains may be zero)")
+	}
+}
+
+func TestDashboardRefreshButton(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+
+	takeScreenshot(t, ctx, "dashboard", "refresh-button.png")
+
+	// Check that portfolio header is visible
+	headerVisible, err := isVisible(ctx, ".portfolio-header")
+	if err != nil {
+		t.Fatalf("error checking portfolio header visibility: %v", err)
+	}
+	if !headerVisible {
+		t.Skip("portfolio header not visible (no portfolios available)")
+	}
+
+	// Verify refresh button exists in portfolio header
+	refreshExists, err := commontest.EvalBool(ctx, `
+		(() => {
+			const header = document.querySelector('.portfolio-header');
+			if (!header) return false;
+			const btn = header.querySelector('button');
+			return btn && btn.textContent.includes('REFRESH');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking refresh button: %v", err)
+	}
+	if !refreshExists {
+		t.Error("refresh button not found in portfolio header")
+	}
+}
+
+func TestDashboardIndicators(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render + indicators fetch
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "indicators.png")
+
+	// Check if indicators row exists (only shown when indicators data available)
+	indicatorsVisible, err := isVisible(ctx, ".portfolio-indicators")
+	if err != nil {
+		t.Fatalf("error checking indicators visibility: %v", err)
+	}
+	if !indicatorsVisible {
+		t.Skip("indicators row not visible (no indicator data available)")
+	}
+
+	// Verify indicator items exist
+	count, err := elementCount(ctx, ".portfolio-indicators .indicator-item")
+	if err != nil {
+		t.Fatalf("error counting indicator items: %v", err)
+	}
+	if count < 2 {
+		t.Errorf("indicator item count = %d, want >= 2", count)
+	}
+
+	// Verify TREND and RSI labels
+	labelsCorrect, err := commontest.EvalBool(ctx, `
+		(() => {
+			const row = document.querySelector('.portfolio-indicators');
+			if (!row) return false;
+			const text = row.textContent;
+			return text.includes('TREND:') && text.includes('RSI:');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking indicator labels: %v", err)
+	}
+	if !labelsCorrect {
+		t.Error("indicator row does not contain expected TREND: and RSI: labels")
 	}
 }
 

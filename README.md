@@ -22,7 +22,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | Route | Handler | Auth | Description |
 |-------|---------|------|-------------|
 | `GET /` | PageHandler | No | Landing page (server-rendered HTML template) |
-| `GET /dashboard` | DashboardHandler | No | Dashboard (portfolio management, holdings) |
+| `GET /dashboard` | DashboardHandler | No | Dashboard (portfolio management, holdings, capital performance, indicators) |
 | `GET /strategy` | StrategyHandler | No | Strategy page (portfolio strategy and plan editors) |
 | `GET /mcp-info` | MCPPageHandler | No | MCP info page (connection config, tools catalog) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
@@ -127,7 +127,7 @@ timeout_seconds = 30
 
 Test categories:
 - **Smoke tests** (`TestSmoke*`): Landing page, login buttons, branding, dashboard loads
-- **Dashboard tests** (`TestDashboard*`): Sections, panels, portfolio UI, design rules
+- **Dashboard tests** (`TestDashboard*`): Sections, panels, portfolio UI, capital performance, indicators, refresh button, design rules
 - **Strategy tests** (`TestStrategy*`): Strategy/plan editors, nav active state, Alpine init
 - **Nav tests** (`TestNav*`): Hamburger menu, dropdown, mobile nav
 - **Auth tests** (`TestAuth*`): OAuth redirect flows
@@ -1058,7 +1058,7 @@ vire-portal/
 │       ├── nav_test.go               # Navigation tests (hamburger, dropdown, mobile)
 │       └── auth_test.go              # Auth tests (Google/GitHub login redirects)
 ├── pages/
-│   ├── dashboard.html                # Dashboard page (portfolio selector, holdings)
+│   ├── dashboard.html                # Dashboard page (portfolio selector, holdings, capital performance, indicators, refresh)
 │   ├── strategy.html                # Strategy page (portfolio strategy and plan editors)
 │   ├── mcp.html                     # MCP info page (connection details, tools table)
 │   ├── landing.html                  # Landing page (Go html/template)

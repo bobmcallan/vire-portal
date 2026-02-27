@@ -182,6 +182,11 @@ func (s *Server) handleAPIProxy(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Invalidate stale cache entries when force_refresh succeeds
+	if r.URL.Query().Get("force_refresh") == "true" && userID != "" {
+		s.cache.InvalidatePrefix(r.URL.Path)
+	}
+
 	// Invalidate cache on write operations
 	if r.Method != http.MethodGet && userID != "" {
 		s.cache.InvalidatePrefix(r.URL.Path)

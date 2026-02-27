@@ -183,6 +183,16 @@ function portfolioDashboard() {
         portfolioGain: 0,
         portfolioGainPct: 0,
         portfolioCost: 0,
+        capitalInvested: 0,
+        capitalGain: 0,
+        simpleReturnPct: 0,
+        annualizedReturnPct: 0,
+        hasCapitalData: false,
+        refreshing: false,
+        trend: '',
+        rsiSignal: '',
+        dataPoints: 0,
+        hasIndicators: false,
         loading: true,
         error: '',
         get isDefault() { return this.selected === this.defaultPortfolio; },
@@ -247,12 +257,39 @@ function portfolioDashboard() {
                     this.portfolioGain = Number(holdingsData.total_net_return) || 0;
                     this.portfolioGainPct = Number(holdingsData.total_net_return_pct) || 0;
                     this.portfolioCost = Number(holdingsData.total_cost) || 0;
+                    // Parse capital performance
+                    const cp = holdingsData.capital_performance;
+                    if (cp && cp.transaction_count > 0) {
+                        this.capitalInvested = Number(cp.net_capital_deployed) || 0;
+                        this.capitalGain = Number(cp.current_portfolio_value) - this.capitalInvested;
+                        this.simpleReturnPct = Number(cp.simple_return_pct) || 0;
+                        this.annualizedReturnPct = Number(cp.annualized_return_pct) || 0;
+                        this.hasCapitalData = true;
+                    } else {
+                        this.capitalInvested = 0; this.capitalGain = 0;
+                        this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
+                        this.hasCapitalData = false;
+                    }
                 } else {
                     this.holdings = [];
                     this.portfolioGain = 0;
                     this.portfolioGainPct = 0;
                     this.portfolioCost = 0;
+                    this.capitalInvested = 0; this.capitalGain = 0;
+                    this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
+                    this.hasCapitalData = false;
                 }
+                // Fetch indicators (non-blocking, non-fatal)
+                vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/indicators')
+                    .then(async res => {
+                        if (res.ok) {
+                            const ind = await res.json();
+                            this.trend = ind.trend || '';
+                            this.rsiSignal = ind.rsi_signal || '';
+                            this.dataPoints = ind.data_points || 0;
+                            this.hasIndicators = true;
+                        }
+                    }).catch(() => { this.hasIndicators = false; });
             } catch (e) {
                 debugError('portfolioDashboard', 'loadPortfolio failed', e);
             }
@@ -279,6 +316,51 @@ function portfolioDashboard() {
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Default updated' } }));
             } catch (e) {
                 debugError('portfolioDashboard', 'toggleDefault failed', e);
+            }
+        },
+
+        async refreshPortfolio() {
+            if (this.refreshing || !this.selected) return;
+            this.refreshing = true;
+            try {
+                vireStore.invalidate('/api/portfolios');
+                const res = await fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '?force_refresh=true');
+                if (res.ok) {
+                    const data = await res.json();
+                    this.holdings = vireStore.dedup(data.holdings || [], 'ticker');
+                    this.portfolioGain = Number(data.total_net_return) || 0;
+                    this.portfolioGainPct = Number(data.total_net_return_pct) || 0;
+                    this.portfolioCost = Number(data.total_cost) || 0;
+                    // Re-parse capital performance
+                    const cp = data.capital_performance;
+                    if (cp && cp.transaction_count > 0) {
+                        this.capitalInvested = Number(cp.net_capital_deployed) || 0;
+                        this.capitalGain = Number(cp.current_portfolio_value) - this.capitalInvested;
+                        this.simpleReturnPct = Number(cp.simple_return_pct) || 0;
+                        this.annualizedReturnPct = Number(cp.annualized_return_pct) || 0;
+                        this.hasCapitalData = true;
+                    } else {
+                        this.capitalInvested = 0; this.capitalGain = 0;
+                        this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
+                        this.hasCapitalData = false;
+                    }
+                }
+                // Re-fetch indicators
+                vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/indicators')
+                    .then(async res => {
+                        if (res.ok) {
+                            const ind = await res.json();
+                            this.trend = ind.trend || '';
+                            this.rsiSignal = ind.rsi_signal || '';
+                            this.dataPoints = ind.data_points || 0;
+                            this.hasIndicators = true;
+                        }
+                    }).catch(() => { this.hasIndicators = false; });
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Portfolio refreshed' } }));
+            } catch (e) {
+                debugError('portfolioDashboard', 'refreshPortfolio failed', e);
+            } finally {
+                this.refreshing = false;
             }
         },
 

@@ -1,181 +1,137 @@
 # /vire-portal-develop - Vire Portal Development Workflow
-
-Develop and test Vire portal features using an agent team optimized for Claude models.
+---
+name: develop
+description: Develop and test Vire portal features using an agent team.
+---
 
 ## Usage
 ```
 /vire-portal-develop <feature-description>
 ```
 
-## Model Selection Guide
+## Team
 
-| Model | Best For | Avoid For |
-|-------|----------|-----------|
-| **haiku** | Simple reads, file searches, quick validations, repetitive tasks | Complex reasoning, security analysis, multi-file refactors |
-| **sonnet** | Most implementation work, code review, testing, documentation | Very complex architectural decisions |
-| **opus** | Complex reasoning, security auditing, architectural decisions, stress-testing | Simple tasks (wasteful) |
+Six teammates with distinct roles. The team lead (you) investigates, plans, spawns, and coordinates.
 
-**Default teammates use sonnet** — good balance of speed and capability. Switch to:
-- `haiku` for reviewer's documentation verification tasks
-- `opus` for devils-advocate when security is critical
+| Role | Model | Purpose |
+|------|-------|---------|
+| **implementer** | opus | Writes tests first, then code. Fixes issues raised by reviewers. Handles build/verify/docs. |
+| **architect** | sonnet | Guards portal architecture. Reviews handler patterns, template structure, auth flows against `docs/`. |
+| **reviewer** | haiku | Code quality, pattern consistency, test coverage. Quick, focused reviews. |
+| **devils-advocate** | opus | Security, failure modes, edge cases, hostile inputs. Deep adversarial analysis. |
+| **test-creator** | sonnet | Creates/reviews UI tests in `tests/ui/` following test-common and test-create-review skills. |
+| **test-executor** | haiku | Runs UI tests via `./scripts/ui-test.sh`, reports results. Read-only for test code. |
 
-## Outputs
+## Docker Safety
 
-Every invocation produces documentation in `.claude/workdir/<datetime>-<taskname>/`:
-- `requirements.md` — what was requested, scope, approach chosen
-- `summary.md` — what was built, files changed, tests added, outcome
+**Non-negotiable.** Test containers use the `-tc` suffix and are managed by `containers.go` and `ui-test.sh`.
 
-## Procedure
+1. **NEVER run `docker rm`, `docker stop`, `docker kill`, or any destructive Docker command** manually. The test infrastructure handles stale container cleanup automatically.
+2. **NEVER touch containers without the `-tc` suffix.** The user's dev stack (`vire-server`, `vire-surrealdb`, etc.) must never be affected.
+3. If a Docker container conflict occurs during testing, it is a bug in `containers.go` — fix the code, don't run manual Docker commands.
 
-### Step 1: Create Work Directory
+## Workflow
 
-Generate the work directory path using the current datetime and a short task slug:
-```
-.claude/workdir/YYYYMMDD-HHMM-<task-slug>/
-```
+### Step 1: Plan
 
-Example: `.claude/workdir/20260214-1430-oauth-handler/`
+1. Create work directory: `.claude/workdir/YYYYMMDD-HHMM-<slug>/`
+2. Use the Explore agent to investigate relevant files, patterns, existing code
+3. Write `requirements.md` with scope, approach, files expected to change
+4. Use investigation results to write detailed task descriptions so teammates don't re-investigate
 
-Create the directory and write `requirements.md`:
+### Step 2: Create Team and Tasks
 
-```markdown
-# Requirements: <feature-description>
+Call `TeamCreate` with team_name `"vire-portal-develop"`.
 
-**Date:** <date>
-**Requested:** <what the user asked for>
-
-## Scope
-- <what's in scope>
-- <what's out of scope>
-
-## Approach
-<chosen approach and rationale>
-
-## Files Expected to Change
-- <file list>
-```
-
-### Step 2: Investigate and Plan
-
-Before creating the team, the team lead investigates the codebase directly:
-
-1. Use the Explore agent to understand relevant files, patterns, and existing implementations
-2. Determine the approach, files to change, and any risks
-3. Write this into `requirements.md` (created in Step 1) under the Approach section
-4. Use this knowledge to write detailed task descriptions — teammates should NOT need to re-investigate
-
-**Efficiency tip:** Write specific file paths and line numbers into task descriptions. This saves teammates from searching and reduces token usage.
-
-### Step 3: Create Team and Tasks
-
-Call `TeamCreate`:
-```
-team_name: "vire-portal-develop"
-description: "Developing: <feature-description>"
-```
-
-Create tasks across 3–4 phases using `TaskCreate`. Set `blockedBy` dependencies via `TaskUpdate`.
-Use 3 phases for backend-only changes. Add **Phase 2b** when the feature touches web pages
-(`pages/`, `pages/static/`, `pages/partials/`, CSS, JS, or handler template rendering).
+Create tasks across 5 phases using `TaskCreate`. Set `blockedBy` via `TaskUpdate`.
 
 **Phase 1 — Implement** (no dependencies):
-- "Write tests and implement <feature>" — owner: implementer
-  Task description includes: approach, files to change, test strategy, and acceptance criteria.
-  **MANDATORY:** If UI elements are added, removed, or renamed, the implementer MUST update or create corresponding tests in `tests/ui/` as part of this task. The task MUST NOT be marked complete without test files that cover the new/changed UI elements.
-- "Review implementation and tests" — owner: reviewer, blockedBy: [implement task]
-  Scope: code quality, pattern consistency, test coverage.
-- "Stress-test implementation" — owner: devils-advocate, blockedBy: [implement task]
-  Scope: security, failure modes, edge cases, hostile inputs.
+- implementer: "Write tests and implement <feature>"
+  **MANDATORY:** If UI elements are added, removed, or renamed, include corresponding tests in `tests/ui/`.
 
-**Phase 2 — Verify** (blockedBy: review + stress-test):
-- "Build, test, and run locally" — owner: implementer
-  Run `go test ./...`, `go vet ./...`, then `./scripts/run.sh restart` (rebuilds and restarts; leaves the server running for subsequent verification tasks).
-- "Validate running server" — owner: reviewer, blockedBy: [build task]
+**Phase 2 — Review** (parallel, blockedBy: Phase 1):
+- architect: "Review architecture alignment and update docs"
+- reviewer: "Review code quality and patterns"
+- devils-advocate: "Stress-test implementation"
 
-**Phase 2b — UI Verification** (MANDATORY when web pages changed; blockedBy: build task):
+**Phase 3 — UI Tests** (blockedBy: Phase 2; MANDATORY when web pages changed):
 Applies when the feature touches: `pages/`, `pages/static/`, `pages/partials/`, HTML templates, CSS, or JS files.
-See `.claude/skills/test-common/SKILL.md` and `.claude/skills/test-execute/SKILL.md` for the full procedure.
+See `.claude/skills/test-common/SKILL.md` and `.claude/skills/test-create-review/SKILL.md` for the full procedure.
+- test-creator: "Review/create UI tests"
 
-**CRITICAL — Test execution is a hard gate. Tasks MUST NOT be marked complete without actual test execution AND captured results.**
+**Phase 4 — Test Execution** (blockedBy: Phase 3):
+- test-executor: "Execute all tests and report results"
 
-- "Review and run UI tests" — owner: test-executor, blockedBy: [build task]
-  Follow the `/test-execute` skill procedure:
+**Phase 5 — Verify** (blockedBy: Phase 4):
+- implementer: "Build, vet, run locally, update docs"
+- reviewer: "Validate docs match implementation"
 
-  **Step 1 — Validate:** Check test files for structural compliance (see `/test-common` mandatory rules).
+### Step 3: Spawn Teammates
 
-  **Step 2 — Execute:** Run tests via the wrapper script. **NEVER run `go test` directly** — the wrapper captures output, generates `summary.md`, and collects screenshots.
-  ```bash
-  # Run individual suites via wrapper script
-  ./scripts/ui-test.sh smoke
-  ./scripts/ui-test.sh dashboard
-  ./scripts/ui-test.sh nav
-  ./scripts/ui-test.sh devauth
-  ./scripts/ui-test.sh mcp
-
-  # Or run all suites at once
-  ./scripts/ui-test.sh all
-  ```
-
-  **Step 3 — Report:** Read the results and send them to the team lead.
-  ```bash
-  # Find latest results
-  LATEST=$(ls -td tests/logs/*/ | head -1)
-  cat "$LATEST/summary.md"
-  ```
-
-  The test-executor MUST:
-  1. Send the `summary.md` contents to the team lead
-  2. If any suite fails, notify the implementer to fix and re-run
-  3. NOT mark this task complete without results in `tests/logs/`
-
-  **DO NOT mark this task complete unless wrapper script execution produced results AND the summary was sent to the team lead.** Marking complete without execution is a workflow violation.
-
-- "Review UI test compliance" — owner: test-creator, blockedBy: [implement task]
-  Follow the `/test-create-review` skill procedure:
-  - Review test files for selector accuracy against current HTML templates
-  - Fix stale selectors before execution
-  - Create new tests if UI elements were added
-
-**Phase 3 — Document** (blockedBy: validate, and UI verification if applicable):
-- "Update affected documentation" — owner: implementer
-- "Verify documentation matches implementation" — owner: reviewer, blockedBy: [update docs task]
-
-### Step 4: Spawn Teammates
-
-Spawn all three teammates in parallel using the `Task` tool:
+Spawn all six teammates in parallel using `Task` with `run_in_background: true`. Each teammate reads the task list and works through their tasks autonomously.
 
 **implementer:**
 ```
 name: "implementer"
 subagent_type: "general-purpose"
-model: "sonnet"
+model: "opus"
 mode: "bypassPermissions"
 team_name: "vire-portal-develop"
 run_in_background: true
-prompt: |
-  You are the implementer on a development team. You write tests and code.
+```
+```
+You are the implementer. You write tests first, then production code to pass them.
 
-  Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
+Docs: docs/
 
-  ## Key Files to Read First
-  - `.claude/skills/develop/SKILL.md` — Reference section for conventions, routes, config
-  - Task description in TaskList — contains approach, files, acceptance criteria
+Workflow:
+1. Read TaskList, claim tasks (owner: "implementer") by setting status to "in_progress"
+2. Work through tasks in order, mark completed before moving on
+3. Check TaskList for next available task after each completion
 
-  ## Workflow
-  1. Read TaskList, claim your tasks (owner: "implementer") by setting status to "in_progress"
-  2. Work through tasks in ID order, mark each completed before moving to the next
-  3. After each task, check TaskList for your next available task
+For implement tasks: write tests first, then implement to pass them.
+  If UI elements change, create/update tests in tests/ui/.
+For verify tasks:
+  go test ./...
+  go vet ./...
+  ./scripts/run.sh restart
+  curl -s http://localhost:${PORTAL_PORT:-8881}/api/health
+  Leave server running.
+For docs tasks: update README.md and affected skill files.
 
-  ## Task Types
-  **Implement:** Write tests first, then implement to pass them. Use `go test -run TestName` for targeted testing.
-  **Verify:** Run `go test ./...`, `go vet ./...`, then `./scripts/run.sh restart`. Verify with `curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`. Leave server running.
-  **UI Verification:** Follow `.claude/skills/test-common/SKILL.md` and `.claude/skills/test-execute/SKILL.md` — review tests for compliance, then execute via `./scripts/ui-test.sh` (NEVER raw `go test`). Read `summary.md` from `tests/logs/{timestamp}/` and send contents to team lead.
-  **Documentation:** Update affected files in docs/, README.md, and .claude/skills/.
+Only message teammates for blocking issues or questions. Mark tasks via TaskUpdate.
+```
 
-  ## Communication Rules
-  - Do NOT send status messages — use TaskUpdate for completion
-  - Message teammates only for: blocking issues, review findings that need fixes, questions
-  - Keep messages concise and actionable
+**architect:**
+```
+name: "architect"
+subagent_type: "general-purpose"
+model: "sonnet"
+team_name: "vire-portal-develop"
+run_in_background: true
+```
+```
+You are the architect. You guard the portal architecture and ensure implementations
+align with established patterns.
+
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
+Docs: docs/ (authentication, features, assessments)
+
+Workflow:
+1. Read TaskList, claim tasks (owner: "architect") by setting status to "in_progress"
+2. Work through tasks in order, mark completed before moving on
+
+For architecture review tasks:
+- Read the implementation files and relevant docs
+- Verify handler patterns, template structure, auth flows follow existing conventions
+- Check that new routes follow the established pattern in internal/handlers/
+- If the feature changes architecture, update relevant docs in docs/
+- Consider: does this introduce new dependencies? Does it break existing contracts?
+  Does the data flow make sense? Are the right abstractions being used?
+
+Send findings to "implementer" via SendMessage only if fixes are needed.
+Mark tasks via TaskUpdate.
 ```
 
 **reviewer:**
@@ -185,29 +141,22 @@ subagent_type: "general-purpose"
 model: "haiku"
 team_name: "vire-portal-develop"
 run_in_background: true
-prompt: |
-  You are the reviewer on a development team. You review for code quality, pattern consistency, test coverage, and documentation accuracy.
+```
+```
+You are the reviewer. Quick, focused code quality checks.
 
-  Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
+Docs: docs/
 
-  ## Key Files to Read First
-  - `.claude/skills/develop/SKILL.md` — Reference section for conventions, routes, config
-  - Task description in TaskList — scope and acceptance criteria
+Workflow:
+1. Read TaskList, claim tasks (owner: "reviewer") by setting status to "in_progress"
+2. Work through tasks in order, mark completed before moving on
 
-  ## Workflow
-  1. Read TaskList, claim your tasks (owner: "reviewer") by setting status to "in_progress"
-  2. Work through tasks in ID order, mark each completed before moving to the next
-  3. After each task, check TaskList for your next available task
+For code review: check for bugs, verify pattern consistency, validate test coverage.
+For docs review: check accuracy against implementation.
 
-  ## Review Checklist
-  **Code:** Read changed files + surrounding context. Check: bugs, pattern consistency, test coverage, error handling.
-  **Docs:** Verify accuracy against implementation, check that examples work.
-  **Deployment:** Confirm health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`), test key routes.
-
-  ## Communication Rules
-  - Send findings to "implementer" via SendMessage ONLY if fixes are needed
-  - Format findings as: file, line, issue, suggested fix
-  - Do NOT send status messages — use TaskUpdate for completion
+Send findings to "implementer" via SendMessage only if fixes are needed.
+Mark tasks via TaskUpdate.
 ```
 
 **devils-advocate:**
@@ -217,70 +166,23 @@ subagent_type: "general-purpose"
 model: "opus"
 team_name: "vire-portal-develop"
 run_in_background: true
-prompt: |
-  You are the devils-advocate on a development team. Your scope: security vulnerabilities, failure modes, edge cases, and hostile inputs.
-
-  Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
-
-  ## Key Files to Read First
-  - `.claude/skills/develop/SKILL.md` — Reference section for conventions, routes, config
-  - `.claude/skills/test-common/SKILL.md` — If testing web endpoints
-  - Changed files from implementation
-
-  ## Workflow
-  1. Read TaskList, claim your tasks (owner: "devils-advocate") by setting status to "in_progress"
-  2. Work through tasks in ID order, mark each completed before moving to the next
-  3. After each task, check TaskList for your next available task
-
-  ## Attack Surface Analysis
-  Check these categories systematically:
-  - **Input validation:** SQL injection, XSS, path traversal, command injection
-  - **Auth flows:** Broken auth, session fixation, CSRF, missing tokens
-  - **Error states:** Missing error handling, information leakage, panic recovery
-  - **Concurrency:** Race conditions, deadlocks, resource leaks
-  - **Edge cases:** Empty inputs, max values, unicode, special characters, nil/null
-
-  Write stress tests where appropriate. Think like an attacker.
-
-  ## Communication Rules
-  - Send findings to "implementer" via SendMessage ONLY if fixes are needed
-  - Format findings as: severity (critical/high/medium/low), location, issue, exploit scenario, fix
-  - Do NOT send status messages — use TaskUpdate for completion
 ```
-
-**test-executor:**
 ```
-name: "test-executor"
-subagent_type: "general-purpose"
-model: "sonnet"
-team_name: "vire-portal-develop"
-run_in_background: true
-prompt: |
-  You are the test-executor on a development team. You run UI tests and report results.
+You are the devils-advocate. Your job is adversarial analysis — find what can break.
 
-  Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
+Docs: docs/
 
-  ## Key Files to Read First
-  - `.claude/skills/test-common/SKILL.md` — Mandatory rules and infrastructure docs
-  - `.claude/skills/test-execute/SKILL.md` — Execution workflow
-  - Task description in TaskList — scope and acceptance criteria
+Workflow:
+1. Read TaskList, claim tasks (owner: "devils-advocate") by setting status to "in_progress"
+2. Work through tasks in order, mark completed before moving on
 
-  ## Workflow
-  1. Read TaskList, claim your tasks (owner: "test-executor") by setting status to "in_progress"
-  2. Work through tasks in ID order, mark each completed before moving to the next
-  3. After each task, check TaskList for your next available task
+Scope: input validation, injection attacks, broken auth flows, session fixation, CSRF,
+missing error states, race conditions, resource leaks, XSS in templates.
+Write stress tests where appropriate.
 
-  ## Execution Rules
-  - **NEVER modify test files** — this role is read-only
-  - Always use `./scripts/ui-test.sh` for suite execution (never raw `go test`)
-  - After execution, read `summary.md` and send contents to the team lead
-  - Check `tests/logs/{timestamp}/container.log` for container-level errors
-  - If tests fail, notify the implementer with failure details
-
-  ## Communication Rules
-  - Send test results to team lead via SendMessage after each execution
-  - Message "implementer" only if failures require code fixes
-  - Do NOT send status messages — use TaskUpdate for completion
+Send findings to "implementer" via SendMessage only if fixes are needed.
+Mark tasks via TaskUpdate.
 ```
 
 **test-creator:**
@@ -288,112 +190,151 @@ prompt: |
 name: "test-creator"
 subagent_type: "general-purpose"
 model: "sonnet"
+mode: "bypassPermissions"
 team_name: "vire-portal-develop"
 run_in_background: true
-prompt: |
-  You are the test-creator on a development team. You create and review UI tests.
+```
+```
+You are the test-creator. You write and review UI tests following project conventions.
 
-  Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
 
-  ## Key Files to Read First
-  - `.claude/skills/test-common/SKILL.md` — Mandatory rules and infrastructure docs
-  - `.claude/skills/test-create-review/SKILL.md` — Test creation and review workflow
-  - Task description in TaskList — scope and acceptance criteria
+IMPORTANT — read these before writing any tests:
+1. .claude/skills/test-common/SKILL.md — mandatory rules
+2. .claude/skills/test-create-review/SKILL.md — templates and compliance
 
-  ## Workflow
-  1. Read TaskList, claim your tasks (owner: "test-creator") by setting status to "in_progress"
-  2. Work through tasks in ID order, mark each completed before moving to the next
-  3. After each task, check TaskList for your next available task
+Workflow:
+1. Read TaskList, claim tasks (owner: "test-creator") by setting status to "in_progress"
+2. Read implementation files to understand what was built
+3. Review test files for selector accuracy against current HTML templates in pages/
+4. Fix stale selectors, create new tests if UI elements were added
+5. All tests must comply with test-common mandatory rules
 
-  ## Task Types
-  - **Review:** Check test files for selector accuracy against current HTML templates in `pages/`. Fix stale selectors.
-  - **Create:** Scaffold new test files using the template from `/test-create-review`. Ensure compliance with `/test-common` rules.
-  - **Audit:** Report compliance issues without making changes.
-
-  ## Communication Rules
-  - Send findings to "implementer" only if test code needs fixes
-  - Do NOT send status messages — use TaskUpdate for completion
+Only message teammates for blocking issues. Mark tasks via TaskUpdate.
 ```
 
-### Step 5: Coordinate
+**test-executor:**
+```
+name: "test-executor"
+subagent_type: "general-purpose"
+model: "haiku"
+mode: "bypassPermissions"
+team_name: "vire-portal-develop"
+run_in_background: true
+```
+```
+You are the test-executor. You run tests and report results. NEVER modify test files.
 
-As team lead, your job is lightweight coordination:
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
 
-1. **Relay information** — If one teammate's findings affect another, forward via `SendMessage`.
-2. **Resolve conflicts** — If the devils-advocate and implementer disagree, make the call.
-3. **Apply direct fixes** — For trivial issues (typos, missing imports), fix them directly rather than round-tripping through the implementer.
+DOCKER SAFETY: NEVER run docker rm, docker stop, docker kill, or any destructive Docker
+command. If containers conflict, report the error — do not attempt to fix it yourself.
+The test infrastructure (containers.go, ui-test.sh) handles cleanup automatically.
 
-## Token Efficiency Tips
+Read before executing:
+1. .claude/skills/test-common/SKILL.md — mandatory rules (including Docker safety)
+2. .claude/skills/test-execute/SKILL.md — execution workflow
 
-When working with Claude models, reduce context usage:
+Workflow:
+1. Read TaskList, claim tasks (owner: "test-executor") by setting status to "in_progress"
+2. Validate test structure compliance (Rules 1-5 from test-common)
+3. Run tests via wrapper script (NEVER raw `go test`):
+   ./scripts/ui-test.sh all
+   # Or individual suites: smoke, dashboard, nav, devauth, mcp, settings
+4. Read summary.md from tests/logs/{timestamp}/ and send to team lead
 
-| Technique | How |
-|-----------|-----|
-| **Read selectively** | Use `offset` and `limit` in Read tool for large files |
-| **Search first** | Use Grep to find relevant sections before reading entire files |
-| **Task descriptions** | Include only essential context; teammates read files directly |
-| **Avoid duplication** | Don't repeat information across task descriptions |
-| **Parallel reads** | Read multiple small files in one message, not sequentially |
-| **Summarize early** | Write findings to files, don't keep re-reading same content |
+FEEDBACK LOOP (critical):
+- PASS: mark task completed with results
+- FAIL: send failure details to "implementer" via SendMessage. Wait for fix, re-run.
+  Max 3 rounds, then document remaining failures.
 
-**For teammates:** Read the task description, then read only the files mentioned. Don't re-explore the codebase — the lead already did that in Step 2.
+Mark tasks via TaskUpdate.
+```
 
-### Step 6: Completion
+### Step 4: Coordinate
 
-When all tasks are complete:
+Lightweight coordination as team lead:
+1. **Relay** — Forward findings between teammates when needed
+2. **Resolve** — Break deadlocks between teammates
+3. **Fix trivially** — Typos, missing imports — fix directly rather than round-tripping
+4. **Monitor test loop** — Ensure implementer receives test-executor failures. Intervene only if the cycle stalls.
+5. **Log activity** — Append key events to `activity.log` in the work directory as they happen
+6. **Docker safety** — NEVER run destructive Docker commands (`docker rm`, `docker stop`, `docker kill`) to unblock tests. Container conflicts are handled by `containers.go` automatically.
 
-1. Verify the code quality checklist (team lead MUST verify each item, not trust task status alone):
-   - All new code has tests
+#### Activity Log
+
+Maintain `.claude/workdir/<task>/activity.log` throughout the session. Append timestamped entries for:
+- Phase transitions (e.g. "Phase 2 started — reviewers spawned")
+- Task completions (e.g. "Task #1 completed by implementer")
+- Blockers and resolutions (e.g. "test-creator: stale selector in settings_test.go — relayed to fix")
+- Teammate messages relayed (e.g. "Forwarded devils-advocate findings to implementer")
+- Test results (e.g. "test-executor: 8/8 UI tests pass, all suites green")
+
+Format:
+```
+HH:MM  <event description>
+```
+
+This provides a chronological record of the development session alongside the structured `requirements.md` and `summary.md`.
+
+### Step 5: Complete
+
+When all tasks finish:
+
+1. Verify checklist:
+   - New code has tests
    - All tests pass (`go test ./...`) — verified by reviewing actual command output
-   - Go vet is clean (`go vet ./...`)
+   - `go vet ./...` clean
    - Server builds and runs (`./scripts/run.sh restart`) — leave it running
    - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
-   - **If web pages changed: UI tests MUST have been executed via `./scripts/ui-test.sh`** (never raw `go test`). The team lead must confirm test execution occurred by checking `tests/logs/` for a timestamp directory created during this session containing `summary.md`, `{suite}.log`, and `container.log` files. If no test results exist, the test-executor must re-run via wrapper script before completion.
+   - **If web pages changed:** UI tests executed via `./scripts/ui-test.sh` (never raw `go test`). Confirm by checking `tests/logs/` for results.
+   - Architecture docs updated (architect signed off)
+   - Devils-advocate signed off
    - README.md updated if user-facing behaviour changed
-   - API contract documentation matches implementation
-   - Devils-advocate has signed off
-   - Server is left running after completion
 
-2. Write `summary.md` in the work directory:
+2. Write `summary.md` in work directory:
+   ```markdown
+   # Summary: <feature>
 
-```markdown
-# Summary: <feature-description>
+   **Status:** completed | partial | blocked
 
-**Date:** <date>
-**Status:** <completed | partial | blocked>
+   ## Changes
+   | File | Change |
+   |------|--------|
 
-## What Changed
+   ## Tests
+   - Unit tests added/modified
+   - UI tests created/updated
+   - Test results: pass/fail
+   - Fix rounds: N
 
-| File | Change |
-|------|--------|
-| `path/to/file` | <brief description> |
+   ## Architecture
+   - Docs updated by architect
 
-## Tests
-- <tests added or modified>
-- <test results: pass/fail>
+   ## Devils-Advocate
+   - Key findings and resolutions
 
-## Documentation Updated
-- <list of docs/README changes>
-
-## Devils-Advocate Findings
-- <key issues raised and how they were resolved>
-
-## Notes
-- <anything notable: trade-offs, follow-up work, risks>
-```
-
-3. Shut down teammates:
-   ```
-   SendMessage type: "shutdown_request" to each teammate
+   ## Notes
+   - Trade-offs, follow-up work, risks
    ```
 
-4. Clean up:
-   ```
-   TeamDelete
-   ```
+3. Shutdown teammates: `SendMessage type: "shutdown_request"` to each
+4. `TeamDelete`
+5. Summarise to user
 
-5. Summarise what was built, changed, and tested.
+## Test Commands
+
+| Command | Scope |
+|---------|-------|
+| `go test ./...` | Full unit test suite |
+| `go vet ./...` | Static analysis |
+| `./scripts/ui-test.sh all` | All UI test suites |
+| `./scripts/ui-test.sh smoke` | Smoke tests only |
+| `./scripts/ui-test.sh dashboard` | Dashboard tests |
+| `./scripts/ui-test.sh nav` | Navigation tests |
+| `./scripts/ui-test.sh settings` | Settings tests |
+| `./scripts/test-scripts.sh` | Script validation |
 
 ## Reference
 
@@ -481,46 +422,9 @@ MCP tool calls are proxied to vire-server with X-Vire-* header injection:
 - User data: fetched from vire-server via `internal/client/vire_client.go` (GET/PUT `/api/users/{id}`)
 - Navexa key: resolved by vire-server from X-Vire-User-ID (portal never handles the raw key)
 
-Future gateway integration (deferred):
-- Auth: JWT in `Authorization: Bearer` header
-- Error responses follow consistent `{ error: { code, message } }` shape
-- Token refresh: `POST /api/auth/refresh` (automatic on 401)
-
 ### Documentation to Update
 
 When the feature affects user-facing behaviour or API contracts, update:
 - `README.md` — if new capabilities, changed routes, or prerequisites
-- `docs/requirements.md` — if API contracts or architecture changed
+- `docs/` — if architecture, auth flows, or feature design changed
 - `.claude/skills/` — affected skill files
-
-## Claude-Specific Patterns
-
-These patterns improve reliability when working with Claude models:
-
-### Prompt Structure
-Good prompts for teammates follow this structure:
-1. **Role** — Clear statement of what they are
-2. **Context** — Team name, working directory, key files to read
-3. **Workflow** — Numbered steps for their tasks
-4. **Task-specific guidance** — What to do for each task type
-5. **Communication rules** — When and how to message teammates
-
-### Avoid These Anti-Patterns
-- ❌ Vague instructions like "do your best" or "be thorough"
-- ❌ Long prose without structure — use headers and lists
-- ❌ Repeating the same information multiple times
-- ❌ Asking teammates to "explore and understand" — lead does this in Step 2
-
-### Leverage Claude Strengths
-- ✅ **Pattern matching** — Claude excels at finding similar code patterns
-- ✅ **Code review** — Good at catching inconsistencies and missing edge cases
-- ✅ **Security analysis** — Opus especially good at identifying vulnerabilities
-- ✅ **Structured output** — Ask for specific formats (tables, checklists, severity ratings)
-
-### Team Communication
-Teammates should message each other only when:
-- Blocking issue discovered that prevents progress
-- Review found issues requiring fixes
-- Clarification needed on requirements
-
-All other updates go through TaskUpdate status changes — the system handles notifications automatically.

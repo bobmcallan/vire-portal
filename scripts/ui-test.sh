@@ -71,6 +71,21 @@ echo "Log:       $LOG_FILE"
 echo "========================================"
 echo ""
 
+# Test container names (only these are ever touched — never dev/production containers)
+TC_NAMES="vire-db-tc vire-server-tc vire-portal-tc"
+
+# cleanup_test_containers removes test containers (-tc suffix only).
+# SAFETY: Only removes containers explicitly named for testing — never touches
+# dev/production containers (vire-server, vire-surrealdb, etc).
+cleanup_test_containers() {
+    for tc_name in $TC_NAMES; do
+        if docker inspect "$tc_name" > /dev/null 2>&1; then
+            echo "  Removing test container: $tc_name"
+            docker rm -f "$tc_name" > /dev/null 2>&1 || true
+        fi
+    done
+}
+
 # Check server health (skip in Docker mode — TestMain starts its own container)
 if [ -n "$VIRE_TEST_URL" ]; then
     echo "Checking server health..."
@@ -81,7 +96,10 @@ if [ -n "$VIRE_TEST_URL" ]; then
     fi
     echo "Server: OK"
 else
+    DOCKER_MODE=true
     echo "Docker mode: container will be started by TestMain"
+    # Clean up stale test containers from previous runs
+    cleanup_test_containers
 fi
 echo ""
 
@@ -177,6 +195,13 @@ if [ "$SCREENSHOT_COUNT" -gt 0 ]; then
 fi
 
 echo ""
+
+# Post-test cleanup: ensure test containers are removed even if the test process
+# crashed or timed out before Cleanup() could run. No-op in manual mode.
+if [ -n "$DOCKER_MODE" ]; then
+    echo "Cleaning up test containers..."
+    cleanup_test_containers
+fi
 
 # Exit with test result
 exit $TEST_EXIT_CODE

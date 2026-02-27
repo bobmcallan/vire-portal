@@ -37,6 +37,10 @@
                     <input type="checkbox" :checked="isDefault" @change="toggleDefault()">
                     <span>Default</span>
                 </label>
+                <button class="btn btn-secondary btn-sm" @click="refreshPortfolio()" :disabled="refreshing">
+                    <span x-show="!refreshing">REFRESH</span>
+                    <span x-show="refreshing">REFRESHING...</span>
+                </button>
             </div>
 
             <!-- Empty state -->
@@ -62,6 +66,33 @@
                     <span class="label">NET RETURN %</span>
                     <span class="text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></span>
                 </div>
+            </div>
+
+            <!-- Capital performance summary -->
+            <div class="portfolio-summary portfolio-summary-capital" x-show="hasCapitalData" x-cloak>
+                <div class="portfolio-summary-item">
+                    <span class="label">CAPITAL INVESTED</span>
+                    <span class="text-bold" x-text="fmt(capitalInvested)"></span>
+                </div>
+                <div class="portfolio-summary-item">
+                    <span class="label">CAPITAL GAIN $</span>
+                    <span class="text-bold" :class="gainClass(capitalGain)" x-text="fmt(capitalGain)"></span>
+                </div>
+                <div class="portfolio-summary-item">
+                    <span class="label">SIMPLE RETURN %</span>
+                    <span class="text-bold" :class="gainClass(simpleReturnPct)" x-text="pct(simpleReturnPct)"></span>
+                </div>
+                <div class="portfolio-summary-item">
+                    <span class="label">ANNUALIZED %</span>
+                    <span class="text-bold" :class="gainClass(annualizedReturnPct)" x-text="pct(annualizedReturnPct)"></span>
+                </div>
+            </div>
+
+            <!-- Portfolio indicators -->
+            <div class="portfolio-indicators" x-show="hasIndicators" x-cloak>
+                <span class="indicator-item">TREND: <span class="text-bold" x-text="trend.toUpperCase()"></span></span>
+                <span class="indicator-item">RSI: <span class="text-bold" x-text="rsiSignal.toUpperCase()"></span></span>
+                <span class="indicator-item text-muted" x-text="dataPoints + ' DATA POINTS'"></span>
             </div>
 
             <!-- Holdings table -->
