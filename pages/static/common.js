@@ -264,8 +264,10 @@ function portfolioDashboard() {
                     const cp = holdingsData.capital_performance;
                     if (cp && cp.transaction_count > 0) {
                         this.capitalInvested = Number(cp.net_capital_deployed) || 0;
-                        this.capitalGain = Number(cp.current_portfolio_value) - this.capitalInvested;
-                        this.simpleReturnPct = Number(cp.simple_return_pct) || 0;
+                        // Derive capital gain from actual holdings total, not server's current_portfolio_value
+                        this.capitalGain = this.totalValue - this.capitalInvested;
+                        this.simpleReturnPct = this.capitalInvested !== 0
+                            ? (this.capitalGain / this.capitalInvested) * 100 : 0;
                         this.annualizedReturnPct = Number(cp.annualized_return_pct) || 0;
                         this.hasCapitalData = true;
                     } else {
@@ -490,8 +492,10 @@ function portfolioDashboard() {
                     const cp = data.capital_performance;
                     if (cp && cp.transaction_count > 0) {
                         this.capitalInvested = Number(cp.net_capital_deployed) || 0;
-                        this.capitalGain = Number(cp.current_portfolio_value) - this.capitalInvested;
-                        this.simpleReturnPct = Number(cp.simple_return_pct) || 0;
+                        // Derive capital gain from actual holdings total, not server's current_portfolio_value
+                        this.capitalGain = this.totalValue - this.capitalInvested;
+                        this.simpleReturnPct = this.capitalInvested !== 0
+                            ? (this.capitalGain / this.capitalInvested) * 100 : 0;
                         this.annualizedReturnPct = Number(cp.annualized_return_pct) || 0;
                         this.hasCapitalData = true;
                     } else {
