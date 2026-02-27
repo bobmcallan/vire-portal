@@ -593,7 +593,7 @@ function cashTransactions() {
             if (!this.selected) return;
             this.currentPage = 1;
             try {
-                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/cashflows');
+                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/cash-transactions');
                 if (res.ok) {
                     const data = await res.json();
                     const txns = data.transactions || [];
