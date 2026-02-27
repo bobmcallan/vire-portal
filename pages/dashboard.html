@@ -95,6 +95,11 @@
                 <span class="indicator-item text-muted" x-text="dataPoints + ' DATA POINTS'"></span>
             </div>
 
+            <!-- Growth chart -->
+            <div class="growth-chart-container" x-show="hasGrowthData" x-cloak>
+                <canvas id="growthChart"></canvas>
+            </div>
+
             <!-- Holdings table -->
             <section class="panel-headed" x-show="holdings.length > 0" x-cloak>
                 <div class="panel-header">HOLDINGS</div>

@@ -193,6 +193,9 @@ function portfolioDashboard() {
         rsiSignal: '',
         dataPoints: 0,
         hasIndicators: false,
+        growthData: [],
+        hasGrowthData: false,
+        chartInstance: null,
         loading: true,
         error: '',
         get isDefault() { return this.selected === this.defaultPortfolio; },
@@ -290,9 +293,161 @@ function portfolioDashboard() {
                             this.hasIndicators = true;
                         }
                     }).catch(() => { this.hasIndicators = false; });
+                // Fetch growth history (non-blocking, non-fatal)
+                this.fetchGrowthData();
             } catch (e) {
                 debugError('portfolioDashboard', 'loadPortfolio failed', e);
             }
+        },
+
+        async fetchGrowthData() {
+            try {
+                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/history');
+                if (res.ok) {
+                    const data = await res.json();
+                    const points = data.data_points || [];
+                    this.growthData = this.filterAnomalies(points);
+                    this.hasGrowthData = this.growthData.length > 0;
+                    if (this.hasGrowthData) {
+                        this.$nextTick(() => this.renderChart());
+                    }
+                } else {
+                    this.growthData = [];
+                    this.hasGrowthData = false;
+                }
+            } catch (e) {
+                debugLog('portfolioDashboard', 'growth data fetch failed', e);
+                this.growthData = [];
+                this.hasGrowthData = false;
+            }
+        },
+
+        filterAnomalies(points) {
+            if (!points || points.length === 0) return [];
+            const filtered = [];
+            for (let i = 0; i < points.length; i++) {
+                const p = Object.assign({}, points[i]);
+                if (i > 0 && filtered.length > 0) {
+                    const prev = filtered[filtered.length - 1];
+                    if (prev.TotalValue > 0) {
+                        const change = Math.abs(p.TotalValue - prev.TotalValue) / prev.TotalValue;
+                        if (change > 0.5) {
+                            p.TotalValue = prev.TotalValue;
+                        }
+                    }
+                }
+                filtered.push(p);
+            }
+            return filtered;
+        },
+
+        renderChart() {
+            if (this.chartInstance) {
+                this.chartInstance.destroy();
+                this.chartInstance = null;
+            }
+            const canvas = document.getElementById('growthChart');
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            const labels = this.growthData.map(p => {
+                const d = new Date(p.Date);
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            });
+            const totalValues = this.growthData.map(p => p.TotalValue);
+            const totalCosts = this.growthData.map(p => p.TotalCost);
+            const capitalLine = this.growthData.map(() => this.capitalInvested);
+
+            this.chartInstance = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Portfolio Value',
+                            data: totalValues,
+                            borderColor: '#000',
+                            borderWidth: 2,
+                            borderDash: [],
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            fill: false,
+                            tension: 0,
+                        },
+                        {
+                            label: 'Cost Basis',
+                            data: totalCosts,
+                            borderColor: '#888',
+                            borderWidth: 1,
+                            borderDash: [6, 3],
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            fill: false,
+                            tension: 0,
+                        },
+                        {
+                            label: 'Capital Deployed',
+                            data: capitalLine,
+                            borderColor: '#000',
+                            borderWidth: 1,
+                            borderDash: [2, 2],
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            fill: false,
+                            tension: 0,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                        tooltip: {
+                            backgroundColor: '#fff',
+                            titleColor: '#000',
+                            bodyColor: '#000',
+                            borderColor: '#000',
+                            borderWidth: 1,
+                            titleFont: { family: "'IBM Plex Mono', monospace", size: 11 },
+                            bodyFont: { family: "'IBM Plex Mono', monospace", size: 11 },
+                            callbacks: {
+                                label: function(ctx) {
+                                    const val = Number(ctx.raw).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                    return ctx.dataset.label + ': $' + val;
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                font: { family: "'IBM Plex Mono', monospace", size: 10 },
+                                color: '#888',
+                                maxTicksLimit: 10,
+                            },
+                            border: { color: '#000' },
+                        },
+                        y: {
+                            grid: { color: '#eee' },
+                            ticks: {
+                                font: { family: "'IBM Plex Mono', monospace", size: 10 },
+                                color: '#888',
+                                callback: function(val) {
+                                    return '$' + Number(val).toLocaleString('en-AU', { maximumFractionDigits: 0 });
+                                },
+                            },
+                            border: { display: false },
+                        },
+                    },
+                },
+            });
         },
 
         async toggleDefault() {
@@ -356,6 +511,8 @@ function portfolioDashboard() {
                             this.hasIndicators = true;
                         }
                     }).catch(() => { this.hasIndicators = false; });
+                // Re-fetch growth data
+                this.fetchGrowthData();
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Portfolio refreshed' } }));
             } catch (e) {
                 debugError('portfolioDashboard', 'refreshPortfolio failed', e);

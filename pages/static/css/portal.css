@@ -999,6 +999,20 @@ code {
     margin-bottom: 1rem;
 }
 
+.growth-chart-container {
+    width: 100%;
+    margin-bottom: 1.5rem;
+    border: 2px solid #000;
+    padding: 1rem;
+    aspect-ratio: 3 / 1;
+}
+
+@media (max-width: 48rem) {
+    .growth-chart-container {
+        aspect-ratio: 2 / 1;
+    }
+}
+
 
 /* ============================================================
    WARNING / SUCCESS BANNERS

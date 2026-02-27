@@ -11,6 +11,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 - **Go 1.25+** with standard `net/http` (no framework)
 - **Go `html/template`** for server-side rendering
 - **Alpine.js** (CDN) for client-side interactivity
+- **Chart.js v4** (CDN) for portfolio growth chart
 - **Stateless** -- all user data managed by vire-server via REST API
 - **TOML** configuration with priority: defaults < file < env (VIRE_ prefix) < CLI flags
 - **Port 8080** -- default port; Docker local dev overrides to 8881 via `docker/vire-portal.toml`
@@ -22,7 +23,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | Route | Handler | Auth | Description |
 |-------|---------|------|-------------|
 | `GET /` | PageHandler | No | Landing page (server-rendered HTML template) |
-| `GET /dashboard` | DashboardHandler | No | Dashboard (portfolio management, holdings, capital performance, indicators) |
+| `GET /dashboard` | DashboardHandler | No | Dashboard (portfolio management, holdings, capital performance, indicators, growth chart) |
 | `GET /strategy` | StrategyHandler | No | Strategy page (portfolio strategy and plan editors) |
 | `GET /mcp-info` | MCPPageHandler | No | MCP info page (connection config, tools catalog) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
@@ -127,7 +128,7 @@ timeout_seconds = 30
 
 Test categories:
 - **Smoke tests** (`TestSmoke*`): Landing page, login buttons, branding, dashboard loads
-- **Dashboard tests** (`TestDashboard*`): Sections, panels, portfolio UI, capital performance, indicators, refresh button, design rules
+- **Dashboard tests** (`TestDashboard*`): Sections, panels, portfolio UI, capital performance, indicators, growth chart, refresh button, design rules
 - **Strategy tests** (`TestStrategy*`): Strategy/plan editors, nav active state, Alpine init
 - **Nav tests** (`TestNav*`): Hamburger menu, dropdown, mobile nav
 - **Auth tests** (`TestAuth*`): OAuth redirect flows
@@ -1053,24 +1054,24 @@ vire-portal/
 │       ├── test_config.toml          # Test configuration (server URL, browser settings)
 │       ├── ui_helpers_test.go        # Test helpers (newBrowser, isVisible, etc.)
 │       ├── smoke_test.go             # Smoke tests (landing, dashboard, branding)
-│       ├── dashboard_test.go         # Dashboard tests (sections, panels, design rules)
+│       ├── dashboard_test.go         # Dashboard tests (sections, panels, growth chart, design rules)
 │       ├── strategy_test.go         # Strategy page tests (editors, nav, portfolio selector)
 │       ├── nav_test.go               # Navigation tests (hamburger, dropdown, mobile)
 │       └── auth_test.go              # Auth tests (Google/GitHub login redirects)
 ├── pages/
-│   ├── dashboard.html                # Dashboard page (portfolio selector, holdings, capital performance, indicators, refresh)
+│   ├── dashboard.html                # Dashboard page (portfolio selector, holdings, capital performance, indicators, growth chart, refresh)
 │   ├── strategy.html                # Strategy page (portfolio strategy and plan editors)
 │   ├── mcp.html                     # MCP info page (connection details, tools table)
 │   ├── landing.html                  # Landing page (Go html/template)
 │   ├── settings.html                 # Settings page (Navexa API key management)
 │   ├── partials/
-│   │   ├── head.html                 # HTML head (IBM Plex Mono, Alpine.js CDN)
+│   │   ├── head.html                 # HTML head (IBM Plex Mono, Chart.js CDN, Alpine.js CDN)
 │   │   ├── nav.html                  # Navigation bar
 │   │   └── footer.html               # Footer
 │   └── static/
 │       ├── css/
 │       │   └── portal.css            # 80s B&W aesthetic (no border-radius, no box-shadow)
-│       └── common.js                 # Client logging, Alpine.js init, vireStore (fetch cache/dedup), portfolioDashboard(), portfolioStrategy()
+│       └── common.js                 # Client logging, Alpine.js init, vireStore (fetch cache/dedup), portfolioDashboard() (growth chart), portfolioStrategy()
 ├── docker/
 │   ├── Dockerfile                    # Portal multi-stage build (golang:1.25 -> alpine)
 │   ├── Dockerfile.mcp               # MCP stdio binary build (golang:1.25 -> alpine)

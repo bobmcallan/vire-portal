@@ -670,6 +670,110 @@ func TestDashboardIndicators(t *testing.T) {
 	}
 }
 
+func TestDashboardGrowthChart(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render + growth data fetch
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "growth-chart.png")
+
+	// Check if Chart.js is loaded
+	chartJSLoaded, err := commontest.EvalBool(ctx, `typeof Chart !== 'undefined'`)
+	if err != nil {
+		t.Fatalf("error checking Chart.js availability: %v", err)
+	}
+	if !chartJSLoaded {
+		t.Fatal("Chart.js not loaded")
+	}
+
+	// Check if growth chart canvas exists in the DOM
+	canvasExists, err := commontest.EvalBool(ctx, `document.getElementById('growthChart') !== null`)
+	if err != nil {
+		t.Fatalf("error checking canvas existence: %v", err)
+	}
+	if !canvasExists {
+		t.Fatal("growth chart canvas element not found in DOM")
+	}
+
+	// Check if growth chart container is visible (depends on growth data being available)
+	containerVisible, err := isVisible(ctx, ".growth-chart-container")
+	if err != nil {
+		t.Fatalf("error checking growth chart container visibility: %v", err)
+	}
+	if !containerVisible {
+		t.Skip("growth chart container not visible (no growth data available from API)")
+	}
+
+	// Verify Chart.js instance was created on the canvas
+	chartCreated, err := commontest.EvalBool(ctx, `
+		(() => {
+			const canvas = document.getElementById('growthChart');
+			return canvas && Chart.getChart(canvas) !== undefined;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking Chart.js instance: %v", err)
+	}
+	if !chartCreated {
+		t.Error("Chart.js instance not created on growthChart canvas")
+	}
+
+	// Verify the chart has 3 datasets (Portfolio Value, Cost Basis, Capital Deployed)
+	datasetCount, err := commontest.EvalBool(ctx, `
+		(() => {
+			const canvas = document.getElementById('growthChart');
+			const chart = Chart.getChart(canvas);
+			return chart && chart.data.datasets.length === 3;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking chart datasets: %v", err)
+	}
+	if !datasetCount {
+		t.Error("growth chart does not have exactly 3 datasets")
+	}
+
+	// Verify dataset labels
+	labelsCorrect, err := commontest.EvalBool(ctx, `
+		(() => {
+			const canvas = document.getElementById('growthChart');
+			const chart = Chart.getChart(canvas);
+			if (!chart) return false;
+			const labels = chart.data.datasets.map(d => d.label);
+			return labels[0] === 'Portfolio Value' && labels[1] === 'Cost Basis' && labels[2] === 'Capital Deployed';
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking dataset labels: %v", err)
+	}
+	if !labelsCorrect {
+		t.Error("growth chart dataset labels do not match expected: Portfolio Value, Cost Basis, Capital Deployed")
+	}
+
+	// Verify chart container has the correct styling (border, no border-radius)
+	containerStyled, err := commontest.EvalBool(ctx, `
+		(() => {
+			const el = document.querySelector('.growth-chart-container');
+			if (!el) return false;
+			const style = getComputedStyle(el);
+			return style.borderStyle !== 'none' && style.borderRadius === '0px';
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking chart container styles: %v", err)
+	}
+	if !containerStyled {
+		t.Error("growth chart container does not have expected monochrome styling")
+	}
+}
+
 // TestDashboardDesign checks all CSS/design constraints in a single test
 func TestDashboardDesign(t *testing.T) {
 	ctx, cancel := newBrowser(t)
