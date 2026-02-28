@@ -15,7 +15,7 @@ Phases 1-4 are complete. See the changes summary below.
 | `internal/client/vire_client.go` | New API client for vire-server user endpoints |
 | `internal/client/vire_client_test.go` | Tests with httptest mock server |
 | `internal/app/app.go` | Removed StorageManager, initStorage, importer; uses VireClient |
-| `internal/handlers/settings.go` | Uses `client.UserProfile` and API save function |
+| `internal/handlers/profile.go` | Uses `client.UserProfile` and API save function |
 | `internal/handlers/dashboard.go` | Uses `client.UserProfile`, checks `NavexaKeySet` |
 | `internal/mcp/handler.go` | Removed `userLookupFn`; extracts UserID from JWT directly |
 | `internal/mcp/context.go` | Removed `NavexaKey` from `UserContext` |
@@ -46,8 +46,8 @@ The portal previously stored user data locally in BadgerDB (via badgerhold). Thi
 | Handler | Route | Operation | What It Does |
 |---------|-------|-----------|-------------|
 | DashboardHandler | `GET /dashboard` | Read | Checks if user's NavexaKey is empty → shows warning banner |
-| SettingsHandler | `GET /settings` | Read | Reads NavexaKey, shows last 4 chars as preview |
-| SettingsHandler | `POST /settings` | Read + Write | Reads user, updates NavexaKey, saves back |
+| ProfileHandler | `GET /profile` | Read | Reads user profile (email, name, auth method) and NavexaKey preview |
+| ProfileHandler | `POST /profile` | Read + Write | Reads user, updates NavexaKey, saves back |
 | MCPHandler | `POST /mcp` | Read | Reads user's NavexaKey for X-Vire-Navexa-Key proxy header |
 | Importer | Startup | Read + Write | Loads users from `data/users.json`, inserts if not exists |
 | AuthHandler | `POST /api/auth/dev` | None | JWT only, no storage |
@@ -254,7 +254,7 @@ Currently the portal reads the navexa_key from BadgerDB and injects it as `X-Vir
 | Component | Location | Change |
 |-----------|----------|--------|
 | `app.go` initHandlers | `internal/app/app.go` | Replace userLookup/userSave closures with HTTP client calls to vire-server |
-| SettingsHandler | `internal/handlers/settings.go` | GET: call `GET /api/users/{id}`, POST: call `PUT /api/users/{id}` |
+| ProfileHandler | `internal/handlers/profile.go` | GET: call `GET /api/users/{id}`, POST: call `PUT /api/users/{id}` |
 | DashboardHandler | `internal/handlers/dashboard.go` | Call `GET /api/users/{id}` to check navexa_key status |
 | MCP handler | `internal/mcp/handler.go` | If Option B: stop injecting X-Vire-Navexa-Key, server resolves it |
 | MCP proxy | `internal/mcp/proxy.go` | If Option B: remove `applyUserHeaders` navexa_key logic |

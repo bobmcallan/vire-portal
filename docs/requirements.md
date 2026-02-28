@@ -27,8 +27,8 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `GET /api/auth/login/google` | AuthHandler | No | Proxies Google OAuth redirect from vire-server |
 | `GET /api/auth/login/github` | AuthHandler | No | Proxies GitHub OAuth redirect from vire-server |
 | `GET /auth/callback` | AuthHandler | No | OAuth callback (receives `?token=`, sets session cookie) |
-| `GET /settings` | SettingsHandler | No | Settings page (Navexa API key management) |
-| `POST /settings` | SettingsHandler | No | Save settings (requires session cookie) |
+| `GET /profile` | ProfileHandler | No | Profile page (user info + Navexa API key management) |
+| `POST /profile` | ProfileHandler | No | Save profile (requires session cookie) |
 
 ## Pages (Future)
 
@@ -37,7 +37,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `/` | Landing | No | Product overview, "Sign in with Google" and "Sign in with GitHub" buttons |
 | `/auth/callback` | OAuth Callback | No | Receives `?token=` from vire-server, sets `vire_session` cookie, redirects to `/dashboard` (implemented) |
 | `/dashboard` | Dashboard | Yes | Usage stats (requests this month, quota bar, daily trend, top endpoints), instance status (running/stopped), plan info |
-| `/settings` | Settings | Yes | Profile info, API key management (BYOK), preferences (default portfolio, exchange) |
+| `/profile` | Profile | Yes | Profile info, API key management (BYOK), preferences (default portfolio, exchange) |
 | `/connect` | Connect | Yes | MCP config generator with copy-to-clipboard for Claude Code and Claude Desktop, URL regeneration |
 | `/billing` | Billing | Yes | Plan selection (Free/Pro), Stripe checkout, invoice history via Stripe billing portal |
 
@@ -689,7 +689,7 @@ vire-portal/
 │   │   ├── health.go                # GET /api/health
 │   │   ├── helpers.go               # WriteJSON, RequireMethod, WriteError
 │   │   ├── landing.go               # PageHandler (template rendering + static file serving)
-│   │   ├── settings.go              # GET/POST /settings (Navexa API key management)
+│   │   ├── profile.go               # GET/POST /profile (user info + Navexa API key management)
 │   │   └── version.go               # GET /api/version
 │   ├── client/
 │   │   ├── vire_client.go           # HTTP client for vire-server API (GetUser, UpdateUser, ExchangeOAuth)
@@ -717,7 +717,7 @@ vire-portal/
 ├── pages/
 │   ├── dashboard.html                # Dashboard page (MCP config, tools, config status)
 │   ├── landing.html                  # Landing page (Go html/template)
-│   ├── settings.html                 # Settings page (Navexa API key management)
+│   ├── profile.html                  # Profile page (user info + Navexa API key management)
 │   ├── partials/
 │   │   ├── head.html                 # HTML head (IBM Plex Mono, Alpine.js CDN)
 │   │   ├── nav.html                  # Navigation bar

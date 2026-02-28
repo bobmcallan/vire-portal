@@ -681,16 +681,16 @@ func TestRoutes_LogoutNotBlockedByCSRF(t *testing.T) {
 	}
 }
 
-// --- Settings Route Tests ---
+// --- Profile Route Tests ---
 
-func TestRoutes_SettingsPage(t *testing.T) {
+func TestRoutes_ProfilePage(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
 	// Create a valid test JWT token for authentication
 	testToken := createTestJWT("test-user-123", application.Config.Auth.JWTSecret)
 
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: testToken})
 	w := httptest.NewRecorder()
 
@@ -701,43 +701,43 @@ func TestRoutes_SettingsPage(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !containsString(body, "SETTINGS") {
-		t.Error("expected settings page to contain SETTINGS")
+	if !containsString(body, "PROFILE") {
+		t.Error("expected profile page to contain PROFILE")
 	}
 }
 
-func TestRoutes_SettingsPostRoute(t *testing.T) {
+func TestRoutes_ProfilePostRoute(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
-	// POST /settings with CSRF token but no session cookie should reach handler and return 401
+	// POST /profile with CSRF token but no session cookie should reach handler and return 401
 	csrfToken := "test-csrf-token"
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=test&_csrf="+csrfToken))
+	req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key=test&_csrf="+csrfToken))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "_csrf", Value: csrfToken})
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
 
-	// Without a valid session cookie, POST /settings should return 401
+	// Without a valid session cookie, POST /profile should return 401
 	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected status 401 for POST /settings without session, got %d", w.Code)
+		t.Errorf("expected status 401 for POST /profile without session, got %d", w.Code)
 	}
 }
 
-func TestRoutes_SettingsPostBlockedByCSRF(t *testing.T) {
+func TestRoutes_ProfilePostBlockedByCSRF(t *testing.T) {
 	application := newTestApp(t)
 	srv := New(application)
 
-	// POST /settings without CSRF token should be blocked with 403
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=test"))
+	// POST /profile without CSRF token should be blocked with 403
+	req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key=test"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 
 	srv.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusForbidden {
-		t.Errorf("expected status 403 for POST /settings without CSRF token, got %d", w.Code)
+		t.Errorf("expected status 403 for POST /profile without CSRF token, got %d", w.Code)
 	}
 }
 

@@ -45,7 +45,7 @@ Goal: Verify the existing email/password and OAuth login flows work locally with
 - [x] Submit email/password via the form — should POST to `/api/auth/login`, which forwards to vire-server
 - [x] Verify `vire_session` cookie is set with a valid JWT
 - [x] Verify redirect to `/dashboard` works and dashboard loads with user context
-- [x] Check `/settings` page shows JWT debug info (dev mode)
+- [x] Check `/profile` page shows JWT debug info (dev mode)
 
 ### 1.3 Confirm Google/GitHub OAuth redirects
 

@@ -60,7 +60,7 @@ func TestSettingsPageLayout(t *testing.T) {
     ctx, cancel := newBrowser(t)
     defer cancel()
 
-    err := loginAndNavigate(ctx, serverURL()+"/settings")
+    err := loginAndNavigate(ctx, serverURL()+"/profile")
     if err != nil {
         t.Fatal(err)
     }

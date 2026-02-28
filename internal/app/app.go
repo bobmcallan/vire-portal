@@ -47,7 +47,7 @@ type App struct {
 	StrategyHandler     *handlers.StrategyHandler
 	CapitalHandler      *handlers.CapitalHandler
 	MCPPageHandler      *handlers.MCPPageHandler
-	SettingsHandler     *handlers.SettingsHandler
+	ProfileHandler      *handlers.ProfileHandler
 	ServerHealthHandler *handlers.ServerHealthHandler
 	MCPHandler          *mcp.Handler
 	MCPDevHandler       *mcp.DevHandler
@@ -111,12 +111,12 @@ func (a *App) initHandlers() {
 
 	vireClient := client.NewVireClient(a.Config.API.URL)
 
-	// User lookup via vire-server API (used by settings and dashboard)
+	// User lookup via vire-server API (used by profile and dashboard)
 	userLookup := func(userID string) (*client.UserProfile, error) {
 		return vireClient.GetUser(userID)
 	}
 
-	// User save via vire-server API (used by settings)
+	// User save via vire-server API (used by profile)
 	userSave := func(userID string, fields map[string]string) error {
 		_, err := vireClient.UpdateUser(userID, fields)
 		return err
@@ -132,8 +132,8 @@ func (a *App) initHandlers() {
 	)
 
 	a.ServerHealthHandler = handlers.NewServerHealthHandler(a.Logger, a.Config.API.URL)
-	a.SettingsHandler = handlers.NewSettingsHandler(a.Logger, a.Config.IsDevMode(), jwtSecret, userLookup, userSave)
-	a.SettingsHandler.SetAPIURL(a.Config.API.URL)
+	a.ProfileHandler = handlers.NewProfileHandler(a.Logger, a.Config.IsDevMode(), jwtSecret, userLookup, userSave)
+	a.ProfileHandler.SetAPIURL(a.Config.API.URL)
 
 	a.DashboardHandler = handlers.NewDashboardHandler(
 		a.Logger,
@@ -171,7 +171,7 @@ func (a *App) initHandlers() {
 
 	if a.MCPDevHandler != nil {
 		a.MCPPageHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
-		a.SettingsHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
+		a.ProfileHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
 	}
 
 	a.OAuthServer = auth.NewOAuthServer(a.Config.BaseURL(), a.Config.API.URL, jwtSecret, a.Logger)

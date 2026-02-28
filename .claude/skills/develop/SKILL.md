@@ -32,6 +32,19 @@ Six teammates with distinct roles. The team lead (you) investigates, plans, spaw
 
 ## Workflow
 
+### Step 0: Cleanup Stale State
+
+Sessions can end before `TeamDelete` runs (user closes conversation, context exhausted, crash).
+This leaves stale team configs with phantom "in-process" members that appear to still be running.
+
+**Always run this before creating a new team:**
+
+1. Check if team `vire-portal-develop` already exists: `Read ~/.claude/teams/vire-portal-develop/config.json`
+2. If it exists, call `TeamDelete` to remove the stale team and its tasks
+3. Also clean up any stale task directories: `rm -rf ~/.claude/tasks/vire-portal-develop/`
+
+This ensures a clean slate regardless of how the previous session ended.
+
 ### Step 1: Plan
 
 1. Create work directory: `.claude/workdir/YYYYMMDD-HHMM-<slug>/`
@@ -336,7 +349,7 @@ When all tasks finish:
 | `./scripts/ui-test.sh smoke` | Smoke tests only |
 | `./scripts/ui-test.sh dashboard` | Dashboard tests |
 | `./scripts/ui-test.sh nav` | Navigation tests |
-| `./scripts/ui-test.sh settings` | Settings tests |
+| `./scripts/ui-test.sh profile` | Profile page tests |
 | `./scripts/test-scripts.sh` | Script validation |
 
 ## Reference
@@ -391,8 +404,8 @@ The portal is stateless -- all user data is managed by vire-server via REST API 
 | `GET /api/auth/login/github` | AuthHandler | No (proxies OAuth redirect from vire-server) |
 | `GET /auth/callback` | AuthHandler | No (OAuth callback, sets session cookie or completes MCP flow) |
 | `POST /api/shutdown` | Server | No (dev mode only, 403 in prod) |
-| `GET /settings` | SettingsHandler | No |
-| `POST /settings` | SettingsHandler | No (requires session cookie) |
+| `GET /profile` | ProfileHandler | No |
+| `POST /profile` | ProfileHandler | No (requires session cookie) |
 
 ### Configuration
 

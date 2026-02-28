@@ -203,7 +203,7 @@ Vire Portal needs to expose these HTTP endpoints:
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/` | GET | Landing page / dashboard |
-| `/settings` | GET | User settings, portfolio configuration, API key management |
+| `/profile` | GET | User profile (email, name, auth method) + portfolio configuration, API key management |
 | `/connect` | GET | Instructions for connecting to Claude Desktop / Code |
 
 ---

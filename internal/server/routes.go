@@ -52,9 +52,9 @@ func (s *Server) setupRoutes() *http.ServeMux {
 		mux.Handle("/mcp/", s.app.MCPDevHandler)
 	}
 
-	// Settings page
-	mux.HandleFunc("GET /settings", s.app.SettingsHandler.HandleSettings)
-	mux.HandleFunc("POST /settings", s.app.SettingsHandler.HandleSaveSettings)
+	// Profile page
+	mux.HandleFunc("GET /profile", s.app.ProfileHandler.HandleProfile)
+	mux.HandleFunc("POST /profile", s.app.ProfileHandler.HandleSaveProfile)
 
 	// Auth routes
 	mux.HandleFunc("POST /api/auth/login", s.app.AuthHandler.HandleLogin)

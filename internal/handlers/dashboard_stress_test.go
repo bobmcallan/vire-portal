@@ -532,7 +532,7 @@ func TestDashboardHandler_StressPortfolioSummarySection(t *testing.T) {
 		t.Error("portfolio summary should be conditional on filteredHoldings.length > 0")
 	}
 	// Verify all four summary items exist
-	summaryLabels := []string{"TOTAL VALUE", "TOTAL COST", "NET RETURN $", "NET RETURN %"}
+	summaryLabels := []string{"TOTAL VALUE", "TOTAL INVESTED", "NET RETURN $", "NET RETURN %"}
 	for _, label := range summaryLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected summary label %q in dashboard", label)

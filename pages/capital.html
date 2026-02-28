@@ -16,7 +16,7 @@
             {{if .NavexaKeyMissing}}
             <div class="warning-banner">
                 <strong>WARNING:</strong> Navexa API key not configured.
-                <a href="/settings">Set your API key in Settings</a> to enable portfolio sync.
+                <a href="/profile">Set your API key in Profile</a> to enable portfolio sync.
             </div>
             {{end}}
 
@@ -41,7 +41,7 @@
 
             <!-- Empty state -->
             <div x-show="!loading && portfolios.length === 0 && !error" class="text-muted" style="padding: 2rem 0;">
-                No portfolios found. Configure your Navexa API key in <a href="/settings">Settings</a>.
+                No portfolios found. Configure your Navexa API key in <a href="/profile">Profile</a>.
             </div>
 
             <!-- Summary row -->

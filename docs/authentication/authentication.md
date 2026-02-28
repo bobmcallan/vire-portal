@@ -381,7 +381,7 @@ Same pattern as Google, different provider URLs and scopes.
 - `internal/config/config_test.go` — test auth config loading
 - `internal/handlers/auth.go` — rewrite dev login, add OAuth handlers, add callback
 - `internal/handlers/auth_test.go` — new test file
-- `internal/handlers/settings.go` — update `ExtractJWTSub` → `ValidateJWT`
+- `internal/handlers/profile.go` — user profile handler with API key management
 - `internal/handlers/dashboard.go` — update JWT validation
 - `internal/handlers/landing.go` — update `LoggedIn` check
 - `internal/server/routes.go` — add new auth routes

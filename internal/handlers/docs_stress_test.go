@@ -205,9 +205,9 @@ func TestDocsPage_StressInternalLinksCorrect(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Settings link should go to /settings
-	if !strings.Contains(body, `href="/settings"`) {
-		t.Error("expected /settings link in docs page")
+	// Profile link should go to /profile
+	if !strings.Contains(body, `href="/profile"`) {
+		t.Error("expected /profile link in docs page")
 	}
 	// Dashboard link should go to /dashboard
 	if !strings.Contains(body, `href="/dashboard"`) {
@@ -445,7 +445,7 @@ func TestNavDocsItem_StressMobileNavPresent(t *testing.T) {
 }
 
 func TestNavDocsItem_StressDropdownOrderCorrect(t *testing.T) {
-	// In the hamburger dropdown, Docs should appear after Settings and before Logout.
+	// In the hamburger dropdown, Docs should appear after Profile and before Logout.
 	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
 
 	req := httptest.NewRequest("GET", "/docs", nil)
@@ -456,23 +456,23 @@ func TestNavDocsItem_StressDropdownOrderCorrect(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Find the nav-dropdown section and verify order: Settings, Docs, Logout
+	// Find the nav-dropdown section and verify order: Profile, Docs, Logout
 	dropdownIdx := strings.Index(body, "nav-dropdown")
 	if dropdownIdx < 0 {
 		t.Fatal("nav-dropdown not found in rendered page")
 	}
 	dropdownSection := body[dropdownIdx:]
 
-	settingsIdx := strings.Index(dropdownSection, `href="/settings"`)
+	profileIdx := strings.Index(dropdownSection, `href="/profile"`)
 	docsIdx := strings.Index(dropdownSection, `href="/docs"`)
 	logoutIdx := strings.Index(dropdownSection, "nav-dropdown-logout")
 
-	if settingsIdx < 0 || docsIdx < 0 || logoutIdx < 0 {
-		t.Fatal("missing items in dropdown: Settings, Docs, or Logout")
+	if profileIdx < 0 || docsIdx < 0 || logoutIdx < 0 {
+		t.Fatal("missing items in dropdown: Profile, Docs, or Logout")
 	}
 
-	if !(settingsIdx < docsIdx && docsIdx < logoutIdx) {
-		t.Error("dropdown order should be: Settings, Docs, Logout")
+	if !(profileIdx < docsIdx && docsIdx < logoutIdx) {
+		t.Error("dropdown order should be: Profile, Docs, Logout")
 	}
 }
 

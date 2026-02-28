@@ -45,7 +45,7 @@ Browser
     |
     |-- GET / --------------------> Go server --> HTML template --> rendered page
     |-- GET /static/* ------------> Go server --> static files (CSS/JS)
-    |-- GET /settings ------------> Go server --> settings template (pre-populated)
+    |-- GET /profile ------------> Go server --> profile template (user info + Navexa key)
     |-- POST /api/auth/login -----> Go server --> OAuth provider
     |-- GET /api/profile ---------> Go server --> BadgerDB
     |-- PUT /api/profile/keys ----> Go server --> BadgerDB

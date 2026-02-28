@@ -12,8 +12,8 @@ import (
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
-// SettingsHandler serves the settings page and handles settings updates.
-type SettingsHandler struct {
+// ProfileHandler serves the profile page and handles profile updates.
+type ProfileHandler struct {
 	logger         *common.Logger
 	templates      *template.Template
 	devMode        bool
@@ -24,14 +24,14 @@ type SettingsHandler struct {
 	apiURL         string
 }
 
-// NewSettingsHandler creates a new settings handler.
-func NewSettingsHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userLookupFn func(string) (*client.UserProfile, error), userSaveFn func(string, map[string]string) error) *SettingsHandler {
+// NewProfileHandler creates a new profile handler.
+func NewProfileHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userLookupFn func(string) (*client.UserProfile, error), userSaveFn func(string, map[string]string) error) *ProfileHandler {
 	pagesDir := FindPagesDir()
 
 	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
 	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
 
-	return &SettingsHandler{
+	return &ProfileHandler{
 		logger:       logger,
 		templates:    templates,
 		devMode:      devMode,
@@ -42,17 +42,17 @@ func NewSettingsHandler(logger *common.Logger, devMode bool, jwtSecret []byte, u
 }
 
 // SetDevMCPEndpointFn sets the function to generate dev-mode MCP endpoints.
-func (h *SettingsHandler) SetDevMCPEndpointFn(fn func(userID string) string) {
+func (h *ProfileHandler) SetDevMCPEndpointFn(fn func(userID string) string) {
 	h.devMCPEndpoint = fn
 }
 
 // SetAPIURL sets the API URL for server version fetching.
-func (h *SettingsHandler) SetAPIURL(apiURL string) {
+func (h *ProfileHandler) SetAPIURL(apiURL string) {
 	h.apiURL = apiURL
 }
 
-// HandleSettings serves GET /settings.
-func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request) {
+// HandleProfile serves GET /profile.
+func (h *ProfileHandler) HandleProfile(w http.ResponseWriter, r *http.Request) {
 	loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
 
 	// Redirect unauthenticated users to landing page
@@ -66,8 +66,28 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 		csrfToken = csrfCookie.Value
 	}
 
+	// Determine user info from claims
+	userEmail := ""
+	userName := ""
+	authMethod := ""
+	isOAuth := false
+	if claims != nil {
+		userEmail = claims.Email
+		userName = claims.Name
+		authMethod = claims.Provider
+		isOAuth = claims.Provider == "google" || claims.Provider == "github"
+	}
+
+	// Fall back to user profile for name if claims don't have it
+	if userName == "" && claims != nil && claims.Sub != "" && h.userLookupFn != nil {
+		user, err := h.userLookupFn(claims.Sub)
+		if err == nil && user != nil && user.Username != "" {
+			userName = user.Username
+		}
+	}
+
 	data := map[string]interface{}{
-		"Page":             "settings",
+		"Page":             "profile",
 		"DevMode":          h.devMode,
 		"LoggedIn":         loggedIn,
 		"NavexaKeySet":     false,
@@ -76,6 +96,10 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 		"CSRFToken":        csrfToken,
 		"PortalVersion":    config.GetVersion(),
 		"ServerVersion":    GetServerVersion(h.apiURL),
+		"UserEmail":        userEmail,
+		"UserName":         userName,
+		"AuthMethod":       authMethod,
+		"IsOAuth":          isOAuth,
 	}
 
 	if claims != nil && claims.Sub != "" && h.userLookupFn != nil {
@@ -105,16 +129,16 @@ func (h *SettingsHandler) HandleSettings(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	if err := h.templates.ExecuteTemplate(w, "settings.html", data); err != nil {
+	if err := h.templates.ExecuteTemplate(w, "profile.html", data); err != nil {
 		if h.logger != nil {
-			h.logger.Error().Str("template", "settings.html").Str("error", err.Error()).Msg("failed to render settings")
+			h.logger.Error().Str("template", "profile.html").Str("error", err.Error()).Msg("failed to render profile")
 		}
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
-// HandleSaveSettings handles POST /settings.
-func (h *SettingsHandler) HandleSaveSettings(w http.ResponseWriter, r *http.Request) {
+// HandleSaveProfile handles POST /profile.
+func (h *ProfileHandler) HandleSaveProfile(w http.ResponseWriter, r *http.Request) {
 	loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
 	if !loggedIn || claims == nil || claims.Sub == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -135,13 +159,13 @@ func (h *SettingsHandler) HandleSaveSettings(w http.ResponseWriter, r *http.Requ
 
 	if err := h.userSaveFn(claims.Sub, map[string]string{"navexa_key": navexaKey}); err != nil {
 		if h.logger != nil {
-			h.logger.Error().Str("error", err.Error()).Msg("failed to save user settings")
+			h.logger.Error().Str("error", err.Error()).Msg("failed to save user profile")
 		}
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	http.Redirect(w, r, "/settings?saved=1", http.StatusFound)
+	http.Redirect(w, r, "/profile?saved=1", http.StatusFound)
 }
 
 // ExtractJWTSub base64url-decodes the JWT payload (middle segment)

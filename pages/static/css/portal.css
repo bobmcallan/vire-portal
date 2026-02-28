@@ -1075,12 +1075,12 @@ code {
     flex-shrink: 0;
 }
 
-.settings-key-status {
+.profile-key-status {
     font-size: 0.875rem;
     margin-bottom: 0.5rem;
 }
 
-.settings-key-missing {
+.profile-key-missing {
     color: #888;
 }
 

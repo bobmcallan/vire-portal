@@ -43,8 +43,8 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `GET /api/auth/login/google` | AuthHandler | No | Proxies Google OAuth redirect from vire-server |
 | `GET /api/auth/login/github` | AuthHandler | No | Proxies GitHub OAuth redirect from vire-server |
 | `GET /auth/callback` | AuthHandler | No | OAuth callback (receives `?token=`, sets session cookie) |
-| `GET /settings` | SettingsHandler | No | Settings page (Navexa API key management) |
-| `POST /settings` | SettingsHandler | No | Save settings (requires session cookie) |
+| `GET /profile` | ProfileHandler | No | Profile page (user info + Navexa API key management) |
+| `POST /profile` | ProfileHandler | No | Save profile (requires session cookie) |
 
 ## Prerequisites
 
@@ -305,7 +305,7 @@ level=INF message="loaded configuration" direct_mode=false portal_url="http://lo
 
 **Direct Mode (Recommended for Docker/WSL)**
 
-Direct mode uses an encrypted MCP endpoint URL that embeds user identity, bypassing OAuth entirely. Get your unique endpoint URL from the vire-portal dashboard (Settings > MCP Configuration).
+Direct mode uses an encrypted MCP endpoint URL that embeds user identity, bypassing OAuth entirely. Get your unique endpoint URL from the vire-portal dashboard (Profile > MCP Configuration).
 
 ```json
 {
@@ -876,7 +876,7 @@ Users must provide their own API keys. Vire does not proxy or resell API access.
 
 ### Key Configuration UX
 
-The Settings page displays three key fields:
+The Profile page displays three key fields:
 
 | Service | Required | What It Provides | Where to Get a Key |
 |---------|----------|-----------------|-------------------|
@@ -1014,7 +1014,7 @@ vire-portal/
 │   │   ├── health.go                # GET /api/health
 │   │   ├── helpers.go               # WriteJSON, RequireMethod, WriteError
 │   │   ├── landing.go               # PageHandler (template rendering + static file serving)
-│   │   ├── settings.go              # GET/POST /settings (Navexa API key management)
+│   │   ├── profile.go               # GET/POST /profile (user info + Navexa API key management)
 │   │   └── version.go               # GET /api/version
 │   ├── cache/
 │   │   ├── cache.go                 # API response cache (TTL, max entries, prefix invalidation)
@@ -1071,7 +1071,7 @@ vire-portal/
 │   ├── capital.html                  # Capital page (cash transactions ledger, paged table)
 │   ├── mcp.html                     # MCP info page (connection details, tools table)
 │   ├── landing.html                  # Landing page (Go html/template)
-│   ├── settings.html                 # Settings page (Navexa API key management)
+│   ├── profile.html                  # Profile page (user info + Navexa API key management)
 │   ├── partials/
 │   │   ├── head.html                 # HTML head (IBM Plex Mono, Chart.js CDN, Alpine.js CDN)
 │   │   ├── nav.html                  # Navigation bar
@@ -1250,7 +1250,7 @@ The portal runs alongside vire-server in a Docker Compose stack. `vire-mcp` is a
              │                     │                        │ HTTP + OAuth
     ┌────────┴─────────────────────┴────────────────────────┴─────────┐
     │  vire-portal (:8881)                                            │
-    │  - Landing page, dashboard, strategy, settings                   │
+    │  - Landing page, dashboard, strategy, profile                    │
     │  - MCP endpoint (Streamable HTTP at POST /mcp)                  │
     │  - OAuth 2.1 (DCR, PKCE, token exchange)                        │
     │  - Dynamic tool catalog from vire-server                        │

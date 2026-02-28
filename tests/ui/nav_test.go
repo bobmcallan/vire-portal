@@ -116,7 +116,7 @@ func TestNavLinksPresent(t *testing.T) {
 	}
 }
 
-func TestNavSettingsInDropdown(t *testing.T) {
+func TestNavProfileInDropdown(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -133,14 +133,14 @@ func TestNavSettingsInDropdown(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	takeScreenshot(t, ctx, "nav", "settings-in-dropdown.png")
+	takeScreenshot(t, ctx, "nav", "profile-in-dropdown.png")
 
-	exists, err := common.Exists(ctx, ".nav-dropdown a[href='/settings']")
+	exists, err := common.Exists(ctx, ".nav-dropdown a[href='/profile']")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !exists {
-		t.Error("settings link not found in dropdown")
+		t.Error("profile link not found in dropdown")
 	}
 }
 

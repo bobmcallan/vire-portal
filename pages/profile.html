@@ -2,25 +2,41 @@
 <html lang="en">
 <head>
     {{template "head.html" .}}
-    <title>VIRE SETTINGS</title>
+    <title>VIRE PROFILE</title>
 </head>
 <body>
     {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
     <main class="page">
         <div class="page-body">
             {{if .Saved}}
-            <div class="success-banner">Settings saved successfully.</div>
+            <div class="success-banner">Profile saved successfully.</div>
             {{end}}
 
             {{if .LoggedIn}}
             <section class="dashboard-section">
+                <h2 class="section-title">USER PROFILE</h2>
+                <div class="dashboard-field">
+                    <span class="dashboard-label">EMAIL</span>
+                    <span>{{.UserEmail}}</span>
+                </div>
+                <div class="dashboard-field">
+                    <span class="dashboard-label">NAME</span>
+                    <span>{{.UserName}}</span>
+                </div>
+                <div class="dashboard-field">
+                    <span class="dashboard-label">AUTH METHOD</span>
+                    <span>{{.AuthMethod}}</span>
+                </div>
+            </section>
+
+            <section class="dashboard-section">
                 <h2 class="section-title">NAVEXA API KEY</h2>
                 {{if .NavexaKeySet}}
-                <p class="settings-key-status">Current key: <code>****{{.NavexaKeyPreview}}</code></p>
+                <p class="profile-key-status">Current key: <code>****{{.NavexaKeyPreview}}</code></p>
                 {{else}}
-                <p class="settings-key-status settings-key-missing">No API key configured.</p>
+                <p class="profile-key-status profile-key-missing">No API key configured.</p>
                 {{end}}
-                <form method="POST" action="/settings">
+                <form method="POST" action="/profile">
                     <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
                     <div class="form-group">
                         <label for="navexa_key" class="form-label">{{if .NavexaKeySet}}NEW KEY{{else}}API KEY{{end}}</label>
@@ -94,7 +110,7 @@
             {{if .DevMCPEndpoint}}
             <section class="dashboard-section" style="border-color:#c90">
                 <h2 class="section-title" style="color:#c90">DEV MCP ENDPOINT</h2>
-                <p class="settings-key-status">Use this URL to connect Claude Desktop to your Vire instance:</p>
+                <p class="profile-key-status">Use this URL to connect Claude Desktop to your Vire instance:</p>
                 <div class="code-block" style="word-break:break-all;white-space:pre-wrap;font-size:0.8rem">{{.DevMCPEndpoint}}</div>
             </section>
             {{end}}
@@ -102,7 +118,7 @@
 
             {{else}}
             <section class="dashboard-section">
-                <p>Please <a href="/">sign in</a> to manage your settings.</p>
+                <p>Please <a href="/">sign in</a> to manage your profile.</p>
             </section>
             {{end}}
         </div>

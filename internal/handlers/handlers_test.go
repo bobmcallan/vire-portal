@@ -874,23 +874,23 @@ func TestExtractJWTSub_InvalidToken(t *testing.T) {
 	}
 }
 
-// --- Settings Handler Tests ---
+// --- Profile Handler Tests ---
 
-func TestSettingsHandler_GET_NoKey(t *testing.T) {
+func TestProfileHandler_GET_NoKey(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 	saveFn := func(userID string, fields map[string]string) error { return nil }
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	// Build a dev JWT cookie
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", w.Code)
@@ -902,20 +902,20 @@ func TestSettingsHandler_GET_NoKey(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_GET_WithKey(t *testing.T) {
+func TestProfileHandler_GET_WithKey(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: "c123"}, nil
 	}
 	saveFn := func(userID string, fields map[string]string) error { return nil }
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", w.Code)
@@ -927,7 +927,7 @@ func TestSettingsHandler_GET_WithKey(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_POST_SavesKey(t *testing.T) {
+func TestProfileHandler_POST_SavesKey(t *testing.T) {
 	var savedKey string
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
@@ -937,63 +937,63 @@ func TestSettingsHandler_POST_SavesKey(t *testing.T) {
 		return nil
 	}
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=my-new-key"))
+	req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key=my-new-key"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSaveSettings(w, req)
+	handler.HandleSaveProfile(w, req)
 
 	if w.Code != http.StatusFound {
 		t.Errorf("expected status 302, got %d", w.Code)
 	}
 	location := w.Header().Get("Location")
-	if location != "/settings?saved=1" {
-		t.Errorf("expected redirect to /settings?saved=1, got %s", location)
+	if location != "/profile?saved=1" {
+		t.Errorf("expected redirect to /profile?saved=1, got %s", location)
 	}
 	if savedKey != "my-new-key" {
 		t.Errorf("expected saved key 'my-new-key', got %q", savedKey)
 	}
 }
 
-func TestSettingsHandler_POST_NoCookie(t *testing.T) {
+func TestProfileHandler_POST_NoCookie(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 	saveFn := func(userID string, fields map[string]string) error { return nil }
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=my-key"))
+	req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key=my-key"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	// No cookie
 	w := httptest.NewRecorder()
 
-	handler.HandleSaveSettings(w, req)
+	handler.HandleSaveProfile(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected status 401, got %d", w.Code)
 	}
 }
 
-func TestSettingsHandler_GET_NoCookie(t *testing.T) {
+func TestProfileHandler_GET_NoCookie(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 	saveFn := func(userID string, fields map[string]string) error { return nil }
 
-	handler := NewSettingsHandler(nil, true, []byte(testJWTSecret), lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte(testJWTSecret), lookupFn, saveFn)
 
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	// No cookie
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
-	// Settings now requires authentication - redirects to landing page
+	// Profile requires authentication - redirects to landing page
 	if w.Code != http.StatusFound {
 		t.Errorf("expected status 302 redirect, got %d", w.Code)
 	}
@@ -1004,24 +1004,81 @@ func TestSettingsHandler_GET_NoCookie(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_GET_SavedBanner(t *testing.T) {
+func TestProfileHandler_GET_SavedBanner(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: "y123"}, nil
 	}
 	saveFn := func(userID string, fields map[string]string) error { return nil }
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("GET", "/settings?saved=1", nil)
+	req := httptest.NewRequest("GET", "/profile?saved=1", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	body := w.Body.String()
-	if !strings.Contains(body, "Settings saved successfully") {
-		t.Error("expected 'Settings saved successfully' banner when saved=1")
+	if !strings.Contains(body, "Profile saved successfully") {
+		t.Error("expected 'Profile saved successfully' banner when saved=1")
+	}
+}
+
+func TestProfileHandler_GET_ShowsUserInfo(t *testing.T) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
+	}
+	saveFn := func(userID string, fields map[string]string) error { return nil }
+
+	handler := NewProfileHandler(nil, true, []byte(testJWTSecret), lookupFn, saveFn)
+
+	req := httptest.NewRequest("GET", "/profile", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.HandleProfile(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "test@example.com") {
+		t.Error("expected user email to appear in profile page")
+	}
+	if !strings.Contains(body, "Test User") {
+		t.Error("expected user name to appear in profile page")
+	}
+	if !strings.Contains(body, "test") {
+		t.Error("expected auth method to appear in profile page")
+	}
+	if !strings.Contains(body, "USER PROFILE") {
+		t.Error("expected USER PROFILE section title")
+	}
+}
+
+func TestProfileHandler_GET_OAuthEmailLocked(t *testing.T) {
+	// OAuth users (google/github) should not have email in an editable input
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "dev_user"}, nil
+	}
+	saveFn := func(userID string, fields map[string]string) error { return nil }
+
+	handler := NewProfileHandler(nil, true, []byte(testJWTSecret), lookupFn, saveFn)
+
+	req := httptest.NewRequest("GET", "/profile", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.HandleProfile(w, req)
+
+	body := w.Body.String()
+
+	// The user profile section should show email as plain text, not in an input field
+	// The email field in USER PROFILE section uses <span>, not <input>
+	if strings.Contains(body, `<input`) && strings.Contains(body, `name="email"`) {
+		t.Error("email should not be in an editable input field in user profile section")
 	}
 }
 
@@ -1044,8 +1101,8 @@ func TestDashboardHandler_NavexaKeyMissing_WhenEmpty(t *testing.T) {
 	if !strings.Contains(body, "WARNING") {
 		t.Error("expected WARNING banner when Navexa key is empty")
 	}
-	if !strings.Contains(body, "/settings") {
-		t.Error("expected link to /settings in warning banner")
+	if !strings.Contains(body, "/profile") {
+		t.Error("expected link to /profile in warning banner")
 	}
 }
 
@@ -1087,35 +1144,35 @@ func TestDashboardHandler_NavexaKeyMissing_NotLoggedIn(t *testing.T) {
 	}
 }
 
-// --- Settings Handler Stress Tests ---
+// --- Profile Handler Stress Tests ---
 
-func TestSettingsHandler_POST_EmptyCookie(t *testing.T) {
+func TestProfileHandler_POST_EmptyCookie(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 	saveFn := func(userID string, fields map[string]string) error { return nil }
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=key"))
+	req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key=key"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: ""})
 	w := httptest.NewRecorder()
 
-	handler.HandleSaveSettings(w, req)
+	handler.HandleSaveProfile(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 for empty cookie value, got %d", w.Code)
 	}
 }
 
-func TestSettingsHandler_POST_GarbageJWT(t *testing.T) {
+func TestProfileHandler_POST_GarbageJWT(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 	saveFn := func(userID string, fields map[string]string) error { return nil }
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	garbageTokens := []string{
 		"not-a-jwt",
@@ -1125,12 +1182,12 @@ func TestSettingsHandler_POST_GarbageJWT(t *testing.T) {
 	}
 
 	for _, token := range garbageTokens {
-		req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=key"))
+		req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key=key"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 		w := httptest.NewRecorder()
 
-		handler.HandleSaveSettings(w, req)
+		handler.HandleSaveProfile(w, req)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("expected 401 for garbage JWT %q, got %d", token, w.Code)
@@ -1138,7 +1195,7 @@ func TestSettingsHandler_POST_GarbageJWT(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_POST_UnknownUser(t *testing.T) {
+func TestProfileHandler_POST_UnknownUser(t *testing.T) {
 	// Save returns error when user doesn't exist on the server
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return nil, fmt.Errorf("user not found")
@@ -1147,22 +1204,22 @@ func TestSettingsHandler_POST_UnknownUser(t *testing.T) {
 		return fmt.Errorf("user not found: %s", userID)
 	}
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	token := buildTestJWT("nonexistent_user")
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=key"))
+	req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key=key"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSaveSettings(w, req)
+	handler.HandleSaveProfile(w, req)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 for unknown user save, got %d", w.Code)
 	}
 }
 
-func TestSettingsHandler_POST_HostileInputs(t *testing.T) {
+func TestProfileHandler_POST_HostileInputs(t *testing.T) {
 	// Verify hostile API key inputs are stored as-is (not interpreted) and don't crash.
 	// html/template handles escaping on output — the storage layer should accept arbitrary strings.
 	var savedKeys []string
@@ -1174,7 +1231,7 @@ func TestSettingsHandler_POST_HostileInputs(t *testing.T) {
 		return nil
 	}
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	hostileInputs := []struct {
 		name     string
@@ -1196,12 +1253,12 @@ func TestSettingsHandler_POST_HostileInputs(t *testing.T) {
 			savedKeys = nil
 			token := buildTestJWT("dev_user")
 			formData := url.Values{"navexa_key": {tc.input}}
-			req := httptest.NewRequest("POST", "/settings", strings.NewReader(formData.Encode()))
+			req := httptest.NewRequest("POST", "/profile", strings.NewReader(formData.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 			w := httptest.NewRecorder()
 
-			handler.HandleSaveSettings(w, req)
+			handler.HandleSaveProfile(w, req)
 
 			if w.Code != http.StatusFound {
 				t.Errorf("expected 302 for input %q, got %d", tc.name, w.Code)
@@ -1216,7 +1273,7 @@ func TestSettingsHandler_POST_HostileInputs(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_POST_VeryLongKey(t *testing.T) {
+func TestProfileHandler_POST_VeryLongKey(t *testing.T) {
 	// The 1MB body size limit from middleware protects against extreme payloads,
 	// but test that a moderately long key doesn't crash the handler.
 	var savedKey string
@@ -1228,16 +1285,16 @@ func TestSettingsHandler_POST_VeryLongKey(t *testing.T) {
 		return nil
 	}
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	longKey := strings.Repeat("A", 10000)
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key="+longKey))
+	req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key="+longKey))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSaveSettings(w, req)
+	handler.HandleSaveProfile(w, req)
 
 	if w.Code != http.StatusFound {
 		t.Errorf("expected 302 for long key, got %d", w.Code)
@@ -1247,7 +1304,7 @@ func TestSettingsHandler_POST_VeryLongKey(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_POST_StorageFailure(t *testing.T) {
+func TestProfileHandler_POST_StorageFailure(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
@@ -1255,53 +1312,53 @@ func TestSettingsHandler_POST_StorageFailure(t *testing.T) {
 		return fmt.Errorf("database connection lost")
 	}
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=key"))
+	req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key=key"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSaveSettings(w, req)
+	handler.HandleSaveProfile(w, req)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 on storage failure, got %d", w.Code)
 	}
 }
 
-func TestSettingsHandler_POST_NilLookupAndSaveFn(t *testing.T) {
+func TestProfileHandler_POST_NilLookupAndSaveFn(t *testing.T) {
 	// Misconfigured handler with nil function pointers should not panic
-	handler := NewSettingsHandler(nil, true, []byte{}, nil, nil)
+	handler := NewProfileHandler(nil, true, []byte{}, nil, nil)
 
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key=key"))
+	req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key=key"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSaveSettings(w, req)
+	handler.HandleSaveProfile(w, req)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 for nil lookup/save functions, got %d", w.Code)
 	}
 }
 
-func TestSettingsHandler_GET_XSSInNavexaKeyPreview(t *testing.T) {
+func TestProfileHandler_GET_XSSInNavexaKeyPreview(t *testing.T) {
 	// If the server returns a hostile preview, verify it is HTML-escaped on output
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: `<img onerror=alert(1) src=x>`}, nil
 	}
 	saveFn := func(userID string, fields map[string]string) error { return nil }
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	body := w.Body.String()
 
@@ -1311,7 +1368,7 @@ func TestSettingsHandler_GET_XSSInNavexaKeyPreview(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_GET_DisplaysServerPreview(t *testing.T) {
+func TestProfileHandler_GET_DisplaysServerPreview(t *testing.T) {
 	// The portal displays whatever preview the server sends, prefixed with ****.
 	tests := []struct {
 		name    string
@@ -1327,14 +1384,14 @@ func TestSettingsHandler_GET_DisplaysServerPreview(t *testing.T) {
 			lookupFn := func(userID string) (*client.UserProfile, error) {
 				return &client.UserProfile{Username: "dev_user", NavexaKeySet: true, NavexaKeyPreview: tc.preview}, nil
 			}
-			handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
+			handler := NewProfileHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 			token := buildTestJWT("dev_user")
-			req := httptest.NewRequest("GET", "/settings", nil)
+			req := httptest.NewRequest("GET", "/profile", nil)
 			req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 			w := httptest.NewRecorder()
 
-			handler.HandleSettings(w, req)
+			handler.HandleProfile(w, req)
 
 			body := w.Body.String()
 			if tc.preview != "" && !strings.Contains(body, "****"+tc.preview) {
@@ -1344,12 +1401,12 @@ func TestSettingsHandler_GET_DisplaysServerPreview(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_GET_SavedQueryParamInjection(t *testing.T) {
+func TestProfileHandler_GET_SavedQueryParamInjection(t *testing.T) {
 	// Verify only "saved=1" triggers the banner; other values don't cause issues
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	tests := []struct {
 		query      string
@@ -1366,18 +1423,18 @@ func TestSettingsHandler_GET_SavedQueryParamInjection(t *testing.T) {
 	for _, tc := range tests {
 		t.Run("query_"+tc.query, func(t *testing.T) {
 			token := buildTestJWT("dev_user")
-			req := httptest.NewRequest("GET", "/settings"+tc.query, nil)
+			req := httptest.NewRequest("GET", "/profile"+tc.query, nil)
 			req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 			w := httptest.NewRecorder()
 
-			handler.HandleSettings(w, req)
+			handler.HandleProfile(w, req)
 
 			if w.Code != http.StatusOK {
 				t.Errorf("expected 200, got %d", w.Code)
 			}
 
 			body := w.Body.String()
-			hasBanner := strings.Contains(body, "Settings saved successfully")
+			hasBanner := strings.Contains(body, "Profile saved successfully")
 			if hasBanner != tc.shouldShow {
 				t.Errorf("query=%q: expected banner=%v, got %v", tc.query, tc.shouldShow, hasBanner)
 			}
@@ -1390,7 +1447,7 @@ func TestSettingsHandler_GET_SavedQueryParamInjection(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_POST_ConcurrentSaves(t *testing.T) {
+func TestProfileHandler_POST_ConcurrentSaves(t *testing.T) {
 	var saveCount atomic.Int32
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
@@ -1400,19 +1457,19 @@ func TestSettingsHandler_POST_ConcurrentSaves(t *testing.T) {
 		return nil
 	}
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	done := make(chan bool, 20)
 	for i := 0; i < 20; i++ {
 		go func(n int) {
 			token := buildTestJWT("dev_user")
 			key := fmt.Sprintf("key-%d", n)
-			req := httptest.NewRequest("POST", "/settings", strings.NewReader("navexa_key="+key))
+			req := httptest.NewRequest("POST", "/profile", strings.NewReader("navexa_key="+key))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 			w := httptest.NewRecorder()
 
-			handler.HandleSaveSettings(w, req)
+			handler.HandleSaveProfile(w, req)
 
 			if w.Code != http.StatusFound {
 				t.Errorf("concurrent save %d got status %d", n, w.Code)
@@ -1426,19 +1483,19 @@ func TestSettingsHandler_POST_ConcurrentSaves(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_POST_RedirectIsHardcoded(t *testing.T) {
+func TestProfileHandler_POST_RedirectIsHardcoded(t *testing.T) {
 	// Verify the redirect target after save cannot be influenced by request parameters
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
 	saveFn := func(userID string, fields map[string]string) error { return nil }
 
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, saveFn)
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, saveFn)
 
 	paths := []string{
-		"/settings?redirect=https://evil.com",
-		"/settings?next=https://evil.com",
-		"/settings?return_to=//evil.com",
+		"/profile?redirect=https://evil.com",
+		"/profile?next=https://evil.com",
+		"/profile?return_to=//evil.com",
 	}
 
 	for _, path := range paths {
@@ -1448,36 +1505,36 @@ func TestSettingsHandler_POST_RedirectIsHardcoded(t *testing.T) {
 		req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 		w := httptest.NewRecorder()
 
-		handler.HandleSaveSettings(w, req)
+		handler.HandleSaveProfile(w, req)
 
 		location := w.Header().Get("Location")
-		if location != "/settings?saved=1" {
+		if location != "/profile?saved=1" {
 			t.Errorf("redirect target influenced by query params: path=%s, location=%s", path, location)
 		}
 	}
 }
 
-func TestSettingsHandler_GET_LookupFailure(t *testing.T) {
+func TestProfileHandler_GET_LookupFailure(t *testing.T) {
 	// If the DB is unavailable during GET, the page should still render (just without key info)
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return nil, fmt.Errorf("database unavailable")
 	}
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200 even with DB failure, got %d", w.Code)
 	}
 
 	body := w.Body.String()
-	if !strings.Contains(body, "SETTINGS") {
-		t.Error("expected settings page to render despite DB failure")
+	if !strings.Contains(body, "PROFILE") {
+		t.Error("expected profile page to render despite DB failure")
 	}
 }
 
@@ -1587,7 +1644,7 @@ func TestNavTemplate_MobileMenuPresent(t *testing.T) {
 }
 
 func TestNavTemplate_HamburgerDropdownPresent(t *testing.T) {
-	// Verify nav uses navMenu() component and has a dropdown with Settings + Logout.
+	// Verify nav uses navMenu() component and has a dropdown with Profile + Logout.
 	// Note: Using DashboardHandler because landing page auto-logouts and doesn't show nav.
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
@@ -1605,8 +1662,8 @@ func TestNavTemplate_HamburgerDropdownPresent(t *testing.T) {
 	if !strings.Contains(body, `nav-dropdown`) {
 		t.Error("expected nav-dropdown class for desktop dropdown menu")
 	}
-	if !strings.Contains(body, `href="/settings"`) {
-		t.Error("expected settings link in dropdown")
+	if !strings.Contains(body, `href="/profile"`) {
+		t.Error("expected profile link in dropdown")
 	}
 	if !strings.Contains(body, `/api/auth/logout`) {
 		t.Error("expected logout form in dropdown")
@@ -1748,49 +1805,49 @@ func TestDashboardHandler_PageIdentifier(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_PageIdentifier(t *testing.T) {
+func TestProfileHandler_PageIdentifier(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, []byte(testJWTSecret), lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewProfileHandler(nil, true, []byte(testJWTSecret), lookupFn, func(userID string, fields map[string]string) error { return nil })
 
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	body := w.Body.String()
 
-	if !strings.Contains(body, "SETTINGS") {
-		t.Error("expected SETTINGS to appear in page (from <title> tag)")
+	if !strings.Contains(body, "PROFILE") {
+		t.Error("expected PROFILE to appear in page (from <title> tag)")
 	}
 }
 
-func TestSettingsHandler_FormUsesComponentLibraryClasses(t *testing.T) {
+func TestProfileHandler_FormUsesComponentLibraryClasses(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	body := w.Body.String()
 
-	// Settings form should use component library classes
+	// Profile form should use component library classes
 	if !strings.Contains(body, "form-group") {
-		t.Error("expected form-group class from component library in settings form")
+		t.Error("expected form-group class from component library in profile form")
 	}
 	if !strings.Contains(body, "form-label") {
-		t.Error("expected form-label class from component library in settings form")
+		t.Error("expected form-label class from component library in profile form")
 	}
 	if !strings.Contains(body, "form-input") {
-		t.Error("expected form-input class from component library in settings form")
+		t.Error("expected form-input class from component library in profile form")
 	}
 }
 
@@ -1819,46 +1876,46 @@ func TestMCPPageHandler_ToolTableUseComponentLibraryClasses(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_CSRFTokenInHiddenField(t *testing.T) {
-	// The settings form must include a hidden CSRF token field.
+func TestProfileHandler_CSRFTokenInHiddenField(t *testing.T) {
+	// The profile form must include a hidden CSRF token field.
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	req.AddCookie(&http.Cookie{Name: "_csrf", Value: "test-csrf-value"})
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	body := w.Body.String()
 
 	// Should contain hidden CSRF field
 	if !strings.Contains(body, `name="_csrf"`) {
-		t.Error("expected hidden _csrf field in settings form")
+		t.Error("expected hidden _csrf field in profile form")
 	}
 	if !strings.Contains(body, `value="test-csrf-value"`) {
 		t.Error("expected CSRF token value to be injected from cookie")
 	}
 }
 
-func TestSettingsHandler_CSRFTokenXSSEscaped(t *testing.T) {
+func TestProfileHandler_CSRFTokenXSSEscaped(t *testing.T) {
 	// If a hostile CSRF cookie value is set, it must be HTML-escaped in the hidden field.
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewProfileHandler(nil, true, []byte{}, lookupFn, func(userID string, fields map[string]string) error { return nil })
 
 	token := buildTestJWT("dev_user")
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: token})
 	req.AddCookie(&http.Cookie{Name: "_csrf", Value: `"><script>alert(1)</script>`})
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	body := w.Body.String()
 
@@ -1977,17 +2034,17 @@ func TestDashboardHandler_WarningBannerCSS(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_SuccessBannerCSS(t *testing.T) {
+func TestProfileHandler_SuccessBannerCSS(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, []byte(testJWTSecret), lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewProfileHandler(nil, true, []byte(testJWTSecret), lookupFn, func(userID string, fields map[string]string) error { return nil })
 
-	req := httptest.NewRequest("GET", "/settings?saved=1", nil)
+	req := httptest.NewRequest("GET", "/profile?saved=1", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	body := w.Body.String()
 	if !strings.Contains(body, "success-banner") {
@@ -2638,24 +2695,24 @@ func TestDashboardHandler_ContainsVersionFooter(t *testing.T) {
 	}
 }
 
-func TestSettingsHandler_ContainsVersionFooter(t *testing.T) {
+func TestProfileHandler_ContainsVersionFooter(t *testing.T) {
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "dev_user"}, nil
 	}
-	handler := NewSettingsHandler(nil, true, []byte(testJWTSecret), lookupFn, func(userID string, fields map[string]string) error { return nil })
+	handler := NewProfileHandler(nil, true, []byte(testJWTSecret), lookupFn, func(userID string, fields map[string]string) error { return nil })
 
-	req := httptest.NewRequest("GET", "/settings", nil)
+	req := httptest.NewRequest("GET", "/profile", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.HandleSettings(w, req)
+	handler.HandleProfile(w, req)
 
 	body := w.Body.String()
 	if !strings.Contains(body, "Portal:") {
-		t.Error("expected settings footer to contain 'Portal:' label")
+		t.Error("expected profile footer to contain 'Portal:' label")
 	}
 	if !strings.Contains(body, "Server:") {
-		t.Error("expected settings footer to contain 'Server:' label")
+		t.Error("expected profile footer to contain 'Server:' label")
 	}
 }
 
@@ -2751,8 +2808,8 @@ func TestStrategyHandler_NavexaKeyMissing_WhenEmpty(t *testing.T) {
 	if !strings.Contains(body, "WARNING") {
 		t.Error("expected WARNING banner when Navexa key is empty")
 	}
-	if !strings.Contains(body, "/settings") {
-		t.Error("expected link to /settings in warning banner")
+	if !strings.Contains(body, "/profile") {
+		t.Error("expected link to /profile in warning banner")
 	}
 }
 

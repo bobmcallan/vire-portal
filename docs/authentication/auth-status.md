@@ -177,13 +177,13 @@ Effects on auth:
 | `internal/auth/discovery.go` | .well-known OAuth discovery endpoints |
 | `internal/handlers/auth.go` | JWT validation, `HandleLogin`, OAuth handlers, MCP session completion |
 | `internal/handlers/auth_test.go` | Auth unit tests |
-| `internal/handlers/settings.go` | Settings page (includes dev JWT debug) |
+| `internal/handlers/profile.go` | Profile page (user info + API key management, includes dev JWT debug) |
 | `internal/mcp/handler.go` | MCP handler (Bearer token + cookie auth, JWT validation) |
 | `internal/config/config.go` | AuthConfig struct, env overrides |
 | `internal/config/defaults.go` | Default auth values |
 | `internal/client/vire_client.go` | `ExchangeOAuth`, `GetUser`, `UpdateUser` |
 | `internal/server/routes.go` | Route registration |
-| `pages/settings.html` | Settings template with dev auth debug section |
+| `pages/profile.html` | Profile template (user info section) with dev auth debug section |
 | `pages/landing.html` | Landing page with login buttons |
 
 ## MCP OAuth 2.1

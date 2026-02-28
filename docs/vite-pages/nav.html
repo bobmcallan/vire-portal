@@ -14,7 +14,7 @@
                             Menu <span class="dropdown-arrow" :class="open && 'open'">▼</span>
                         </button>
                         <div x-show="open" @click.outside="close()" x-transition.opacity class="dropdown-menu">
-                            <a href="/settings">Settings</a>
+                            <a href="/profile">Profile</a>
                             <a href="/portfolios">Portfolios</a>
                             <a href="/api/auth/logout">Logout</a>
                         </div>
@@ -36,7 +36,7 @@
                 <button @click="close()" class="mobile-menu-close">✕</button>
                 <a href="/dashboard">Dashboard</a>
                 <a href="/config">Config</a>
-                <a href="/settings">Settings</a>
+                <a href="/profile">Profile</a>
                 <a href="/portfolios">Portfolios</a>
                 <a href="/api/auth/logout">Logout</a>
             </div>
