@@ -263,7 +263,7 @@ func startTestEnvironment() (*PortalContainer, error) {
 		network.WithNetwork([]string{"vire-portal"}, testNet),
 		testcontainers.WithEnv(map[string]string{
 			"VIRE_API_URL":         fmt.Sprintf("http://%s:8080", serverIP),
-			"VIRE_AUTH_JWT_SECRET": "change-me-in-production",
+			"VIRE_AUTH_JWT_SECRET": "test-jwt-secret-for-ci",
 			"VIRE_ENV":             "dev",
 			"VIRE_SERVER_HOST":     "0.0.0.0",
 		}),
