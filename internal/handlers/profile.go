@@ -107,6 +107,7 @@ func (h *ProfileHandler) HandleProfile(w http.ResponseWriter, r *http.Request) {
 		if err == nil && user != nil {
 			data["NavexaKeySet"] = user.NavexaKeySet
 			data["NavexaKeyPreview"] = user.NavexaKeyPreview
+			data["UserRole"] = user.Role
 		}
 	}
 

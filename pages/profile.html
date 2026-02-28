@@ -27,6 +27,12 @@
                     <span class="dashboard-label">AUTH METHOD</span>
                     <span>{{.AuthMethod}}</span>
                 </div>
+                {{if .UserRole}}
+                <div class="dashboard-field">
+                    <span class="dashboard-label">ROLE</span>
+                    <span>{{.UserRole}}</span>
+                </div>
+                {{end}}
             </section>
 
             <section class="dashboard-section">
