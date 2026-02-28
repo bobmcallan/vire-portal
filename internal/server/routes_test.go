@@ -45,14 +45,14 @@ func newTestApp(t *testing.T) *app.App {
 	t.Helper()
 
 	cfg := config.NewDefaultConfig()
-	// Create a mock server that immediately returns 503 to avoid slow connection timeouts.
-	// This allows the MCP handler's catalog fetch to fail fast instead of waiting 10s per retry.
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Disable MCP catalog retries in tests to avoid cumulative startup delays.
+	cfg.MCP.CatalogRetries = 0
+	// Mock API server returns 503 so proxy tests get a fast response instead of hanging.
+	mockAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
-	t.Cleanup(mockServer.Close)
-
-	cfg.API.URL = mockServer.URL
+	t.Cleanup(mockAPI.Close)
+	cfg.API.URL = mockAPI.URL
 
 	logger := common.NewSilentLogger()
 

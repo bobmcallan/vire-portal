@@ -22,6 +22,11 @@ type ServiceConfig struct {
 	PortalID string `toml:"portal_id"`
 }
 
+// MCPConfig contains MCP handler settings.
+type MCPConfig struct {
+	CatalogRetries int `toml:"catalog_retries"`
+}
+
 // Config represents the application configuration.
 type Config struct {
 	Environment string        `toml:"environment"`
@@ -33,6 +38,7 @@ type Config struct {
 	Service     ServiceConfig `toml:"service"`
 	User        UserConfig    `toml:"user"`
 	Logging     LoggingConfig `toml:"logging"`
+	MCP         MCPConfig     `toml:"mcp"`
 }
 
 // IsDevMode returns true when the environment is set to "dev" or "development" (case-insensitive, trimmed).

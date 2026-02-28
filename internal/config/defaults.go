@@ -31,5 +31,8 @@ func NewDefaultConfig() *Config {
 			Outputs:  []string{"console", "file"},
 			FilePath: "logs/vire-portal.log",
 		},
+		MCP: MCPConfig{
+			CatalogRetries: 3,
+		},
 	}
 }

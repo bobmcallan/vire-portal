@@ -25,9 +25,6 @@ type Handler struct {
 	jwtSecret  []byte
 }
 
-// catalogRetryAttempts is the number of times to retry fetching the catalog.
-const catalogRetryAttempts = 3
-
 // catalogRetryDelay is the delay between retry attempts.
 const catalogRetryDelay = 2 * time.Second
 
@@ -42,9 +39,13 @@ func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 	proxy := NewMCPProxy(cfg.API.URL, logger, cfg)
 
 	// Fetch tool catalog from vire-server with retry (non-fatal if unreachable)
+	maxAttempts := cfg.MCP.CatalogRetries
+	if maxAttempts < 0 {
+		maxAttempts = 0
+	}
 	var catalog []CatalogTool
 	var fetchErr error
-	for attempt := 1; attempt <= catalogRetryAttempts; attempt++ {
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		catalog, fetchErr = proxy.FetchCatalog(ctx)
 		cancel()
@@ -53,11 +54,11 @@ func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 		}
 		logger.Warn().
 			Int("attempt", attempt).
-			Int("max_attempts", catalogRetryAttempts).
+			Int("max_attempts", maxAttempts).
 			Str("error", fetchErr.Error()).
 			Str("api_url", cfg.API.URL).
 			Msg("failed to fetch tool catalog, retrying")
-		if attempt < catalogRetryAttempts {
+		if attempt < maxAttempts {
 			time.Sleep(catalogRetryDelay)
 		}
 	}
@@ -66,7 +67,7 @@ func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 	var toolCount int
 	if fetchErr != nil {
 		logger.Warn().
-			Int("attempts", catalogRetryAttempts).
+			Int("attempts", maxAttempts).
 			Str("error", fetchErr.Error()).
 			Str("api_url", cfg.API.URL).
 			Msg("failed to fetch tool catalog after retries, starting with 0 tools")
