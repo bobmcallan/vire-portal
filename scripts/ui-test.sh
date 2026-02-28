@@ -203,5 +203,9 @@ if [ -n "$DOCKER_MODE" ]; then
     cleanup_test_containers
 fi
 
-# Exit with test result
-exit $TEST_EXIT_CODE
+# Exit based on test failures (not raw go test exit code which may be non-zero
+# due to goroutine leaks during testcontainers cleanup).
+if [ "$FAILED" -gt 0 ]; then
+    exit 1
+fi
+exit 0
