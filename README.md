@@ -184,6 +184,9 @@ Configuration priority (highest wins): CLI flags > environment variables > TOML 
 | JWT secret | `auth.jwt_secret` | `VIRE_AUTH_JWT_SECRET` | -- | `""` |
 | OAuth callback URL | `auth.callback_url` | `VIRE_AUTH_CALLBACK_URL` | -- | `http://localhost:8080/auth/callback` |
 | Portal URL | `auth.portal_url` | `VIRE_PORTAL_URL` | -- | `""` |
+| Admin users | `admin_users` | `VIRE_ADMIN_USERS` | -- | `""` |
+| Service key | `service.key` | `VIRE_SERVICE_KEY` | -- | `""` |
+| Portal ID | `service.portal_id` | `VIRE_PORTAL_ID` | -- | hostname |
 | Environment | `environment` | `VIRE_ENV` | -- | `prod` |
 | Log level | `logging.level` | `VIRE_LOG_LEVEL` | -- | `info` |
 | Log format | `logging.format` | `VIRE_LOG_FORMAT` | -- | `text` |

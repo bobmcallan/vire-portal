@@ -1017,3 +1017,207 @@ func TestApplyEnvOverrides_PortalURL(t *testing.T) {
 		t.Errorf("expected portal_url https://portal.example.com, got %s", cfg.Auth.PortalURL)
 	}
 }
+
+// --- AdminEmails Tests ---
+
+func TestAdminEmails_CommaSeparated(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.AdminUsers = "a@x.com,b@x.com"
+
+	emails := cfg.AdminEmails()
+	if len(emails) != 2 {
+		t.Fatalf("expected 2 emails, got %d", len(emails))
+	}
+	if emails[0] != "a@x.com" {
+		t.Errorf("expected a@x.com, got %s", emails[0])
+	}
+	if emails[1] != "b@x.com" {
+		t.Errorf("expected b@x.com, got %s", emails[1])
+	}
+}
+
+func TestAdminEmails_Whitespace(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.AdminUsers = " a@x.com , b@x.com "
+
+	emails := cfg.AdminEmails()
+	if len(emails) != 2 {
+		t.Fatalf("expected 2 emails, got %d", len(emails))
+	}
+	if emails[0] != "a@x.com" {
+		t.Errorf("expected a@x.com, got %s", emails[0])
+	}
+	if emails[1] != "b@x.com" {
+		t.Errorf("expected b@x.com, got %s", emails[1])
+	}
+}
+
+func TestAdminEmails_Empty(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.AdminUsers = ""
+
+	emails := cfg.AdminEmails()
+	if len(emails) != 0 {
+		t.Errorf("expected 0 emails for empty string, got %d", len(emails))
+	}
+}
+
+func TestAdminEmails_SingleEmail(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.AdminUsers = "admin@example.com"
+
+	emails := cfg.AdminEmails()
+	if len(emails) != 1 {
+		t.Fatalf("expected 1 email, got %d", len(emails))
+	}
+	if emails[0] != "admin@example.com" {
+		t.Errorf("expected admin@example.com, got %s", emails[0])
+	}
+}
+
+func TestAdminEmails_CaseNormalization(t *testing.T) {
+	cfg := NewDefaultConfig()
+	cfg.AdminUsers = "Admin@Example.COM,BOB@Test.com"
+
+	emails := cfg.AdminEmails()
+	if len(emails) != 2 {
+		t.Fatalf("expected 2 emails, got %d", len(emails))
+	}
+	if emails[0] != "admin@example.com" {
+		t.Errorf("expected admin@example.com, got %s", emails[0])
+	}
+	if emails[1] != "bob@test.com" {
+		t.Errorf("expected bob@test.com, got %s", emails[1])
+	}
+}
+
+func TestApplyEnvOverrides_AdminUsers(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_ADMIN_USERS", "admin@example.com,other@example.com")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.AdminUsers != "admin@example.com,other@example.com" {
+		t.Errorf("expected AdminUsers from env, got %s", cfg.AdminUsers)
+	}
+}
+
+func TestLoadFromFiles_AdminUsers(t *testing.T) {
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "admin.toml")
+
+	content := `
+admin_users = "alice@example.com,bob@example.com"
+`
+	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromFiles(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
+	}
+
+	if cfg.AdminUsers != "alice@example.com,bob@example.com" {
+		t.Errorf("expected AdminUsers from TOML, got %s", cfg.AdminUsers)
+	}
+
+	emails := cfg.AdminEmails()
+	if len(emails) != 2 {
+		t.Fatalf("expected 2 admin emails, got %d", len(emails))
+	}
+	if emails[0] != "alice@example.com" {
+		t.Errorf("expected alice@example.com, got %s", emails[0])
+	}
+	if emails[1] != "bob@example.com" {
+		t.Errorf("expected bob@example.com, got %s", emails[1])
+	}
+}
+
+// --- ServiceConfig Tests ---
+
+func TestNewDefaultConfig_ServiceDefaults(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	if cfg.Service.Key != "" {
+		t.Errorf("expected empty default service key, got %s", cfg.Service.Key)
+	}
+	if cfg.Service.PortalID != "" {
+		t.Errorf("expected empty default portal ID, got %s", cfg.Service.PortalID)
+	}
+}
+
+func TestLoadFromFiles_ServiceConfig(t *testing.T) {
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "service.toml")
+
+	content := `
+[service]
+key = "my-secret-key-32chars-long-xxxxx"
+portal_id = "portal-prod-1"
+`
+	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromFiles(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
+	}
+
+	if cfg.Service.Key != "my-secret-key-32chars-long-xxxxx" {
+		t.Errorf("expected service key from TOML, got %s", cfg.Service.Key)
+	}
+	if cfg.Service.PortalID != "portal-prod-1" {
+		t.Errorf("expected portal_id portal-prod-1, got %s", cfg.Service.PortalID)
+	}
+}
+
+func TestApplyEnvOverrides_ServiceKey(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_SERVICE_KEY", "env-service-key")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.Service.Key != "env-service-key" {
+		t.Errorf("expected service key env-service-key, got %s", cfg.Service.Key)
+	}
+}
+
+func TestApplyEnvOverrides_PortalID(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	t.Setenv("VIRE_PORTAL_ID", "portal-staging-2")
+
+	applyEnvOverrides(cfg)
+
+	if cfg.Service.PortalID != "portal-staging-2" {
+		t.Errorf("expected portal ID portal-staging-2, got %s", cfg.Service.PortalID)
+	}
+}
+
+func TestApplyEnvOverrides_ServiceKeyOverridesFile(t *testing.T) {
+	dir := t.TempDir()
+	tomlPath := filepath.Join(dir, "svc.toml")
+
+	content := `
+[service]
+key = "file-key"
+`
+	if err := os.WriteFile(tomlPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("VIRE_SERVICE_KEY", "env-key")
+
+	cfg, err := LoadFromFiles(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadFromFiles failed: %v", err)
+	}
+
+	if cfg.Service.Key != "env-key" {
+		t.Errorf("expected VIRE_SERVICE_KEY to override file, got %s", cfg.Service.Key)
+	}
+}

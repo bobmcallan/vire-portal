@@ -16,13 +16,21 @@ type AuthConfig struct {
 	PortalURL   string `toml:"portal_url"`
 }
 
+// ServiceConfig contains service registration settings for admin API access.
+type ServiceConfig struct {
+	Key      string `toml:"key"`
+	PortalID string `toml:"portal_id"`
+}
+
 // Config represents the application configuration.
 type Config struct {
 	Environment string        `toml:"environment"`
+	AdminUsers  string        `toml:"admin_users"`
 	Server      ServerConfig  `toml:"server"`
 	API         APIConfig     `toml:"api"`
 	Portal      PortalConfig  `toml:"portal"`
 	Auth        AuthConfig    `toml:"auth"`
+	Service     ServiceConfig `toml:"service"`
 	User        UserConfig    `toml:"user"`
 	Logging     LoggingConfig `toml:"logging"`
 }
@@ -31,6 +39,23 @@ type Config struct {
 // The environment value is normalized at load time: "development" → "dev", "production" → "prod".
 func (c *Config) IsDevMode() bool {
 	return strings.ToLower(strings.TrimSpace(c.Environment)) == "dev"
+}
+
+// AdminEmails parses the comma-separated AdminUsers string into a slice of
+// trimmed, lowercased email addresses. Empty entries are filtered out.
+func (c *Config) AdminEmails() []string {
+	if strings.TrimSpace(c.AdminUsers) == "" {
+		return nil
+	}
+	parts := strings.Split(c.AdminUsers, ",")
+	var emails []string
+	for _, p := range parts {
+		e := strings.ToLower(strings.TrimSpace(p))
+		if e != "" {
+			emails = append(emails, e)
+		}
+	}
+	return emails
 }
 
 // normalizeEnvironment maps environment aliases to their canonical short forms.
@@ -180,6 +205,19 @@ func applyEnvOverrides(config *Config) {
 	}
 	if currency := os.Getenv("VIRE_DISPLAY_CURRENCY"); currency != "" {
 		config.User.DisplayCurrency = currency
+	}
+
+	// Admin users override
+	if adminUsers := os.Getenv("VIRE_ADMIN_USERS"); adminUsers != "" {
+		config.AdminUsers = adminUsers
+	}
+
+	// Service registration overrides
+	if serviceKey := os.Getenv("VIRE_SERVICE_KEY"); serviceKey != "" {
+		config.Service.Key = serviceKey
+	}
+	if portalID := os.Getenv("VIRE_PORTAL_ID"); portalID != "" {
+		config.Service.PortalID = portalID
 	}
 
 	// Auth overrides

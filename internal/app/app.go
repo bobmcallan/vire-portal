@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"strings"
 
 	"github.com/bobmcallan/vire-portal/internal/auth"
@@ -74,6 +75,23 @@ func New(cfg *config.Config, logger *common.Logger) (*App, error) {
 
 	if cfg.IsDevMode() {
 		go seed.DevUsers(cfg.API.URL, logger)
+	}
+
+	if cfg.Service.Key != "" && len(cfg.AdminEmails()) > 0 {
+		go func() {
+			portalID := cfg.Service.PortalID
+			if portalID == "" {
+				portalID, _ = os.Hostname()
+			}
+			serviceUserID, err := seed.RegisterService(cfg.API.URL, portalID, cfg.Service.Key, logger)
+			if err != nil {
+				logger.Warn().Err(err).Msg("service registration failed, skipping admin sync")
+				return
+			}
+			seed.SyncAdmins(cfg.API.URL, cfg.AdminEmails(), serviceUserID, logger)
+		}()
+	} else if len(cfg.AdminEmails()) > 0 {
+		logger.Warn().Msg("VIRE_ADMIN_USERS set but VIRE_SERVICE_KEY not configured — admin sync disabled")
 	}
 
 	logger.Info().Msg("application initialization complete")

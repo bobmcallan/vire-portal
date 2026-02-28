@@ -4,6 +4,7 @@ package config
 func NewDefaultConfig() *Config {
 	return &Config{
 		Environment: "prod",
+		AdminUsers:  "",
 		Server: ServerConfig{
 			Port: 8080,
 			Host: "0.0.0.0",
@@ -19,6 +20,7 @@ func NewDefaultConfig() *Config {
 			CallbackURL: "http://localhost:8080/auth/callback",
 			PortalURL:   "",
 		},
+		Service: ServiceConfig{},
 		User: UserConfig{
 			Portfolios:      []string{},
 			DisplayCurrency: "",

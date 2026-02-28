@@ -221,3 +221,202 @@ func TestUpsertUser_Unreachable(t *testing.T) {
 		t.Fatal("expected error for unreachable server")
 	}
 }
+
+// ListUsers tests are in list_users_stress_test.go
+
+// --- RegisterService Tests ---
+
+func TestRegisterService_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/services/register" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.Header.Get("Content-Type") != "application/json" {
+			t.Errorf("expected application/json, got %s", r.Header.Get("Content-Type"))
+		}
+
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if body["service_id"] != "portal-prod-1" {
+			t.Errorf("expected service_id portal-prod-1, got %s", body["service_id"])
+		}
+		if body["service_key"] != "my-secret" {
+			t.Errorf("expected service_key my-secret, got %s", body["service_key"])
+		}
+		if body["service_type"] != "portal" {
+			t.Errorf("expected service_type portal, got %s", body["service_type"])
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":          "ok",
+			"service_user_id": "service:portal-prod-1",
+			"registered_at":   "2026-02-28T10:00:00Z",
+		})
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	serviceUserID, err := c.RegisterService("portal-prod-1", "my-secret")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if serviceUserID != "service:portal-prod-1" {
+		t.Errorf("expected service:portal-prod-1, got %s", serviceUserID)
+	}
+}
+
+func TestRegisterService_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error":"invalid service key"}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	_, err := c.RegisterService("portal-prod-1", "wrong-key")
+	if err == nil {
+		t.Fatal("expected error for invalid service key")
+	}
+}
+
+func TestRegisterService_Unreachable(t *testing.T) {
+	c := NewVireClient("http://127.0.0.1:1")
+	_, err := c.RegisterService("portal-prod-1", "key")
+	if err == nil {
+		t.Fatal("expected error for unreachable server")
+	}
+}
+
+// --- AdminListUsers Tests ---
+
+func TestAdminListUsers_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/admin/users" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if r.Header.Get("X-Vire-Service-ID") != "service:portal-prod-1" {
+			t.Errorf("expected X-Vire-Service-ID header, got %s", r.Header.Get("X-Vire-Service-ID"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"users": []map[string]interface{}{
+				{
+					"id":         "alice",
+					"email":      "alice@example.com",
+					"name":       "Alice",
+					"role":       "user",
+					"provider":   "google",
+					"created_at": "2026-01-15T10:00:00Z",
+				},
+				{
+					"id":         "bob",
+					"email":      "bob@example.com",
+					"name":       "Bob",
+					"role":       "admin",
+					"provider":   "github",
+					"created_at": "2026-01-10T10:00:00Z",
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	users, err := c.AdminListUsers("service:portal-prod-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(users) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(users))
+	}
+	if users[0].ID != "alice" {
+		t.Errorf("expected first user ID alice, got %s", users[0].ID)
+	}
+	if users[0].Email != "alice@example.com" {
+		t.Errorf("expected first user email alice@example.com, got %s", users[0].Email)
+	}
+	if users[0].Role != "user" {
+		t.Errorf("expected first user role user, got %s", users[0].Role)
+	}
+	if users[1].ID != "bob" {
+		t.Errorf("expected second user ID bob, got %s", users[1].ID)
+	}
+	if users[1].Role != "admin" {
+		t.Errorf("expected second user role admin, got %s", users[1].Role)
+	}
+}
+
+func TestAdminListUsers_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error":"unauthorized"}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	_, err := c.AdminListUsers("service:portal-prod-1")
+	if err == nil {
+		t.Fatal("expected error for unauthorized request")
+	}
+}
+
+// --- AdminUpdateUserRole Tests ---
+
+func TestAdminUpdateUserRole_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/admin/users/alice/role" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPatch {
+			t.Errorf("expected PATCH, got %s", r.Method)
+		}
+		if r.Header.Get("X-Vire-Service-ID") != "service:portal-prod-1" {
+			t.Errorf("expected X-Vire-Service-ID header, got %s", r.Header.Get("X-Vire-Service-ID"))
+		}
+		if r.Header.Get("Content-Type") != "application/json" {
+			t.Errorf("expected application/json, got %s", r.Header.Get("Content-Type"))
+		}
+
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if body["role"] != "admin" {
+			t.Errorf("expected role=admin, got %s", body["role"])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	err := c.AdminUpdateUserRole("service:portal-prod-1", "alice", "admin")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAdminUpdateUserRole_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"update failed"}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	err := c.AdminUpdateUserRole("service:portal-prod-1", "alice", "admin")
+	if err == nil {
+		t.Fatal("expected error for server error")
+	}
+}

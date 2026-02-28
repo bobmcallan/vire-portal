@@ -408,6 +408,9 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 | Portal URL | `VIRE_PORTAL_URL` | `""` (empty = derive from host:port) |
 | Default portfolio | `VIRE_DEFAULT_PORTFOLIO` | `""` |
 | Display currency | `VIRE_DISPLAY_CURRENCY` | `""` |
+| Admin users | `VIRE_ADMIN_USERS` | `""` |
+| Service key | `VIRE_SERVICE_KEY` | `""` |
+| Portal ID | `VIRE_PORTAL_ID` | hostname |
 | Environment | `VIRE_ENV` | `prod` |
 | Log level | `VIRE_LOG_LEVEL` | `info` |
 | Log format | `VIRE_LOG_FORMAT` | `text` |
