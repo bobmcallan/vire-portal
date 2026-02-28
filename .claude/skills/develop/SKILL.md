@@ -11,11 +11,11 @@ description: Develop and test Vire portal features using an agent team.
 
 ## Team
 
-Six teammates with distinct roles. The team lead (you) investigates, plans, spawns, and coordinates.
+Six teammates with distinct roles. The team lead (you) investigates, plans (using an Opus Plan agent), spawns, and coordinates.
 
 | Role | Model | Purpose |
 |------|-------|---------|
-| **implementer** | opus | Writes tests first, then code. Fixes issues raised by reviewers. Handles build/verify/docs. |
+| **implementer** | sonnet | Executes the implementation spec. Writes tests first, then code. Fixes issues raised by reviewers. Handles build/verify/docs. |
 | **architect** | sonnet | Guards portal architecture. Reviews handler patterns, template structure, auth flows against `docs/`. |
 | **reviewer** | haiku | Code quality, pattern consistency, test coverage. Quick, focused reviews. |
 | **devils-advocate** | opus | Security, failure modes, edge cases, hostile inputs. Deep adversarial analysis. |
@@ -49,8 +49,49 @@ This ensures a clean slate regardless of how the previous session ended.
 
 1. Create work directory: `.claude/workdir/YYYYMMDD-HHMM-<slug>/`
 2. Use the Explore agent to investigate relevant files, patterns, existing code
-3. Write `requirements.md` with scope, approach, files expected to change
-4. Use investigation results to write detailed task descriptions so teammates don't re-investigate
+3. Spawn a **Plan agent** (opus) to produce a detailed implementation spec. The Plan agent receives the Explore findings and the feature description, and writes `requirements.md` containing:
+   - Scope and approach
+   - File-by-file change list with descriptions of what to add/modify
+   - Function/method signatures for new code
+   - Test case list (unit tests and UI tests)
+   - Template structure and CSS class names (if UI changes)
+   - Edge cases and error handling expectations
+4. Review the Plan agent's `requirements.md` — adjust if needed before proceeding
+
+The Plan agent runs synchronously (foreground) so its output is available before the team is created. This concentrates Opus-level reasoning into a short planning phase (~5 min) rather than spreading it across the full implementation (~30-40 min).
+
+**Plan agent spawn config:**
+```
+name: "planner"
+subagent_type: "Plan"
+model: "opus"
+```
+```
+You are planning the implementation of a feature for the Vire Portal.
+
+Working dir: /home/bobmc/development/vire-portal
+Docs: docs/
+
+You have been given Explore findings and a feature description. Produce a detailed
+implementation spec and write it to the work directory as requirements.md.
+
+The spec must be detailed enough for a Sonnet-class model to implement without
+needing to make architectural decisions. Include:
+
+1. **Scope** — what the feature does, what it does NOT do
+2. **File changes** — for each file to create/modify:
+   - File path
+   - What to add or change (be specific: function names, struct fields, route patterns)
+   - Code patterns to follow (reference existing similar code in the codebase)
+3. **Function signatures** — exact Go function/method signatures for new handlers, helpers
+4. **Template structure** — HTML structure, Alpine.js bindings, CSS classes (if UI changes)
+5. **Test cases** — list of unit test functions and what each validates
+6. **UI test cases** — list of UI test functions and what each validates (if pages change)
+7. **Edge cases** — error states, auth boundaries, empty data scenarios
+8. **Dependencies** — new imports, packages, or external resources needed
+
+Be precise. The implementer will follow this spec mechanically.
+```
 
 ### Step 2: Create Team and Tasks
 
@@ -87,24 +128,31 @@ Spawn all six teammates in parallel using `Task` with `run_in_background: true`.
 ```
 name: "implementer"
 subagent_type: "general-purpose"
-model: "opus"
+model: "sonnet"
 mode: "bypassPermissions"
 team_name: "vire-portal-develop"
 run_in_background: true
 ```
 ```
-You are the implementer. You write tests first, then production code to pass them.
+You are the implementer. You execute the implementation spec in requirements.md precisely.
 
 Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
 Docs: docs/
 
+FIRST: Read requirements.md in the work directory (path will be in your task description).
+This spec was produced by an Opus planner and contains exact file changes, function
+signatures, test cases, and edge cases. Follow it closely.
+
 Workflow:
 1. Read TaskList, claim tasks (owner: "implementer") by setting status to "in_progress"
-2. Work through tasks in order, mark completed before moving on
-3. Check TaskList for next available task after each completion
+2. Read requirements.md to understand the full implementation plan
+3. Work through tasks in order, mark completed before moving on
+4. Check TaskList for next available task after each completion
 
-For implement tasks: write tests first, then implement to pass them.
-  If UI elements change, create/update tests in tests/ui/.
+For implement tasks: write tests first (as listed in the spec), then implement to pass them.
+  Follow the spec's function signatures, file changes, and patterns exactly.
+  If UI elements change, create/update tests in tests/ui/ as specified.
+  If you encounter an ambiguity not covered by the spec, message the team lead.
 For verify tasks:
   go test ./...
   go vet ./...
