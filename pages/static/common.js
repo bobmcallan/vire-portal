@@ -311,7 +311,7 @@ function portfolioDashboard() {
 
         async fetchGrowthData() {
             try {
-                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/capital-timeline');
+                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/history');
                 if (res.ok) {
                     const data = await res.json();
                     const points = data.data_points || [];
@@ -338,10 +338,10 @@ function portfolioDashboard() {
                 const p = Object.assign({}, points[i]);
                 if (i > 0 && filtered.length > 0) {
                     const prev = filtered[filtered.length - 1];
-                    if (prev.TotalCapital > 0) {
-                        const change = Math.abs(p.TotalCapital - prev.TotalCapital) / prev.TotalCapital;
+                    if (prev.TotalValue > 0) {
+                        const change = Math.abs(p.TotalValue - prev.TotalValue) / prev.TotalValue;
                         if (change > 0.5) {
-                            p.TotalCapital = prev.TotalCapital;
+                            p.TotalValue = prev.TotalValue;
                         }
                     }
                 }
@@ -362,7 +362,7 @@ function portfolioDashboard() {
                 const d = new Date(p.Date);
                 return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             });
-            const totalValues = this.growthData.map(p => p.TotalCapital || p.TotalValue || 0);
+            const totalValues = this.growthData.map(p => p.TotalValue);
             const totalCosts = this.growthData.map(p => p.TotalCost);
             const capitalLine = this.growthData.map(p => p.NetDeployed || this.capitalInvested || 0);
 
