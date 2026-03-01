@@ -743,7 +743,7 @@ func TestDashboardGrowthChart(t *testing.T) {
 		t.Error("Chart.js instance not created on growthChart canvas")
 	}
 
-	// Verify the chart has 3 datasets (Portfolio Value, Cost Basis, Capital Deployed)
+	// Verify the chart has 3 datasets (Portfolio Value, Cost Basis, Net Deposited)
 	datasetCount, err := commontest.EvalBool(ctx, `
 		(() => {
 			const canvas = document.getElementById('growthChart');
@@ -765,14 +765,14 @@ func TestDashboardGrowthChart(t *testing.T) {
 			const chart = Chart.getChart(canvas);
 			if (!chart) return false;
 			const labels = chart.data.datasets.map(d => d.label);
-			return labels[0] === 'Portfolio Value' && labels[1] === 'Cost Basis' && labels[2] === 'Capital Deployed';
+			return labels[0] === 'Portfolio Value' && labels[1] === 'Cost Basis' && labels[2] === 'Net Deposited';
 		})()
 	`)
 	if err != nil {
 		t.Fatalf("error checking dataset labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("growth chart dataset labels do not match expected: Portfolio Value, Cost Basis, Capital Deployed")
+		t.Error("growth chart dataset labels do not match expected: Portfolio Value, Cost Basis, Net Deposited")
 	}
 
 	// Verify chart container has the correct styling (border, no border-radius)

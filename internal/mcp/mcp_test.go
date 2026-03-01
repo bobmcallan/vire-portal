@@ -647,7 +647,9 @@ func TestFetchCatalog_ServerDown(t *testing.T) {
 	// Point to a server that doesn't exist
 	p := NewMCPProxy("http://127.0.0.1:1", testLogger(), testConfig())
 
-	catalog, err := p.FetchCatalog(t.Context())
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	catalog, err := p.FetchCatalog(ctx)
 	if err == nil {
 		t.Fatal("expected error when server is down, got nil")
 	}

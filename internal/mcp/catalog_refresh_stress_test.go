@@ -752,9 +752,13 @@ func TestRefreshCatalog_ContextTimeout(t *testing.T) {
 		case "/api/version":
 			json.NewEncoder(w).Encode(map[string]string{"build": "timeout-001"})
 		case "/api/mcp/tools":
-			// Hang for 30s — should timeout at 10s
-			time.Sleep(30 * time.Second)
-			w.Write([]byte(`[]`))
+			// Hang until client cancels — simulates slow server
+			select {
+			case <-r.Context().Done():
+				// Client timed out, return without writing
+			case <-time.After(30 * time.Second):
+				w.Write([]byte(`[]`))
+			}
 		default:
 			w.WriteHeader(404)
 		}
@@ -763,6 +767,7 @@ func TestRefreshCatalog_ContextTimeout(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.API.URL = srv.URL
+	cfg.MCP.CatalogRetries = 0 // Skip initial catalog fetch so NewHandler doesn't hang
 	h := NewHandler(cfg, testLogger())
 	defer h.Close()
 

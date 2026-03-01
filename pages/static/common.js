@@ -311,7 +311,7 @@ function portfolioDashboard() {
 
         async fetchGrowthData() {
             try {
-                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/history');
+                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/capital-timeline');
                 if (res.ok) {
                     const data = await res.json();
                     const points = data.data_points || [];
@@ -338,10 +338,10 @@ function portfolioDashboard() {
                 const p = Object.assign({}, points[i]);
                 if (i > 0 && filtered.length > 0) {
                     const prev = filtered[filtered.length - 1];
-                    if (prev.TotalValue > 0) {
-                        const change = Math.abs(p.TotalValue - prev.TotalValue) / prev.TotalValue;
+                    if (prev.TotalCapital > 0) {
+                        const change = Math.abs(p.TotalCapital - prev.TotalCapital) / prev.TotalCapital;
                         if (change > 0.5) {
-                            p.TotalValue = prev.TotalValue;
+                            p.TotalCapital = prev.TotalCapital;
                         }
                     }
                 }
@@ -362,9 +362,9 @@ function portfolioDashboard() {
                 const d = new Date(p.Date);
                 return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             });
-            const totalValues = this.growthData.map(p => p.TotalValue);
+            const totalValues = this.growthData.map(p => p.TotalCapital || p.TotalValue || 0);
             const totalCosts = this.growthData.map(p => p.TotalCost);
-            const capitalLine = this.growthData.map(() => this.capitalInvested);
+            const capitalLine = this.growthData.map(p => p.NetDeployed || this.capitalInvested || 0);
 
             this.chartInstance = new Chart(canvas, {
                 type: 'line',
@@ -394,13 +394,13 @@ function portfolioDashboard() {
                             tension: 0,
                         },
                         {
-                            label: 'Capital Deployed',
+                            label: 'Net Deposited',
                             data: capitalLine,
                             borderColor: '#000',
                             borderWidth: 1,
                             borderDash: [2, 2],
                             pointRadius: 0,
-                            pointHoverRadius: 0,
+                            pointHoverRadius: 4,
                             fill: false,
                             tension: 0,
                         },

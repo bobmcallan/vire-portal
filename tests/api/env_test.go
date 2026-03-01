@@ -100,16 +100,20 @@ func NewServerEnvWithOptions(t *testing.T, opts ServerEnvOptions) *ServerEnv {
 
 	// Build vire-server env vars
 	serverEnv := map[string]string{
-		"VIRE_STORAGE_ADDRESS":   fmt.Sprintf("ws://%s:8000/rpc", surrealIP),
-		"VIRE_STORAGE_NAMESPACE": "vire",
-		"VIRE_STORAGE_DATABASE":  "vire_test",
-		"VIRE_STORAGE_USERNAME":  "root",
-		"VIRE_STORAGE_PASSWORD":  "root",
-		"VIRE_ENV":               "dev",
-		"VIRE_SERVER_HOST":       "0.0.0.0",
-		"VIRE_AUTH_JWT_SECRET":   "test-jwt-secret-for-ci",
-		"EODHD_API_KEY":          "test-dummy-key",
-		"GEMINI_API_KEY":         "test-dummy-key",
+		"VIRE_STORAGE_ADDRESS":           fmt.Sprintf("ws://%s:8000/rpc", surrealIP),
+		"VIRE_STORAGE_NAMESPACE":         "vire",
+		"VIRE_STORAGE_DATABASE":          "vire_test",
+		"VIRE_STORAGE_USERNAME":          "root",
+		"VIRE_STORAGE_PASSWORD":          "root",
+		"VIRE_ENV":                       "dev",
+		"VIRE_SERVER_HOST":               "0.0.0.0",
+		"VIRE_AUTH_JWT_SECRET":           "test-jwt-secret-for-ci",
+		"EODHD_API_KEY":                  "test-dummy-key",
+		"GEMINI_API_KEY":                 "test-dummy-key",
+		"VIRE_AUTH_GOOGLE_CLIENT_ID":     "test-google-client-id",
+		"VIRE_AUTH_GOOGLE_CLIENT_SECRET": "test-google-client-secret",
+		"VIRE_AUTH_GITHUB_CLIENT_ID":     "test-github-client-id",
+		"VIRE_AUTH_GITHUB_CLIENT_SECRET": "test-github-client-secret",
 	}
 	for k, v := range opts.ExtraEnv {
 		serverEnv[k] = v
