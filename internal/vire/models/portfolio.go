@@ -51,6 +51,9 @@ type Portfolio struct {
 	TotalGainPct      float64   `json:"total_gain_pct"`
 	TotalNetReturn    float64   `json:"total_net_return"`
 	TotalNetReturnPct float64   `json:"total_net_return_pct"`
+	AvailableCash     float64   `json:"available_cash,omitempty"`
+	CapitalGain       float64   `json:"capital_gain,omitempty"`
+	CapitalGainPct    float64   `json:"capital_gain_pct,omitempty"`
 	Currency          string    `json:"currency"`
 	FXRate            float64   `json:"fx_rate,omitempty"` // AUDUSD rate used for currency conversion at sync time
 	LastSynced        time.Time `json:"last_synced"`
@@ -71,6 +74,7 @@ type Holding struct {
 	GainLossPct        float64        `json:"gain_loss_pct"` // IRR p.a. from Navexa
 	Weight             float64        `json:"weight"`        // Portfolio weight percentage
 	TotalCost          float64        `json:"total_cost"`
+	TotalProceeds      float64        `json:"total_proceeds,omitempty"`
 	DividendReturn     float64        `json:"dividend_return"`
 	CapitalGainPct     float64        `json:"capital_gain_pct"` // IRR p.a. from Navexa
 	TotalReturnValue   float64        `json:"total_return_value"`

@@ -189,6 +189,8 @@ function portfolioDashboard() {
         simpleReturnPct: 0,
         annualizedReturnPct: 0,
         hasCapitalData: false,
+        capitalGainPct: 0,
+        availableCash: 0,
         refreshing: false,
         trend: '',
         rsiSignal: '',
@@ -218,9 +220,6 @@ function portfolioDashboard() {
             return this.portfolioGain;
         },
         get totalGainPct() {
-            if (this.hasCapitalData && this.capitalInvested !== 0) {
-                return (this.portfolioGain / this.capitalInvested) * 100;
-            }
             return this.portfolioGainPct;
         },
         gainClass(val) {
@@ -265,18 +264,19 @@ function portfolioDashboard() {
                     this.portfolioGain = Number(holdingsData.total_net_return) || 0;
                     this.portfolioGainPct = Number(holdingsData.total_net_return_pct) || 0;
                     this.portfolioCost = Number(holdingsData.total_cost) || 0;
+                    this.availableCash = Number(holdingsData.available_cash) || 0;
                     // Parse capital performance
                     const cp = holdingsData.capital_performance;
                     if (cp && cp.transaction_count > 0) {
                         this.capitalInvested = Number(cp.net_capital_deployed) || 0;
-                        // Derive capital gain from actual holdings total, not server's current_portfolio_value
-                        this.capitalGain = this.totalValue - this.capitalInvested;
-                        this.simpleReturnPct = this.capitalInvested !== 0
-                            ? (this.capitalGain / this.capitalInvested) * 100 : 0;
+                        this.capitalGain = Number(holdingsData.capital_gain) || 0;
+                        this.capitalGainPct = Number(holdingsData.capital_gain_pct) || 0;
+                        this.simpleReturnPct = Number(cp.simple_return_pct) || 0;
                         this.annualizedReturnPct = Number(cp.annualized_return_pct) || 0;
                         this.hasCapitalData = true;
                     } else {
                         this.capitalInvested = 0; this.capitalGain = 0;
+                        this.capitalGainPct = 0;
                         this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
                         this.hasCapitalData = false;
                     }
@@ -286,7 +286,8 @@ function portfolioDashboard() {
                     this.portfolioGain = 0;
                     this.portfolioGainPct = 0;
                     this.portfolioCost = 0;
-                    this.capitalInvested = 0; this.capitalGain = 0;
+                    this.availableCash = 0;
+                    this.capitalInvested = 0; this.capitalGain = 0; this.capitalGainPct = 0;
                     this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
                     this.hasCapitalData = false;
                 }
@@ -361,7 +362,7 @@ function portfolioDashboard() {
                 const d = new Date(p.Date);
                 return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             });
-            const totalValues = this.growthData.map(p => p.TotalValue + (p.ExternalBalance || 0));
+            const totalValues = this.growthData.map(p => p.TotalValue);
             const totalCosts = this.growthData.map(p => p.TotalCost);
             const capitalLine = this.growthData.map(() => this.capitalInvested);
 
@@ -495,18 +496,19 @@ function portfolioDashboard() {
                     this.portfolioGain = Number(data.total_net_return) || 0;
                     this.portfolioGainPct = Number(data.total_net_return_pct) || 0;
                     this.portfolioCost = Number(data.total_cost) || 0;
+                    this.availableCash = Number(data.available_cash) || 0;
                     // Re-parse capital performance
                     const cp = data.capital_performance;
                     if (cp && cp.transaction_count > 0) {
                         this.capitalInvested = Number(cp.net_capital_deployed) || 0;
-                        // Derive capital gain from actual holdings total, not server's current_portfolio_value
-                        this.capitalGain = this.totalValue - this.capitalInvested;
-                        this.simpleReturnPct = this.capitalInvested !== 0
-                            ? (this.capitalGain / this.capitalInvested) * 100 : 0;
+                        this.capitalGain = Number(data.capital_gain) || 0;
+                        this.capitalGainPct = Number(data.capital_gain_pct) || 0;
+                        this.simpleReturnPct = Number(cp.simple_return_pct) || 0;
                         this.annualizedReturnPct = Number(cp.annualized_return_pct) || 0;
                         this.hasCapitalData = true;
                     } else {
                         this.capitalInvested = 0; this.capitalGain = 0;
+                        this.capitalGainPct = 0;
                         this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
                         this.hasCapitalData = false;
                     }

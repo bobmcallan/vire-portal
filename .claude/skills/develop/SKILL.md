@@ -16,11 +16,24 @@ Six teammates with distinct roles. The team lead (you) investigates, plans (usin
 | Role | Model | Purpose |
 |------|-------|---------|
 | **implementer** | sonnet | Executes the implementation spec. Writes tests first, then code. Fixes issues raised by reviewers. Handles build/verify/docs. |
-| **architect** | sonnet | Guards portal architecture. Reviews handler patterns, template structure, auth flows against `docs/`. |
+| **architect** | ~~sonnet~~ **haiku** | Guards portal architecture. Reviews handler patterns, template structure, auth flows against `docs/`. |
 | **reviewer** | haiku | Code quality, pattern consistency, test coverage. Quick, focused reviews. |
 | **devils-advocate** | opus | Security, failure modes, edge cases, hostile inputs. Deep adversarial analysis. |
-| **test-creator** | sonnet | Creates/reviews UI tests in `tests/ui/` following test-common and test-create-review skills. |
+| **test-creator** | ~~sonnet~~ **haiku** | Creates/reviews UI tests in `tests/ui/` following test-common and test-create-review skills. |
 | **test-executor** | haiku | Runs UI tests via `./scripts/ui-test.sh`, reports results. Read-only for test code. |
+
+### Model Change Rationale
+
+| Role | Old | New | Reason |
+|------|-----|-----|--------|
+| architect | sonnet | haiku | Pattern verification against known conventions — "does this match existing patterns?" is mechanical, not novel reasoning |
+| test-creator | sonnet | haiku | Reading HTML templates and checking selectors is mechanical work well within haiku's capability |
+
+**Unchanged:** planner and devils-advocate remain on opus (quality anchors). Implementer remains on sonnet (code generation quality critical).
+
+**Estimated cost saving:** ~30-40% per session.
+
+---
 
 ## Docker Safety
 
@@ -168,7 +181,7 @@ Only message teammates for blocking issues or questions. Mark tasks via TaskUpda
 ```
 name: "architect"
 subagent_type: "general-purpose"
-model: "sonnet"
+model: "haiku"
 team_name: "vire-portal-develop"
 run_in_background: true
 ```
@@ -216,7 +229,7 @@ Workflow:
 For code review: check for bugs, verify pattern consistency, validate test coverage.
 For docs review: check accuracy against implementation.
 
-Send findings to "implementer" via SendMessage only if fixes are needed.
+Send findings to "implementer" via SendMessage only if SendMessage only if fixes are needed.
 Mark tasks via TaskUpdate.
 ```
 
@@ -250,7 +263,7 @@ Mark tasks via TaskUpdate.
 ```
 name: "test-creator"
 subagent_type: "general-purpose"
-model: "sonnet"
+model: "haiku"
 mode: "bypassPermissions"
 team_name: "vire-portal-develop"
 run_in_background: true

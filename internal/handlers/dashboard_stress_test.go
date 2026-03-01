@@ -531,11 +531,65 @@ func TestDashboardHandler_StressPortfolioSummarySection(t *testing.T) {
 	if !strings.Contains(body, `x-show="filteredHoldings.length > 0"`) {
 		t.Error("portfolio summary should be conditional on filteredHoldings.length > 0")
 	}
-	// Verify all four summary items exist
-	summaryLabels := []string{"TOTAL VALUE", "COST BASIS", "NET RETURN $", "NET RETURN %"}
+	// Verify all five summary items exist
+	summaryLabels := []string{"TOTAL VALUE", "NET EQUITY CAPITAL", "AVAILABLE CASH", "NET RETURN $", "NET RETURN %"}
 	for _, label := range summaryLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected summary label %q in dashboard", label)
+		}
+	}
+}
+
+// --- Dashboard: New Field Bindings Safety ---
+
+func TestDashboardHandler_StressNewFieldBindingsSafe(t *testing.T) {
+	// Verify the new dashboard fields (availableCash, capitalGainPct) use
+	// x-text bindings (safe) and that capitalGainPct uses gainClass (color).
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// AVAILABLE CASH must use x-text (not x-html) and fmt() for formatting
+	if !strings.Contains(body, `x-text="fmt(availableCash)"`) {
+		t.Error("expected availableCash displayed with x-text fmt() binding")
+	}
+	// AVAILABLE CASH must NOT use gainClass — it is a neutral value
+	if strings.Contains(body, `gainClass(availableCash)`) {
+		t.Error("LOGIC: availableCash should not use gainClass — it is a neutral value, not a gain/loss")
+	}
+
+	// CAPITAL GAIN % must use x-text with pct() formatting
+	if !strings.Contains(body, `x-text="pct(capitalGainPct)"`) {
+		t.Error("expected capitalGainPct displayed with x-text pct() binding")
+	}
+	// CAPITAL GAIN % must use gainClass for color
+	if !strings.Contains(body, `gainClass(capitalGainPct)`) {
+		t.Error("expected capitalGainPct to use gainClass for gain/loss coloring")
+	}
+}
+
+func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
+	// Verify the capital performance row has the correct 5 labels
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	capitalLabels := []string{"TOTAL DEPOSITED", "CAPITAL GAIN $", "CAPITAL GAIN %", "SIMPLE RETURN %", "ANNUALIZED %"}
+	for _, label := range capitalLabels {
+		if !strings.Contains(body, label) {
+			t.Errorf("expected capital performance label %q in dashboard", label)
 		}
 	}
 }

@@ -55,8 +55,12 @@
                     <span class="text-bold" x-text="fmt(totalValue)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">COST BASIS</span>
+                    <span class="label">NET EQUITY CAPITAL</span>
                     <span class="text-bold" x-text="fmt(totalCost)"></span>
+                </div>
+                <div class="portfolio-summary-item">
+                    <span class="label">AVAILABLE CASH</span>
+                    <span class="text-bold" x-text="fmt(availableCash)"></span>
                 </div>
                 <div class="portfolio-summary-item">
                     <span class="label">NET RETURN $</span>
@@ -77,6 +81,10 @@
                 <div class="portfolio-summary-item">
                     <span class="label">CAPITAL GAIN $</span>
                     <span class="text-bold" :class="gainClass(capitalGain)" x-text="fmt(capitalGain)"></span>
+                </div>
+                <div class="portfolio-summary-item">
+                    <span class="label">CAPITAL GAIN %</span>
+                    <span class="text-bold" :class="gainClass(capitalGainPct)" x-text="pct(capitalGainPct)"></span>
                 </div>
                 <div class="portfolio-summary-item">
                     <span class="label">SIMPLE RETURN %</span>

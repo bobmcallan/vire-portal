@@ -200,24 +200,24 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Skip("portfolio summary not visible (no holdings data available)")
 	}
 
-	// Verify the first .portfolio-summary row has 4 items (cost-basis row)
+	// Verify the first .portfolio-summary row has 5 items
 	count, err := elementCount(ctx, ".portfolio-summary:not(.portfolio-summary-capital) .portfolio-summary-item")
 	if err != nil {
 		t.Fatalf("error counting summary items: %v", err)
 	}
-	if count != 4 {
-		t.Errorf("portfolio summary item count = %d, want 4", count)
+	if count != 5 {
+		t.Errorf("portfolio summary item count = %d, want 5", count)
 	}
 
-	// Verify the 4 summary labels are "TOTAL VALUE", "COST BASIS", "NET RETURN $", "NET RETURN %"
+	// Verify the 5 summary labels are "TOTAL VALUE", "NET EQUITY CAPITAL", "AVAILABLE CASH", "NET RETURN $", "NET RETURN %"
 	labelsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
 			const row = document.querySelector('.portfolio-summary:not(.portfolio-summary-capital)');
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
-			if (labels.length !== 4) return false;
-			const expected = ['TOTAL VALUE', 'COST BASIS', 'NET RETURN $', 'NET RETURN %'];
-			for (let i = 0; i < 4; i++) {
+			if (labels.length !== 5) return false;
+			const expected = ['TOTAL VALUE', 'NET EQUITY CAPITAL', 'AVAILABLE CASH', 'NET RETURN $', 'NET RETURN %'];
+			for (let i = 0; i < 5; i++) {
 				if (labels[i].textContent.trim() !== expected[i]) return false;
 			}
 			return true;
@@ -227,16 +227,16 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Fatalf("error checking summary labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, COST BASIS, NET RETURN $, NET RETURN %")
+		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, NET EQUITY CAPITAL, AVAILABLE CASH, NET RETURN $, NET RETURN %")
 	}
 
-	// If capital performance row exists, verify it also has 4 items
+	// If capital performance row exists, verify it also has 5 items
 	capitalCount, err := elementCount(ctx, ".portfolio-summary-capital .portfolio-summary-item")
 	if err != nil {
 		t.Fatalf("error counting capital summary items: %v", err)
 	}
-	if capitalCount > 0 && capitalCount != 4 {
-		t.Errorf("capital summary item count = %d, want 4", capitalCount)
+	if capitalCount > 0 && capitalCount != 5 {
+		t.Errorf("capital summary item count = %d, want 5", capitalCount)
 	}
 
 	// Verify summary spans full content width (justify-content: space-between)
@@ -259,7 +259,7 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	valuesPopulated, err := commontest.EvalBool(ctx, `
 		(() => {
 			const items = document.querySelectorAll('.portfolio-summary-item .text-bold');
-			if (items.length < 4) return false;
+			if (items.length < 5) return false;
 			for (const item of items) {
 				const text = item.textContent.trim();
 				if (!text || text === '') return false;
@@ -441,9 +441,9 @@ func TestDashboardGainColors(t *testing.T) {
 		err = chromedp.Run(ctx, chromedp.Evaluate(`
 			(() => {
 				const items = document.querySelectorAll('.portfolio-summary-item .text-bold');
-				if (items.length < 4) return 'items:' + items.length;
-				// Items at index 2 and 3 are return $ and return %
-				const gainItems = [items[2], items[3]];
+				if (items.length < 5) return 'items:' + items.length;
+				// Items at index 3 and 4 are return $ and return % (after adding AVAILABLE CASH at index 2)
+				const gainItems = [items[3], items[4]];
 				const colored = gainItems.filter(i => i.classList.contains('gain-positive') || i.classList.contains('gain-negative'));
 				const values = gainItems.map(i => i.textContent.trim());
 				return 'values:[' + values.join(',') + '],colored:' + colored.length;
@@ -527,13 +527,13 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 		t.Skip("capital performance row not visible (no capital data available)")
 	}
 
-	// Verify 4 capital summary items
+	// Verify 5 capital summary items
 	count, err := elementCount(ctx, ".portfolio-summary-capital .portfolio-summary-item")
 	if err != nil {
 		t.Fatalf("error counting capital summary items: %v", err)
 	}
-	if count != 4 {
-		t.Errorf("capital summary item count = %d, want 4", count)
+	if count != 5 {
+		t.Errorf("capital summary item count = %d, want 5", count)
 	}
 
 	// Verify capital summary labels
@@ -542,9 +542,9 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 			const row = document.querySelector('.portfolio-summary-capital');
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
-			if (labels.length !== 4) return false;
-			const expected = ['TOTAL DEPOSITED', 'CAPITAL GAIN $', 'SIMPLE RETURN %', 'ANNUALIZED %'];
-			for (let i = 0; i < 4; i++) {
+			if (labels.length !== 5) return false;
+			const expected = ['TOTAL DEPOSITED', 'CAPITAL GAIN $', 'CAPITAL GAIN %', 'SIMPLE RETURN %', 'ANNUALIZED %'];
+			for (let i = 0; i < 5; i++) {
 				if (labels[i].textContent.trim() !== expected[i]) return false;
 			}
 			return true;
@@ -554,7 +554,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 		t.Fatalf("error checking capital labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("capital summary labels do not match expected: TOTAL DEPOSITED, CAPITAL GAIN $, SIMPLE RETURN %, ANNUALIZED %")
+		t.Error("capital summary labels do not match expected: TOTAL DEPOSITED, CAPITAL GAIN $, CAPITAL GAIN %, SIMPLE RETURN %, ANNUALIZED %")
 	}
 
 	// Verify capital gain values have color classes applied
@@ -563,7 +563,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 			const row = document.querySelector('.portfolio-summary-capital');
 			if (!row) return false;
 			const items = row.querySelectorAll('.portfolio-summary-item .text-bold');
-			// Items 1, 2, 3 are CAPITAL GAIN $, SIMPLE RETURN %, ANNUALIZED %
+			// Items 1-4 are CAPITAL GAIN $, CAPITAL GAIN %, SIMPLE RETURN %, ANNUALIZED %
 			let hasGainClass = false;
 			for (let i = 1; i < items.length; i++) {
 				if (items[i].classList.contains('gain-positive') || items[i].classList.contains('gain-negative')) {
