@@ -976,6 +976,10 @@ code {
     border-bottom: 1px solid #888;
 }
 
+.portfolio-summary-accounts {
+    border-bottom: 1px solid #888;
+}
+
 .portfolio-indicators {
     display: flex;
     gap: 2rem;

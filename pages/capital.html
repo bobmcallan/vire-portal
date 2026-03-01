@@ -44,20 +44,28 @@
                 No portfolios found. Configure your Navexa API key in <a href="/profile">Profile</a>.
             </div>
 
-            <!-- Summary row -->
-            <div class="portfolio-summary" x-show="hasTransactions" x-cloak>
+            <!-- Account balances -->
+            <div class="portfolio-summary portfolio-summary-accounts" x-show="hasAccounts" x-cloak>
+                <template x-for="acct in accounts" :key="acct.name">
+                    <div class="portfolio-summary-item">
+                        <span class="label" x-text="acct.name.toUpperCase()"></span>
+                        <span class="text-bold" x-text="fmt(acct.balance)"></span>
+                    </div>
+                </template>
                 <div class="portfolio-summary-item">
-                    <span class="label">TOTAL CREDITS</span>
-                    <span class="text-bold gain-positive" x-text="fmt(totalDeposits)"></span>
+                    <span class="label">TOTAL CASH</span>
+                    <span class="text-bold" :class="gainClass(totalCash)" x-text="fmt(totalCash)"></span>
                 </div>
-                <div class="portfolio-summary-item">
-                    <span class="label">TOTAL DEBITS</span>
-                    <span class="text-bold gain-negative" x-text="fmt(totalWithdrawals)"></span>
-                </div>
-                <div class="portfolio-summary-item">
-                    <span class="label">NET CASH FLOW</span>
-                    <span class="text-bold" :class="gainClass(netCashFlow)" x-text="fmt(netCashFlow)"></span>
-                </div>
+            </div>
+
+            <!-- Category breakdown -->
+            <div class="portfolio-summary" x-show="hasCategoryBreakdown" x-cloak>
+                <template x-for="[cat, amount] in nonZeroCategories" :key="cat">
+                    <div class="portfolio-summary-item">
+                        <span class="label" x-text="cat.toUpperCase()"></span>
+                        <span class="text-bold" :class="gainClass(amount)" x-text="fmt(amount)"></span>
+                    </div>
+                </template>
             </div>
 
             <!-- Transactions table -->

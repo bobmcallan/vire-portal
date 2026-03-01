@@ -545,15 +545,21 @@ function cashTransactions() {
         selected: '',
         defaultPortfolio: '',
         transactions: [],
-        totalDeposits: 0,
-        totalWithdrawals: 0,
-        netCashFlow: 0,
+        accounts: [],
+        totalCash: 0,
+        transactionCount: 0,
+        byCategory: {},
         loading: true,
         error: '',
         currentPage: 1,
         pageSize: 100,
         get isDefault() { return this.selected === this.defaultPortfolio; },
         get hasTransactions() { return this.transactions.length > 0; },
+        get hasAccounts() { return this.accounts.length > 0; },
+        get nonZeroCategories() {
+            return Object.entries(this.byCategory).filter(([, v]) => v !== 0);
+        },
+        get hasCategoryBreakdown() { return this.nonZeroCategories.length > 0; },
         get totalPages() { return Math.max(1, Math.ceil(this.transactions.length / this.pageSize)); },
         get pagedTransactions() {
             const start = (this.currentPage - 1) * this.pageSize;
@@ -602,15 +608,17 @@ function cashTransactions() {
                     const txns = data.transactions || [];
                     txns.sort((a, b) => new Date(b.date) - new Date(a.date));
                     this.transactions = txns;
+                    this.accounts = data.accounts || [];
                     const summary = data.summary || {};
-                    this.totalDeposits = summary.total_credits || 0;
-                    this.totalWithdrawals = summary.total_debits || 0;
-                    this.netCashFlow = summary.net_cash_flow || 0;
+                    this.totalCash = summary.total_cash || 0;
+                    this.transactionCount = summary.transaction_count || 0;
+                    this.byCategory = summary.by_category || {};
                 } else {
                     this.transactions = [];
-                    this.totalDeposits = 0;
-                    this.totalWithdrawals = 0;
-                    this.netCashFlow = 0;
+                    this.accounts = [];
+                    this.totalCash = 0;
+                    this.transactionCount = 0;
+                    this.byCategory = {};
                 }
             } catch (e) {
                 debugError('cashTransactions', 'loadTransactions failed', e);

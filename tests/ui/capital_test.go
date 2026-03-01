@@ -89,7 +89,7 @@ func TestCapitalPortfolioDropdown(t *testing.T) {
 	}
 }
 
-func TestCapitalSummaryRow(t *testing.T) {
+func TestCapitalAccountBalances(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -98,48 +98,96 @@ func TestCapitalSummaryRow(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+	takeScreenshot(t, ctx, "capital", "account-balances.png")
 
-	takeScreenshot(t, ctx, "capital", "summary-row.png")
-
-	// Check if summary row is visible (only shows when summary data available)
-	visible, err := isVisible(ctx, ".portfolio-summary")
+	visible, err := isVisible(ctx, ".portfolio-summary-accounts")
 	if err != nil {
-		t.Fatalf("error checking summary visibility: %v", err)
+		t.Fatalf("error checking account balances visibility: %v", err)
 	}
 	if !visible {
-		t.Skip("summary row not visible (no transaction data available)")
+		t.Skip("account balances row not visible (no accounts available)")
 	}
 
-	// Verify 3 summary items: TOTAL DEPOSITS, TOTAL WITHDRAWALS, NET CASH FLOW
-	count, err := elementCount(ctx, ".portfolio-summary .portfolio-summary-item")
+	count, err := elementCount(ctx, ".portfolio-summary-accounts .portfolio-summary-item")
 	if err != nil {
-		t.Fatalf("error counting summary items: %v", err)
+		t.Fatalf("error counting account balance items: %v", err)
 	}
-	if count != 3 {
-		t.Errorf("summary item count = %d, want 3", count)
+	if count < 2 {
+		t.Errorf("account balance item count = %d, want >= 2 (accounts + TOTAL CASH)", count)
 	}
 
-	// Verify summary labels
-	labelsCorrect, err := commontest.EvalBool(ctx, `
+	hasTotalCash, err := commontest.EvalBool(ctx, `
 		(() => {
-			const row = document.querySelector('.portfolio-summary');
+			const row = document.querySelector('.portfolio-summary-accounts');
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
-			if (labels.length !== 3) return false;
-			const expected = ['TOTAL DEPOSITS', 'TOTAL WITHDRAWALS', 'NET CASH FLOW'];
-			for (let i = 0; i < 3; i++) {
-				if (labels[i].textContent.trim() !== expected[i]) return false;
+			for (const label of labels) {
+				if (label.textContent.trim() === 'TOTAL CASH') return true;
+			}
+			return false;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking TOTAL CASH label: %v", err)
+	}
+	if !hasTotalCash {
+		t.Error("TOTAL CASH label not found in account balances row")
+	}
+}
+
+func TestCapitalCategoryBreakdown(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+	takeScreenshot(t, ctx, "capital", "category-breakdown.png")
+
+	hasCategoryRow, err := commontest.EvalBool(ctx, `
+		(() => {
+			const rows = document.querySelectorAll('.portfolio-summary:not(.portfolio-summary-accounts)');
+			for (const row of rows) {
+				const style = getComputedStyle(row);
+				if (style.display !== 'none' && row.querySelectorAll('.portfolio-summary-item .label').length > 0) {
+					return true;
+				}
+			}
+			return false;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking category breakdown: %v", err)
+	}
+	if !hasCategoryRow {
+		t.Skip("category breakdown row not visible (all categories zero)")
+	}
+
+	labelsUppercase, err := commontest.EvalBool(ctx, `
+		(() => {
+			const rows = document.querySelectorAll('.portfolio-summary:not(.portfolio-summary-accounts)');
+			let row = null;
+			for (const r of rows) {
+				if (getComputedStyle(r).display !== 'none') { row = r; break; }
+			}
+			if (!row) return false;
+			const labels = row.querySelectorAll('.portfolio-summary-item .label');
+			if (labels.length === 0) return false;
+			for (const label of labels) {
+				if (label.textContent.trim() !== label.textContent.trim().toUpperCase()) return false;
 			}
 			return true;
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking summary labels: %v", err)
+		t.Fatalf("error checking category labels: %v", err)
 	}
-	if !labelsCorrect {
-		t.Error("summary labels do not match expected: TOTAL DEPOSITS, TOTAL WITHDRAWALS, NET CASH FLOW")
+	if !labelsUppercase {
+		t.Error("category breakdown labels are not uppercase")
 	}
 }
 
@@ -180,13 +228,13 @@ func TestCapitalTransactionsTable(t *testing.T) {
 		t.Error("panel header text does not match 'CASH TRANSACTIONS'")
 	}
 
-	// Verify table column headers: DATE, TYPE, AMOUNT, DESCRIPTION
+	// Verify table column headers: DATE, ACCOUNT, CATEGORY, AMOUNT, DESCRIPTION
 	columnsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
 			const ths = document.querySelectorAll('.tool-table th');
-			if (ths.length !== 4) return false;
-			const expected = ['DATE', 'TYPE', 'AMOUNT', 'DESCRIPTION'];
-			for (let i = 0; i < 4; i++) {
+			if (ths.length !== 5) return false;
+			const expected = ['DATE', 'ACCOUNT', 'CATEGORY', 'AMOUNT', 'DESCRIPTION'];
+			for (let i = 0; i < 5; i++) {
 				if (ths[i].textContent.trim() !== expected[i]) return false;
 			}
 			return true;
@@ -196,7 +244,7 @@ func TestCapitalTransactionsTable(t *testing.T) {
 		t.Fatalf("error checking table columns: %v", err)
 	}
 	if !columnsCorrect {
-		t.Error("table column headers do not match expected: DATE, TYPE, AMOUNT, DESCRIPTION")
+		t.Error("table column headers do not match expected: DATE, ACCOUNT, CATEGORY, AMOUNT, DESCRIPTION")
 	}
 }
 
@@ -230,7 +278,7 @@ func TestCapitalTransactionColors(t *testing.T) {
 			if (rows.length === 0) return false;
 			let hasGainClass = false;
 			for (const row of rows) {
-				const amountCell = row.querySelectorAll('td')[2];
+				const amountCell = row.querySelectorAll('td')[3];
 				if (amountCell && (amountCell.classList.contains('gain-positive') || amountCell.classList.contains('gain-negative'))) {
 					hasGainClass = true;
 				}
