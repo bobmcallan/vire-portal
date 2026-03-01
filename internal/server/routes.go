@@ -56,6 +56,9 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.HandleFunc("GET /profile", s.app.ProfileHandler.HandleProfile)
 	mux.HandleFunc("POST /profile", s.app.ProfileHandler.HandleSaveProfile)
 
+	// Admin routes
+	mux.HandleFunc("GET /admin/users", s.app.AdminUsersHandler.ServeHTTP)
+
 	// Auth routes
 	mux.HandleFunc("POST /api/auth/login", s.app.AuthHandler.HandleLogin)
 	mux.HandleFunc("POST /api/auth/test-login", s.app.AuthHandler.HandleTestLogin) // Dev-mode only: returns JSON for browser tests

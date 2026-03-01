@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{template "head.html" .}}
+    <title>VIRE USERS</title>
+</head>
+<body>
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+    <main class="page">
+        <div class="page-body">
+
+            {{if .FetchError}}
+            <div class="warning-banner">
+                <strong>ERROR:</strong> {{.FetchError}}
+            </div>
+            {{end}}
+
+            <section class="panel-headed">
+                <div class="panel-header">USERS [{{.UserCount}}]</div>
+                <div class="panel-content">
+                    {{if .Users}}
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Name</th>
+                                    <th>Role</th>
+                                    <th>Provider</th>
+                                    <th>Joined</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{range .Users}}
+                                <tr>
+                                    <td>{{.Email}}</td>
+                                    <td>{{.Name}}</td>
+                                    <td>{{.Role}}</td>
+                                    <td>{{.Provider}}</td>
+                                    <td>{{.CreatedAt}}</td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
+                    </div>
+                    {{else}}
+                    <p class="no-tools">No users found.</p>
+                    {{end}}
+                </div>
+            </section>
+
+        </div>
+    </main>
+    {{template "footer.html" .}}
+</body>
+</html>

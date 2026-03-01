@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/bobmcallan/vire-portal/internal/client"
 	"github.com/bobmcallan/vire-portal/internal/config"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
@@ -26,25 +27,27 @@ type MCPPageHandler struct {
 	port           int
 	jwtSecret      []byte
 	catalogFn      func() []MCPPageTool
+	userLookupFn   func(string) (*client.UserProfile, error)
 	devMCPEndpoint func(userID string) string
 	apiURL         string
 	baseURL        string
 }
 
 // NewMCPPageHandler creates a new MCP page handler.
-func NewMCPPageHandler(logger *common.Logger, devMode bool, port int, jwtSecret []byte, catalogFn func() []MCPPageTool) *MCPPageHandler {
+func NewMCPPageHandler(logger *common.Logger, devMode bool, port int, jwtSecret []byte, catalogFn func() []MCPPageTool, userLookupFn func(string) (*client.UserProfile, error)) *MCPPageHandler {
 	pagesDir := FindPagesDir()
 
 	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
 	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
 
 	return &MCPPageHandler{
-		logger:    logger,
-		templates: templates,
-		devMode:   devMode,
-		port:      port,
-		jwtSecret: jwtSecret,
-		catalogFn: catalogFn,
+		logger:       logger,
+		templates:    templates,
+		devMode:      devMode,
+		port:         port,
+		jwtSecret:    jwtSecret,
+		catalogFn:    catalogFn,
+		userLookupFn: userLookupFn,
 	}
 }
 
@@ -91,6 +94,13 @@ func (h *MCPPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		devMCPEndpoint = h.devMCPEndpoint(claims.Sub)
 	}
 
+	userRole := ""
+	if h.userLookupFn != nil && claims != nil && claims.Sub != "" {
+		if user, err := h.userLookupFn(claims.Sub); err == nil && user != nil {
+			userRole = user.Role
+		}
+	}
+
 	data := map[string]interface{}{
 		"Page":           "mcp",
 		"DevMode":        h.devMode,
@@ -101,6 +111,7 @@ func (h *MCPPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"MCPEndpoint":    mcpEndpoint,
 		"DevMCPEndpoint": devMCPEndpoint,
 		"Port":           h.port,
+		"UserRole":       userRole,
 		"PortalVersion":  config.GetVersion(),
 		"ServerVersion":  GetServerVersion(h.apiURL),
 	}

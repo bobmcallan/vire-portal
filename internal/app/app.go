@@ -52,6 +52,7 @@ type App struct {
 	MCPHandler          *mcp.Handler
 	MCPDevHandler       *mcp.DevHandler
 	OAuthServer         *auth.OAuthServer
+	AdminUsersHandler   *handlers.AdminUsersHandler
 }
 
 // New initializes the application with all dependencies.
@@ -165,6 +166,7 @@ func (a *App) initHandlers() {
 		a.Config.Server.Port,
 		jwtSecret,
 		catalogAdapter(a.MCPHandler),
+		userLookup,
 	)
 	a.MCPPageHandler.SetAPIURL(a.Config.API.URL)
 	a.MCPPageHandler.SetBaseURL(a.Config.BaseURL())
@@ -173,6 +175,26 @@ func (a *App) initHandlers() {
 		a.MCPPageHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
 		a.ProfileHandler.SetDevMCPEndpointFn(a.MCPDevHandler.GenerateEndpoint)
 	}
+
+	// Construct service user ID for admin API calls
+	portalID := a.Config.Service.PortalID
+	if portalID == "" {
+		portalID, _ = os.Hostname()
+	}
+	serviceUserID := ""
+	if a.Config.Service.Key != "" {
+		serviceUserID = "service:" + portalID
+	}
+
+	a.AdminUsersHandler = handlers.NewAdminUsersHandler(
+		a.Logger,
+		a.Config.IsDevMode(),
+		jwtSecret,
+		userLookup,
+		vireClient.AdminListUsers,
+		serviceUserID,
+	)
+	a.AdminUsersHandler.SetAPIURL(a.Config.API.URL)
 
 	a.OAuthServer = auth.NewOAuthServer(a.Config.BaseURL(), a.Config.API.URL, jwtSecret, a.Logger)
 	a.AuthHandler.SetOAuthServer(a.OAuthServer)

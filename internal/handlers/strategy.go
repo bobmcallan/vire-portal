@@ -51,11 +51,15 @@ func (h *StrategyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var userRole string
 	navexaKeyMissing := false
 	if h.userLookupFn != nil && claims != nil && claims.Sub != "" {
 		user, err := h.userLookupFn(claims.Sub)
-		if err == nil && user != nil && !user.NavexaKeySet {
-			navexaKeyMissing = true
+		if err == nil && user != nil {
+			if !user.NavexaKeySet {
+				navexaKeyMissing = true
+			}
+			userRole = user.Role
 		}
 	}
 
@@ -64,6 +68,7 @@ func (h *StrategyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"DevMode":          h.devMode,
 		"LoggedIn":         loggedIn,
 		"NavexaKeyMissing": navexaKeyMissing,
+		"UserRole":         userRole,
 		"PortalVersion":    config.GetVersion(),
 		"ServerVersion":    GetServerVersion(h.apiURL),
 	}

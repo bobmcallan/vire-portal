@@ -194,7 +194,7 @@ func TestDashboardHandler_StressNilUserLookup(t *testing.T) {
 
 func TestMCPPageHandler_StressUnauthenticatedRedirect(t *testing.T) {
 	catalogFn := func() []MCPPageTool { return nil }
-	handler := NewMCPPageHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	w := httptest.NewRecorder()
@@ -208,7 +208,7 @@ func TestMCPPageHandler_StressUnauthenticatedRedirect(t *testing.T) {
 
 func TestMCPPageHandler_StressExpiredToken(t *testing.T) {
 	catalogFn := func() []MCPPageTool { return nil }
-	handler := NewMCPPageHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: buildExpiredJWT("alice")})
@@ -233,7 +233,7 @@ func TestMCPPageHandler_StressXSSInToolData(t *testing.T) {
 		{Name: `" onclick="alert(1)`, Description: `'; DROP TABLE tools;--`},
 	}
 	catalogFn := func() []MCPPageTool { return hostileTools }
-	handler := NewMCPPageHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -263,7 +263,7 @@ func TestMCPPageHandler_StressConcurrentAccess(t *testing.T) {
 	catalogFn := func() []MCPPageTool {
 		return []MCPPageTool{{Name: "tool_a", Description: "A"}}
 	}
-	handler := NewMCPPageHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
@@ -289,7 +289,7 @@ func TestMCPPageHandler_StressConcurrentAccess(t *testing.T) {
 func TestMCPPageHandler_StressNilCatalogReturn(t *testing.T) {
 	// catalogFn returns nil — should not panic
 	catalogFn := func() []MCPPageTool { return nil }
-	handler := NewMCPPageHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, true, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -312,7 +312,7 @@ func TestMCPPageHandler_StressDevEndpointHostileUserID(t *testing.T) {
 	// If the JWT sub claim contains hostile characters, the dev MCP endpoint
 	// function receives them. Verify the output is properly escaped in the template.
 	catalogFn := func() []MCPPageTool { return nil }
-	handler := NewMCPPageHandler(nil, true, 8500, []byte{}, catalogFn)
+	handler := NewMCPPageHandler(nil, true, 8500, []byte{}, catalogFn, nil)
 	handler.SetDevMCPEndpointFn(func(userID string) string {
 		return "http://localhost:8500/mcp/" + userID
 	})

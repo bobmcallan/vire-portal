@@ -323,7 +323,7 @@ func TestMCPPageHandler_ContainsToolCatalog(t *testing.T) {
 	}
 	catalogFn := func() []MCPPageTool { return tools }
 
-	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -350,7 +350,7 @@ func TestMCPPageHandler_ContainsToolCatalog(t *testing.T) {
 func TestMCPPageHandler_ContainsMCPConnectionConfig(t *testing.T) {
 	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 	handler.SetBaseURL("http://localhost:8500")
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
@@ -380,7 +380,7 @@ func TestMCPPageHandler_ContainsMCPConnectionConfig(t *testing.T) {
 func TestMCPPageHandler_ShowsEmptyToolsMessage(t *testing.T) {
 	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -402,7 +402,7 @@ func TestMCPPageHandler_XSSEscaping(t *testing.T) {
 	}
 	catalogFn := func() []MCPPageTool { return tools }
 
-	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -434,7 +434,7 @@ func TestMCPPageHandler_ToolCount(t *testing.T) {
 	}
 	catalogFn := func() []MCPPageTool { return tools }
 
-	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -1857,7 +1857,7 @@ func TestMCPPageHandler_ToolTableUseComponentLibraryClasses(t *testing.T) {
 	}
 	catalogFn := func() []MCPPageTool { return tools }
 
-	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, 8500, []byte(testJWTSecret), catalogFn, nil)
 
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -1931,7 +1931,7 @@ func TestMCPPageHandler_PortInMCPEndpoint(t *testing.T) {
 	// Verify base URL is correctly used in the MCP endpoint URL
 	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewMCPPageHandler(nil, false, 8080, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, 8080, []byte(testJWTSecret), catalogFn, nil)
 	handler.SetBaseURL("http://localhost:8080")
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -1948,7 +1948,7 @@ func TestMCPPageHandler_BaseURLDeployed(t *testing.T) {
 	// When base URL is set to an external domain, the endpoint should use it
 	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewMCPPageHandler(nil, false, 8080, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, 8080, []byte(testJWTSecret), catalogFn, nil)
 	handler.SetBaseURL("https://vire-pprod-portal.fly.dev")
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -1968,7 +1968,7 @@ func TestMCPPageHandler_BaseURLFallback(t *testing.T) {
 	// When base URL is not set, should fall back to localhost:{port}
 	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewMCPPageHandler(nil, false, 9999, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, 9999, []byte(testJWTSecret), catalogFn, nil)
 	// Intentionally NOT calling SetBaseURL
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
@@ -1988,7 +1988,7 @@ func TestMCPPageHandler_PortZero(t *testing.T) {
 	// Edge case: port 0 should still render without crashing
 	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewMCPPageHandler(nil, false, 0, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, 0, []byte(testJWTSecret), catalogFn, nil)
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
@@ -2003,7 +2003,7 @@ func TestMCPPageHandler_PortNegative(t *testing.T) {
 	// Edge case: negative port should render without crashing
 	catalogFn := func() []MCPPageTool { return nil }
 
-	handler := NewMCPPageHandler(nil, false, -1, []byte(testJWTSecret), catalogFn)
+	handler := NewMCPPageHandler(nil, false, -1, []byte(testJWTSecret), catalogFn, nil)
 	req := httptest.NewRequest("GET", "/mcp-info", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
