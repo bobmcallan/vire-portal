@@ -182,5 +182,8 @@ func (a *App) initHandlers() {
 
 // Close closes all application resources.
 func (a *App) Close() error {
+	if a.MCPHandler != nil {
+		a.MCPHandler.Close()
+	}
 	return nil
 }

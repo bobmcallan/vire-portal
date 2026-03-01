@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -367,4 +368,290 @@ func TestServeHTTP_AuthenticatedCookieNoWWWAuthenticate(t *testing.T) {
 	if wwwAuth != "" {
 		t.Errorf("expected no WWW-Authenticate header for authenticated request, got %q", wwwAuth)
 	}
+}
+
+// =============================================================================
+// Catalog Refresh Tests
+// =============================================================================
+
+// makeMockCatalogServer creates a test HTTP server that serves:
+// - GET /api/mcp/tools with the catalog JSON from catalogFn()
+// - GET /api/version with the build string from buildFn()
+// and returns the server for use in tests.
+func makeMockCatalogServer(t *testing.T, buildFn func() string, catalogFn func() string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/version":
+			build := buildFn()
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"build": build})
+		case "/api/mcp/tools":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(catalogFn()))
+		default:
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+	}))
+	return srv
+}
+
+// makeHandler creates a Handler with a mock catalog server for testing.
+// Returns the handler and the server. The server must be closed after use.
+func makeHandlerWithServer(t *testing.T, srv *httptest.Server) *Handler {
+	t.Helper()
+	logger := testLogger()
+	cfg := testConfig()
+	cfg.API.URL = srv.URL
+	cfg.MCP.CatalogRetries = 1
+
+	h := NewHandler(cfg, logger)
+	return h
+}
+
+// TestRefreshCatalog_UpdatesTools verifies that RefreshCatalog replaces the tool
+// catalog atomically: handler.Catalog() returns updated tools, mcpSrv.ListTools()
+// reflects the change.
+func TestRefreshCatalog_UpdatesTools(t *testing.T) {
+	// Phase 1: initial catalog with 1 tool
+	phase := 1
+	srv := makeMockCatalogServer(t,
+		func() string { return "build-1" },
+		func() string {
+			if phase == 1 {
+				return `[{"name":"tool_a","description":"Tool A","method":"GET","path":"/api/tool_a","params":[]}]`
+			}
+			return `[{"name":"tool_a","description":"Tool A","method":"GET","path":"/api/tool_a","params":[]},{"name":"tool_b","description":"Tool B","method":"GET","path":"/api/tool_b","params":[]}]`
+		},
+	)
+	defer srv.Close()
+
+	h := makeHandlerWithServer(t, srv)
+	defer h.Close()
+
+	// Verify initial catalog has 1 tool
+	if got := len(h.Catalog()); got != 1 {
+		t.Fatalf("expected 1 initial catalog tool, got %d", got)
+	}
+
+	// Phase 2: expand catalog to 2 tools and refresh
+	phase = 2
+	count, err := h.RefreshCatalog()
+	if err != nil {
+		t.Fatalf("RefreshCatalog returned error: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected RefreshCatalog to return 2, got %d", count)
+	}
+
+	// Catalog() should reflect the update
+	catalog := h.Catalog()
+	if len(catalog) != 2 {
+		t.Errorf("expected 2 catalog tools after refresh, got %d", len(catalog))
+	}
+
+	// mcpSrv.ListTools() must contain tool_a, tool_b, and get_version
+	tools := h.mcpSrv.ListTools()
+	if tools["tool_a"] == nil {
+		t.Error("expected tool_a in mcpSrv after refresh")
+	}
+	if tools["tool_b"] == nil {
+		t.Error("expected tool_b in mcpSrv after refresh")
+	}
+	if tools["get_version"] == nil {
+		t.Error("expected get_version in mcpSrv after refresh")
+	}
+}
+
+// TestRefreshCatalog_ServerUnreachable verifies that when the server is down
+// during a refresh, the error is returned and the original catalog is preserved.
+func TestRefreshCatalog_ServerUnreachable(t *testing.T) {
+	srv := makeMockCatalogServer(t,
+		func() string { return "build-1" },
+		func() string {
+			return `[{"name":"tool_a","description":"Tool A","method":"GET","path":"/api/tool_a","params":[]}]`
+		},
+	)
+
+	h := makeHandlerWithServer(t, srv)
+	defer h.Close()
+
+	// Verify we have initial catalog
+	if got := len(h.Catalog()); got != 1 {
+		t.Fatalf("expected 1 initial catalog tool, got %d", got)
+	}
+
+	// Close the server to make it unreachable
+	srv.Close()
+
+	// RefreshCatalog should return error
+	_, err := h.RefreshCatalog()
+	if err == nil {
+		t.Fatal("expected error when server is unreachable")
+	}
+
+	// Original catalog should be preserved
+	if got := len(h.Catalog()); got != 1 {
+		t.Errorf("expected original 1 catalog tool preserved, got %d", got)
+	}
+}
+
+// TestRefreshCatalog_VersionToolAlwaysPresent verifies that get_version is always
+// present in the mcpSrv tool list after a refresh, even when not in the catalog.
+func TestRefreshCatalog_VersionToolAlwaysPresent(t *testing.T) {
+	// Catalog without get_version
+	srv := makeMockCatalogServer(t,
+		func() string { return "build-1" },
+		func() string {
+			return `[{"name":"some_tool","description":"Some tool","method":"GET","path":"/api/some_tool","params":[]}]`
+		},
+	)
+	defer srv.Close()
+
+	h := makeHandlerWithServer(t, srv)
+	defer h.Close()
+
+	_, err := h.RefreshCatalog()
+	if err != nil {
+		t.Fatalf("RefreshCatalog returned error: %v", err)
+	}
+
+	// get_version must always be present
+	if got := h.mcpSrv.GetTool("get_version"); got == nil {
+		t.Error("expected get_version to be present in mcpSrv after refresh")
+	}
+}
+
+// TestWatchServerVersion_DetectsChange verifies that triggerRefresh updates the
+// catalog when called directly after changing server state.
+func TestWatchServerVersion_DetectsChange(t *testing.T) {
+	build := "build-1"
+	phase := 1
+	srv := makeMockCatalogServer(t,
+		func() string { return build },
+		func() string {
+			if phase == 1 {
+				return `[{"name":"tool_a","description":"Tool A","method":"GET","path":"/api/tool_a","params":[]}]`
+			}
+			return `[{"name":"tool_a","description":"Tool A","method":"GET","path":"/api/tool_a","params":[]},{"name":"tool_b","description":"Tool B","method":"GET","path":"/api/tool_b","params":[]}]`
+		},
+	)
+	defer srv.Close()
+
+	h := makeHandlerWithServer(t, srv)
+	defer h.Close()
+
+	if got := len(h.Catalog()); got != 1 {
+		t.Fatalf("expected 1 initial catalog tool, got %d", got)
+	}
+
+	// Simulate a build change and trigger refresh
+	phase = 2
+	build = "build-2"
+	h.triggerRefresh(build)
+
+	// Catalog should now have 2 tools
+	if got := len(h.Catalog()); got != 2 {
+		t.Errorf("expected 2 catalog tools after triggerRefresh, got %d", got)
+	}
+}
+
+// TestFetchServerBuild_Success verifies that fetchServerBuild returns the correct
+// build string when the /api/version endpoint is reachable.
+func TestFetchServerBuild_Success(t *testing.T) {
+	srv := makeMockCatalogServer(t,
+		func() string { return "build-abc123" },
+		func() string { return `[]` },
+	)
+	defer srv.Close()
+
+	h := makeHandlerWithServer(t, srv)
+	defer h.Close()
+
+	got := h.fetchServerBuild()
+	if got != "build-abc123" {
+		t.Errorf("expected build-abc123, got %q", got)
+	}
+}
+
+// TestFetchServerBuild_Unreachable verifies that fetchServerBuild returns empty
+// string when the server is unreachable (mockAPIServer returns 503).
+func TestFetchServerBuild_Unreachable(t *testing.T) {
+	// Use the shared mockAPIServer which returns 503 for all requests
+	logger := testLogger()
+	cfg := testConfig()
+	// mockAPIServer.URL is set in testConfig()
+	cfg.MCP.CatalogRetries = 1
+
+	h := NewHandler(cfg, logger)
+	defer h.Close()
+
+	got := h.fetchServerBuild()
+	if got != "" {
+		t.Errorf("expected empty string for unreachable server, got %q", got)
+	}
+}
+
+// TestHandlerClose_ChannelClosed verifies that after Close(), the stopWatch
+// channel is closed and readable (confirming the watcher goroutine can exit).
+func TestHandlerClose_ChannelClosed(t *testing.T) {
+	logger := testLogger()
+	cfg := testConfig()
+	cfg.MCP.CatalogRetries = 1
+
+	h := NewHandler(cfg, logger)
+
+	// Close should not panic
+	h.Close()
+
+	// Verify channel is closed by attempting to receive from it
+	select {
+	case <-h.stopWatch:
+		// Channel is closed, expected
+	default:
+		t.Error("expected stopWatch channel to be closed after Close()")
+	}
+
+	// Second close should also not panic (idempotent)
+	h.Close()
+}
+
+// TestRefreshCatalog_ConcurrentAccess runs concurrent reads and writes on the
+// handler catalog to detect data races. Run with -race flag.
+func TestRefreshCatalog_ConcurrentAccess(t *testing.T) {
+	phase := 1
+	srv := makeMockCatalogServer(t,
+		func() string { return "build-1" },
+		func() string {
+			if phase == 1 {
+				return `[{"name":"tool_a","description":"Tool A","method":"GET","path":"/api/tool_a","params":[]}]`
+			}
+			return `[{"name":"tool_a","description":"Tool A","method":"GET","path":"/api/tool_a","params":[]},{"name":"tool_b","description":"Tool B","method":"GET","path":"/api/tool_b","params":[]}]`
+		},
+	)
+	defer srv.Close()
+
+	h := makeHandlerWithServer(t, srv)
+	defer h.Close()
+
+	var wg sync.WaitGroup
+	// 10 concurrent readers
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 5; j++ {
+				_ = h.Catalog()
+			}
+		}()
+	}
+	// 1 writer (RefreshCatalog)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		phase = 2
+		_, _ = h.RefreshCatalog()
+	}()
+
+	wg.Wait()
 }

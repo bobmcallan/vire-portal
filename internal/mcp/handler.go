@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/config"
@@ -23,10 +24,17 @@ type Handler struct {
 	logger     *common.Logger
 	catalog    []CatalogTool
 	jwtSecret  []byte
+	mcpSrv     *mcpserver.MCPServer // for SetTools() during refresh
+	proxy      *MCPProxy            // for FetchCatalog() during refresh
+	catalogMu  sync.RWMutex         // protects catalog field
+	stopWatch  chan struct{}        // closed to stop version watcher
 }
 
 // catalogRetryDelay is the delay between retry attempts.
 const catalogRetryDelay = 2 * time.Second
+
+// versionPollInterval is how often the version watcher polls vire-server.
+const versionPollInterval = 30 * time.Second
 
 // NewHandler creates a new MCP handler with dynamic tool registration from vire-server.
 func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
@@ -89,19 +97,141 @@ func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 		Str("api_url", cfg.API.URL).
 		Msg("MCP handler initialized")
 
-	return &Handler{
+	h := &Handler{
 		streamable: streamable,
 		logger:     logger,
 		catalog:    validated,
 		jwtSecret:  []byte(cfg.Auth.JWTSecret),
+		mcpSrv:     mcpSrv,
+		proxy:      proxy,
+		stopWatch:  make(chan struct{}),
 	}
+	go h.watchServerVersion()
+	return h
 }
 
 // Catalog returns a copy of the validated tool catalog.
 func (h *Handler) Catalog() []CatalogTool {
+	h.catalogMu.RLock()
+	defer h.catalogMu.RUnlock()
 	result := make([]CatalogTool, len(h.catalog))
 	copy(result, h.catalog)
 	return result
+}
+
+// RefreshCatalog fetches the current tool catalog from vire-server, validates it,
+// atomically replaces all registered tools via SetTools(), and updates the catalog.
+// Returns the count of validated tools (excluding get_version) or an error.
+func (h *Handler) RefreshCatalog() (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	catalog, err := h.proxy.FetchCatalog(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("fetch catalog: %w", err)
+	}
+
+	validated := ValidateCatalog(catalog, h.logger)
+
+	tools := make([]mcpserver.ServerTool, 0, len(validated)+1)
+	for _, ct := range validated {
+		tools = append(tools, mcpserver.ServerTool{
+			Tool:    BuildMCPTool(ct),
+			Handler: GenericToolHandler(h.proxy, ct),
+		})
+	}
+	// Always include combined version tool
+	tools = append(tools, mcpserver.ServerTool{
+		Tool:    VersionTool(),
+		Handler: VersionToolHandler(h.proxy),
+	})
+
+	h.mcpSrv.SetTools(tools...)
+
+	h.catalogMu.Lock()
+	h.catalog = validated
+	h.catalogMu.Unlock()
+
+	return len(validated), nil
+}
+
+// watchServerVersion polls vire-server's /api/version every versionPollInterval.
+// When the build field changes, it triggers a catalog refresh.
+func (h *Handler) watchServerVersion() {
+	lastBuild := h.fetchServerBuild()
+
+	ticker := time.NewTicker(versionPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-h.stopWatch:
+			return
+		case <-ticker.C:
+			build := h.fetchServerBuild()
+			if build == "" {
+				continue
+			}
+			if lastBuild == "" {
+				lastBuild = build
+				h.triggerRefresh(build)
+				continue
+			}
+			if build != lastBuild {
+				h.logger.Info().
+					Str("old_build", lastBuild).
+					Str("new_build", build).
+					Msg("server build changed, refreshing tool catalog")
+				lastBuild = build
+				h.triggerRefresh(build)
+			}
+		}
+	}
+}
+
+// fetchServerBuild fetches the build string from vire-server's /api/version endpoint.
+// Returns empty string on any error (server unreachable, invalid response, etc.).
+func (h *Handler) fetchServerBuild() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	body, err := h.proxy.get(ctx, "/api/version")
+	if err != nil {
+		return ""
+	}
+
+	var resp struct {
+		Build string `json:"build"`
+	}
+	if json.Unmarshal(body, &resp) != nil {
+		return ""
+	}
+	return resp.Build
+}
+
+// triggerRefresh calls RefreshCatalog and logs the outcome.
+func (h *Handler) triggerRefresh(build string) {
+	count, err := h.RefreshCatalog()
+	if err != nil {
+		h.logger.Warn().
+			Str("build", build).
+			Str("error", err.Error()).
+			Msg("catalog refresh failed")
+		return
+	}
+	h.logger.Info().
+		Int("tools", count).
+		Str("build", build).
+		Msg("catalog refreshed")
+}
+
+// Close stops the version watcher goroutine. Safe to call multiple times.
+func (h *Handler) Close() {
+	select {
+	case <-h.stopWatch:
+	default:
+		close(h.stopWatch)
+	}
 }
 
 // ServeHTTP extracts user context from the session cookie (if present)
