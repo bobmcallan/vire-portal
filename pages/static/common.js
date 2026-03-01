@@ -338,10 +338,10 @@ function portfolioDashboard() {
                 const p = Object.assign({}, points[i]);
                 if (i > 0 && filtered.length > 0) {
                     const prev = filtered[filtered.length - 1];
-                    if (prev.TotalValue > 0) {
-                        const change = Math.abs(p.TotalValue - prev.TotalValue) / prev.TotalValue;
+                    if (prev.total_capital > 0) {
+                        const change = Math.abs(p.total_capital - prev.total_capital) / prev.total_capital;
                         if (change > 0.5) {
-                            p.TotalValue = prev.TotalValue;
+                            p.total_capital = prev.total_capital;
                         }
                     }
                 }
@@ -359,12 +359,12 @@ function portfolioDashboard() {
             if (!canvas || typeof Chart === 'undefined') return;
 
             const labels = this.growthData.map(p => {
-                const d = new Date(p.Date);
+                const d = new Date(p.date);
                 return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             });
-            const totalValues = this.growthData.map(p => p.TotalValue);
-            const totalCosts = this.growthData.map(p => p.TotalCost);
-            const capitalLine = this.growthData.map(p => p.NetDeployed || this.capitalInvested || 0);
+            const totalValues = this.growthData.map(p => p.total_capital || p.value || 0);
+            const totalCosts = this.growthData.map(p => p.cost || 0);
+            const capitalLine = this.growthData.map(p => p.net_deployed || this.capitalInvested || 0);
 
             this.chartInstance = new Chart(canvas, {
                 type: 'line',
