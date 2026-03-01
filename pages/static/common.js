@@ -201,6 +201,7 @@ function portfolioDashboard() {
         hasGrowthData: false,
         chartInstance: null,
         loading: true,
+        portfolioLoading: false,
         error: '',
         get isDefault() { return this.selected === this.defaultPortfolio; },
         get filteredHoldings() {
@@ -255,6 +256,7 @@ function portfolioDashboard() {
 
         async loadPortfolio() {
             if (!this.selected) return;
+            this.portfolioLoading = true;
             try {
                 const holdingsRes = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected));
 
@@ -309,6 +311,8 @@ function portfolioDashboard() {
                 this.fetchGrowthData();
             } catch (e) {
                 debugError('portfolioDashboard', 'loadPortfolio failed', e);
+            } finally {
+                this.portfolioLoading = false;
             }
         },
 

@@ -11,7 +11,7 @@
     {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
 
     <main class="page" x-data="portfolioDashboard()" x-init="init()">
-        <div class="page-body">
+        <div class="page-body" style="position:relative">
 
             {{if .NavexaKeyMissing}}
             <div class="warning-banner">
@@ -46,6 +46,11 @@
             <!-- Empty state -->
             <div x-show="!loading && portfolios.length === 0 && !error" class="text-muted" style="padding: 2rem 0;">
                 No portfolios found. Configure your Navexa API key in <a href="/profile">Profile</a>.
+            </div>
+
+            <!-- Portfolio loading overlay -->
+            <div class="portfolio-loading-overlay" x-show="portfolioLoading" x-cloak>
+                <span>Loading portfolio...</span>
             </div>
 
             <!-- Portfolio summary -->
