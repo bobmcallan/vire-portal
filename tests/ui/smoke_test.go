@@ -20,6 +20,8 @@ func TestSmokeLandingNoJSErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	takeScreenshot(t, ctx, "smoke", "landing-no-js-errors.png")
+
 	if jsErrs := errs.Errors(); len(jsErrs) > 0 {
 		t.Errorf("JS errors on landing page:\n  %s", strings.Join(jsErrs, "\n  "))
 	}
@@ -32,6 +34,8 @@ func TestSmokeLandingLoginButtons(t *testing.T) {
 	if err := navigateAndWait(ctx, serverURL()+"/"); err != nil {
 		t.Fatal(err)
 	}
+
+	takeScreenshot(t, ctx, "smoke", "landing-login-buttons.png")
 
 	googleVisible, err := isVisible(ctx, `a[href="/api/auth/login/google"]`)
 	if err != nil {
@@ -54,10 +58,14 @@ func TestSmokeLandingBranding(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
+	if err := navigateAndWait(ctx, serverURL()+"/"); err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "smoke", "landing-branding.png")
+
 	var brand string
 	err := chromedp.Run(ctx,
-		chromedp.Navigate(serverURL()+"/"),
-		chromedp.WaitVisible(".landing-title", chromedp.ByQuery),
 		chromedp.Text(".landing-title", &brand, chromedp.ByQuery),
 	)
 	if err != nil {
@@ -139,10 +147,14 @@ func TestSmokeCSSLoaded(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
+	if err := navigateAndWait(ctx, serverURL()+"/dashboard"); err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "smoke", "css-loaded.png")
+
 	var fontFamily string
 	err := chromedp.Run(ctx,
-		chromedp.Navigate(serverURL()+"/dashboard"),
-		chromedp.WaitVisible("body", chromedp.ByQuery),
 		chromedp.Evaluate(`getComputedStyle(document.body).fontFamily`, &fontFamily),
 	)
 	if err != nil {
