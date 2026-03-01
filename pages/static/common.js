@@ -563,9 +563,8 @@ function cashTransactions() {
             if (val == null || val === 0) return '';
             return val > 0 ? 'gain-positive' : 'gain-negative';
         },
-        txnClass(type) {
-            const credits = ['deposit', 'contribution', 'transfer_in', 'dividend'];
-            return credits.includes(type) ? 'gain-positive' : 'gain-negative';
+        txnClass(amount) {
+            return Number(amount) >= 0 ? 'gain-positive' : 'gain-negative';
         },
 
         async init() {
@@ -603,10 +602,10 @@ function cashTransactions() {
                     const txns = data.transactions || [];
                     txns.sort((a, b) => new Date(b.date) - new Date(a.date));
                     this.transactions = txns;
-                    const credits = ['deposit', 'contribution', 'transfer_in', 'dividend'];
-                    this.totalDeposits = txns.filter(t => credits.includes(t.type)).reduce((s, t) => s + Number(t.amount), 0);
-                    this.totalWithdrawals = txns.filter(t => !credits.includes(t.type)).reduce((s, t) => s + Number(t.amount), 0);
-                    this.netCashFlow = this.totalDeposits - this.totalWithdrawals;
+                    const summary = data.summary || {};
+                    this.totalDeposits = summary.total_credits || 0;
+                    this.totalWithdrawals = summary.total_debits || 0;
+                    this.netCashFlow = summary.net_cash_flow || 0;
                 } else {
                     this.transactions = [];
                     this.totalDeposits = 0;

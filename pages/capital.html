@@ -47,11 +47,11 @@
             <!-- Summary row -->
             <div class="portfolio-summary" x-show="hasTransactions" x-cloak>
                 <div class="portfolio-summary-item">
-                    <span class="label">TOTAL DEPOSITS</span>
+                    <span class="label">TOTAL CREDITS</span>
                     <span class="text-bold gain-positive" x-text="fmt(totalDeposits)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">TOTAL WITHDRAWALS</span>
+                    <span class="label">TOTAL DEBITS</span>
                     <span class="text-bold gain-negative" x-text="fmt(totalWithdrawals)"></span>
                 </div>
                 <div class="portfolio-summary-item">
@@ -69,7 +69,8 @@
                             <thead>
                                 <tr>
                                     <th>DATE</th>
-                                    <th>TYPE</th>
+                                    <th>ACCOUNT</th>
+                                    <th>CATEGORY</th>
                                     <th class="text-right">AMOUNT</th>
                                     <th>DESCRIPTION</th>
                                 </tr>
@@ -78,8 +79,9 @@
                                 <template x-for="txn in pagedTransactions" :key="txn.id">
                                     <tr>
                                         <td class="tool-name" x-text="formatDate(txn.date)"></td>
-                                        <td x-text="txn.type.toUpperCase()"></td>
-                                        <td class="text-right" :class="txnClass(txn.type)" x-text="fmt(txn.amount)"></td>
+                                        <td x-text="(txn.account || '').toUpperCase()"></td>
+                                        <td x-text="(txn.category || '').toUpperCase()"></td>
+                                        <td class="text-right" :class="txnClass(txn.amount)" x-text="fmt(txn.amount)"></td>
                                         <td x-text="txn.description"></td>
                                     </tr>
                                 </template>
