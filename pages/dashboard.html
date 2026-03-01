@@ -134,7 +134,7 @@
                                         <td class="tool-name" x-text="h.ticker"></td>
                                         <td x-text="h.name"></td>
                                         <td class="text-right" x-text="fmt(h.market_value)"></td>
-                                        <td class="text-right" x-text="pct(h.weight)"></td>
+                                        <td class="text-right" x-text="pct(h.portfolio_weight_pct)"></td>
                                         <td class="text-right" :class="gainClass(h.net_return)" x-text="fmt(h.net_return)"></td>
                                         <td class="text-right" :class="gainClass(h.net_return_pct)" x-text="pct(h.net_return_pct)"></td>
                                     </tr>

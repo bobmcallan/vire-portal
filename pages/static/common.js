@@ -260,19 +260,19 @@ function portfolioDashboard() {
                 if (holdingsRes.ok) {
                     const holdingsData = await holdingsRes.json();
                     this.holdings = vireStore.dedup(holdingsData.holdings || [], 'ticker');
-                    this.portfolioTotalValue = Number(holdingsData.total_value) || 0;
-                    this.portfolioGain = Number(holdingsData.total_net_return) || 0;
-                    this.portfolioGainPct = Number(holdingsData.total_net_return_pct) || 0;
-                    this.portfolioCost = Number(holdingsData.total_cost) || 0;
-                    this.availableCash = Number(holdingsData.available_cash) || 0;
+                    this.portfolioTotalValue = Number(holdingsData.portfolio_value) || 0;
+                    this.portfolioGain = Number(holdingsData.net_equity_return) || 0;
+                    this.portfolioGainPct = Number(holdingsData.net_equity_return_pct) || 0;
+                    this.portfolioCost = Number(holdingsData.net_equity_cost) || 0;
+                    this.availableCash = Number(holdingsData.net_cash_balance) || 0;
                     // Parse capital performance
                     const cp = holdingsData.capital_performance;
                     if (cp && cp.transaction_count > 0) {
                         this.capitalInvested = Number(cp.net_capital_deployed) || 0;
-                        this.capitalGain = Number(holdingsData.capital_gain) || 0;
-                        this.capitalGainPct = Number(holdingsData.capital_gain_pct) || 0;
-                        this.simpleReturnPct = Number(cp.simple_return_pct) || 0;
-                        this.annualizedReturnPct = Number(cp.annualized_return_pct) || 0;
+                        this.capitalGain = Number(holdingsData.net_capital_return) || 0;
+                        this.capitalGainPct = Number(holdingsData.net_capital_return_pct) || 0;
+                        this.simpleReturnPct = Number(cp.simple_capital_return_pct) || 0;
+                        this.annualizedReturnPct = Number(cp.annualized_capital_return_pct) || 0;
                         this.hasCapitalData = true;
                     } else {
                         this.capitalInvested = 0; this.capitalGain = 0;
@@ -311,7 +311,7 @@ function portfolioDashboard() {
 
         async fetchGrowthData() {
             try {
-                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/history');
+                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/timeline');
                 if (res.ok) {
                     const data = await res.json();
                     const points = data.data_points || [];
@@ -338,10 +338,10 @@ function portfolioDashboard() {
                 const p = Object.assign({}, points[i]);
                 if (i > 0 && filtered.length > 0) {
                     const prev = filtered[filtered.length - 1];
-                    if (prev.total_capital > 0) {
-                        const change = Math.abs(p.total_capital - prev.total_capital) / prev.total_capital;
+                    if (prev.portfolio_value > 0) {
+                        const change = Math.abs(p.portfolio_value - prev.portfolio_value) / prev.portfolio_value;
                         if (change > 0.5) {
-                            p.total_capital = prev.total_capital;
+                            p.portfolio_value = prev.portfolio_value;
                         }
                     }
                 }
@@ -362,8 +362,8 @@ function portfolioDashboard() {
                 const d = new Date(p.date);
                 return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             });
-            const totalValues = this.growthData.map(p => p.total_capital || p.value || 0);
-            const totalCosts = this.growthData.map(p => p.total_cost || 0);
+            const totalValues = this.growthData.map(p => p.portfolio_value || p.value || 0);
+            const totalCosts = this.growthData.map(p => p.net_equity_cost || 0);
             const capitalLine = this.growthData.map(p => p.net_capital_deployed || this.capitalInvested || 0);
 
             this.chartInstance = new Chart(canvas, {
@@ -492,19 +492,19 @@ function portfolioDashboard() {
                 if (res.ok) {
                     const data = await res.json();
                     this.holdings = vireStore.dedup(data.holdings || [], 'ticker');
-                    this.portfolioTotalValue = Number(data.total_value) || 0;
-                    this.portfolioGain = Number(data.total_net_return) || 0;
-                    this.portfolioGainPct = Number(data.total_net_return_pct) || 0;
-                    this.portfolioCost = Number(data.total_cost) || 0;
-                    this.availableCash = Number(data.available_cash) || 0;
+                    this.portfolioTotalValue = Number(data.portfolio_value) || 0;
+                    this.portfolioGain = Number(data.net_equity_return) || 0;
+                    this.portfolioGainPct = Number(data.net_equity_return_pct) || 0;
+                    this.portfolioCost = Number(data.net_equity_cost) || 0;
+                    this.availableCash = Number(data.net_cash_balance) || 0;
                     // Re-parse capital performance
                     const cp = data.capital_performance;
                     if (cp && cp.transaction_count > 0) {
                         this.capitalInvested = Number(cp.net_capital_deployed) || 0;
-                        this.capitalGain = Number(data.capital_gain) || 0;
-                        this.capitalGainPct = Number(data.capital_gain_pct) || 0;
-                        this.simpleReturnPct = Number(cp.simple_return_pct) || 0;
-                        this.annualizedReturnPct = Number(cp.annualized_return_pct) || 0;
+                        this.capitalGain = Number(data.net_capital_return) || 0;
+                        this.capitalGainPct = Number(data.net_capital_return_pct) || 0;
+                        this.simpleReturnPct = Number(cp.simple_capital_return_pct) || 0;
+                        this.annualizedReturnPct = Number(cp.annualized_capital_return_pct) || 0;
                         this.hasCapitalData = true;
                     } else {
                         this.capitalInvested = 0; this.capitalGain = 0;
@@ -615,9 +615,9 @@ function cashTransactions() {
                     this.transactions = txns;
                     this.accounts = data.accounts || [];
                     const summary = data.summary || {};
-                    this.totalCash = summary.total_cash || 0;
+                    this.totalCash = summary.gross_cash_balance || 0;
                     this.transactionCount = summary.transaction_count || 0;
-                    this.byCategory = summary.by_category || {};
+                    this.byCategory = summary.net_cash_by_category || {};
                 } else {
                     this.transactions = [];
                     this.accounts = [];

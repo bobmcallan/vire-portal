@@ -460,15 +460,15 @@ func TestDashboardCapitalPerformance_StressSuite(t *testing.T) {
 			name string
 			body string
 		}{
-			{"null_fields", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":null,"current_portfolio_value":null,"simple_return_pct":null,"annualized_return_pct":null,"transaction_count":1}}`},
-			{"nan_strings", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":"NaN","current_portfolio_value":"NaN","simple_return_pct":"NaN","annualized_return_pct":"NaN","transaction_count":1}}`},
-			{"huge_numbers", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":999999999999999,"current_portfolio_value":999999999999999,"simple_return_pct":99999.99,"annualized_return_pct":99999.99,"transaction_count":1}}`},
-			{"negative_zero", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":-0,"current_portfolio_value":-0,"simple_return_pct":-0,"annualized_return_pct":-0,"transaction_count":1}}`},
-			{"negative_values", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":-100000,"current_portfolio_value":-50000,"simple_return_pct":-150.5,"annualized_return_pct":-999.99,"transaction_count":1}}`},
-			{"zero_capital_deployed", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":0,"current_portfolio_value":50000,"simple_return_pct":0,"annualized_return_pct":0,"transaction_count":1}}`},
-			{"missing_capital_performance", `{"holdings":[],"total_cost":0}`},
-			{"empty_capital_performance", `{"holdings":[],"total_cost":0,"capital_performance":{}}`},
-			{"zero_transaction_count", `{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":100000,"current_portfolio_value":110000,"simple_return_pct":10,"annualized_return_pct":12,"transaction_count":0}}`},
+			{"null_fields", `{"holdings":[],"net_equity_cost":0,"capital_performance":{"net_capital_deployed":null,"equity_value":null,"simple_capital_return_pct":null,"annualized_capital_return_pct":null,"transaction_count":1}}`},
+			{"nan_strings", `{"holdings":[],"net_equity_cost":0,"capital_performance":{"net_capital_deployed":"NaN","equity_value":"NaN","simple_capital_return_pct":"NaN","annualized_capital_return_pct":"NaN","transaction_count":1}}`},
+			{"huge_numbers", `{"holdings":[],"net_equity_cost":0,"capital_performance":{"net_capital_deployed":999999999999999,"equity_value":999999999999999,"simple_capital_return_pct":99999.99,"annualized_capital_return_pct":99999.99,"transaction_count":1}}`},
+			{"negative_zero", `{"holdings":[],"net_equity_cost":0,"capital_performance":{"net_capital_deployed":-0,"equity_value":-0,"simple_capital_return_pct":-0,"annualized_capital_return_pct":-0,"transaction_count":1}}`},
+			{"negative_values", `{"holdings":[],"net_equity_cost":0,"capital_performance":{"net_capital_deployed":-100000,"equity_value":-50000,"simple_capital_return_pct":-150.5,"annualized_capital_return_pct":-999.99,"transaction_count":1}}`},
+			{"zero_capital_deployed", `{"holdings":[],"net_equity_cost":0,"capital_performance":{"net_capital_deployed":0,"equity_value":50000,"simple_capital_return_pct":0,"annualized_capital_return_pct":0,"transaction_count":1}}`},
+			{"missing_capital_performance", `{"holdings":[],"net_equity_cost":0}`},
+			{"empty_capital_performance", `{"holdings":[],"net_equity_cost":0,"capital_performance":{}}`},
+			{"zero_transaction_count", `{"holdings":[],"net_equity_cost":0,"capital_performance":{"net_capital_deployed":100000,"equity_value":110000,"simple_capital_return_pct":10,"annualized_capital_return_pct":12,"transaction_count":0}}`},
 		}
 
 		for _, tc := range edgeCaseResponses {
@@ -596,7 +596,7 @@ func TestDashboardCapitalPerformance_StressSuite(t *testing.T) {
 			mu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"holdings":[],"total_cost":0,"capital_performance":{"net_capital_deployed":100000,"current_portfolio_value":110000,"simple_return_pct":10,"annualized_return_pct":12,"transaction_count":5}}`))
+			w.Write([]byte(`{"holdings":[],"net_equity_cost":0,"capital_performance":{"net_capital_deployed":100000,"equity_value":110000,"simple_capital_return_pct":10,"annualized_capital_return_pct":12,"transaction_count":5}}`))
 		}))
 		defer backend.Close()
 
