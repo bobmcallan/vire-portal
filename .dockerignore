@@ -28,6 +28,8 @@ logs/
 # Claude
 .claude/
 
+
+
 # Docker artifacts
 docker/.last_build
 docker/docker-compose*.yml

@@ -209,14 +209,14 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Errorf("portfolio summary item count = %d, want 4", count)
 	}
 
-	// Verify the 4 summary labels are "TOTAL VALUE", "TOTAL COST", "NET RETURN $", "NET RETURN %"
+	// Verify the 4 summary labels are "TOTAL VALUE", "COST BASIS", "NET RETURN $", "NET RETURN %"
 	labelsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
 			const row = document.querySelector('.portfolio-summary:not(.portfolio-summary-capital)');
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
 			if (labels.length !== 4) return false;
-			const expected = ['TOTAL VALUE', 'TOTAL COST', 'NET RETURN $', 'NET RETURN %'];
+			const expected = ['TOTAL VALUE', 'COST BASIS', 'NET RETURN $', 'NET RETURN %'];
 			for (let i = 0; i < 4; i++) {
 				if (labels[i].textContent.trim() !== expected[i]) return false;
 			}
@@ -227,7 +227,7 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Fatalf("error checking summary labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, TOTAL COST, NET RETURN $, NET RETURN %")
+		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, COST BASIS, NET RETURN $, NET RETURN %")
 	}
 
 	// If capital performance row exists, verify it also has 4 items
@@ -543,7 +543,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
 			if (labels.length !== 4) return false;
-			const expected = ['CAPITAL INVESTED', 'CAPITAL GAIN $', 'SIMPLE RETURN %', 'ANNUALIZED %'];
+			const expected = ['TOTAL DEPOSITED', 'CAPITAL GAIN $', 'SIMPLE RETURN %', 'ANNUALIZED %'];
 			for (let i = 0; i < 4; i++) {
 				if (labels[i].textContent.trim() !== expected[i]) return false;
 			}
@@ -554,7 +554,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 		t.Fatalf("error checking capital labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("capital summary labels do not match expected: CAPITAL INVESTED, CAPITAL GAIN $, SIMPLE RETURN %, ANNUALIZED %")
+		t.Error("capital summary labels do not match expected: TOTAL DEPOSITED, CAPITAL GAIN $, SIMPLE RETURN %, ANNUALIZED %")
 	}
 
 	// Verify capital gain values have color classes applied

@@ -35,6 +35,10 @@ func NewMCPProxy(serverURL string, logger *common.Logger, cfg *config.Config) *M
 	if cfg.User.DisplayCurrency != "" {
 		headers.Set("X-Vire-Display-Currency", cfg.User.DisplayCurrency)
 	}
+	// Portal version headers for server compatibility checks
+	headers.Set("X-Vire-Portal-Version", config.GetVersion())
+	headers.Set("X-Vire-Portal-Build", config.GetBuild())
+	headers.Set("X-Vire-Portal-Commit", config.GetGitCommit())
 
 	return &MCPProxy{
 		serverURL: serverURL,

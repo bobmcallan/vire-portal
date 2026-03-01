@@ -218,6 +218,9 @@ function portfolioDashboard() {
             return this.portfolioGain;
         },
         get totalGainPct() {
+            if (this.hasCapitalData && this.capitalInvested !== 0) {
+                return (this.portfolioGain / this.capitalInvested) * 100;
+            }
             return this.portfolioGainPct;
         },
         gainClass(val) {

@@ -2164,6 +2164,33 @@ func TestNewMCPProxy_UserHeaders_EmptyConfig(t *testing.T) {
 	if p.UserHeaders().Get("X-Vire-Display-Currency") != "" {
 		t.Error("expected no X-Vire-Display-Currency header with empty config")
 	}
+	if p.UserHeaders().Get("X-Vire-Portal-Version") == "" {
+		t.Error("expected X-Vire-Portal-Version header even with empty config")
+	}
+	if p.UserHeaders().Get("X-Vire-Portal-Build") == "" {
+		t.Error("expected X-Vire-Portal-Build header even with empty config")
+	}
+	if p.UserHeaders().Get("X-Vire-Portal-Commit") == "" {
+		t.Error("expected X-Vire-Portal-Commit header even with empty config")
+	}
+}
+
+func TestNewMCPProxy_UserHeaders_PortalVersion(t *testing.T) {
+	cfg := testConfig()
+	p := NewMCPProxy("http://localhost:4242", testLogger(), cfg)
+
+	version := p.UserHeaders().Get("X-Vire-Portal-Version")
+	if version == "" {
+		t.Error("expected X-Vire-Portal-Version header to be set")
+	}
+	build := p.UserHeaders().Get("X-Vire-Portal-Build")
+	if build == "" {
+		t.Error("expected X-Vire-Portal-Build header to be set")
+	}
+	commit := p.UserHeaders().Get("X-Vire-Portal-Commit")
+	if commit == "" {
+		t.Error("expected X-Vire-Portal-Commit header to be set")
+	}
 }
 
 // --- Proxy HTTP Method Tests ---
