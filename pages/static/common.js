@@ -363,8 +363,8 @@ function portfolioDashboard() {
                 return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             });
             const totalValues = this.growthData.map(p => p.total_capital || p.value || 0);
-            const totalCosts = this.growthData.map(p => p.cost || 0);
-            const capitalLine = this.growthData.map(p => p.net_deployed || this.capitalInvested || 0);
+            const totalCosts = this.growthData.map(p => p.total_cost || 0);
+            const capitalLine = this.growthData.map(p => p.net_capital_deployed || this.capitalInvested || 0);
 
             this.chartInstance = new Chart(canvas, {
                 type: 'line',
