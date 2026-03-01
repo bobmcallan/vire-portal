@@ -75,15 +75,15 @@
             <!-- Capital performance summary -->
             <div class="portfolio-summary portfolio-summary-capital" x-show="hasCapitalData" x-cloak>
                 <div class="portfolio-summary-item">
-                    <span class="label">TOTAL DEPOSITED</span>
-                    <span class="text-bold" x-text="fmt(capitalInvested)"></span>
+                    <span class="label">GROSS CASH BALANCE</span>
+                    <span class="text-bold" x-text="fmt(grossCashBalance)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">CAPITAL GAIN $</span>
+                    <span class="label">CAPITAL RETURN $</span>
                     <span class="text-bold" :class="gainClass(capitalGain)" x-text="fmt(capitalGain)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">CAPITAL GAIN %</span>
+                    <span class="label">CAPITAL RETURN %</span>
                     <span class="text-bold" :class="gainClass(capitalGainPct)" x-text="pct(capitalGainPct)"></span>
                 </div>
                 <div class="portfolio-summary-item">

@@ -274,13 +274,15 @@ The server is consolidating some endpoints. The portal must update any direct re
 
 ---
 
-## Open Questions
+## Resolved Questions (fb_f9eae35e)
 
-1. **`total_gain` / `total_gain_pct` fate** — These fields exist in portal's Portfolio, PortfolioReview, and PortfolioSnapshot structs but are NOT mentioned in the server's rename table. Are they removed? Renamed? Kept? Need server confirmation.
+1. **`total_gain` / `total_gain_pct`** — Exist only on NavexaPortfolio (navexa.go), NOT in the API response. Removed from Portal, PortfolioReview, and PortfolioSnapshot structs. Use `net_equity_return` / `net_equity_return_pct` instead.
 
-2. **Label rename decision** — Should `CAPITAL GAIN $` / `CAPITAL GAIN %` labels change to `CAPITAL RETURN $` / `CAPITAL RETURN %`? This is a portal-only decision but affects 3 test files.
+2. **Labels** — Confirmed: `CAPITAL GAIN $` → `CAPITAL RETURN $`, `CAPITAL GAIN %` → `CAPITAL RETURN %`. Also: `TOTAL DEPOSITED` → `GROSS CASH BALANCE` (shows `gross_cash_balance` from portfolio response).
 
-3. **Holding `GainLoss` / `GainLossPct` / `TotalReturnValue` / `TotalReturnPct`** — These fields exist in portal's Holding struct but are not mentioned in the server rename table. Are they kept as-is? Renamed? Removed?
+3. **Holding `GainLoss` / `GainLossPct` / `TotalReturnValue` / `TotalReturnPct`** — Exist only on NavexaHolding (navexa.go), NOT in the Holding API response. Removed from Portal Holding struct. Use `net_return` / `net_return_pct` and `annualized_capital_return_pct` instead.
+
+4. **Chart "Cost Basis" line** — Changed from `net_equity_cost` to `equity_value` ("Equity Value"). Shows actual holdings market value, more meaningful against portfolio value and net deposited.
 
 ---
 

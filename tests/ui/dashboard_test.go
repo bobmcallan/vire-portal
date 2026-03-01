@@ -543,7 +543,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
 			if (labels.length !== 5) return false;
-			const expected = ['TOTAL DEPOSITED', 'CAPITAL GAIN $', 'CAPITAL GAIN %', 'SIMPLE RETURN %', 'ANNUALIZED %'];
+			const expected = ['GROSS CASH BALANCE', 'CAPITAL RETURN $', 'CAPITAL RETURN %', 'SIMPLE RETURN %', 'ANNUALIZED %'];
 			for (let i = 0; i < 5; i++) {
 				if (labels[i].textContent.trim() !== expected[i]) return false;
 			}
@@ -554,7 +554,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 		t.Fatalf("error checking capital labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("capital summary labels do not match expected: TOTAL DEPOSITED, CAPITAL GAIN $, CAPITAL GAIN %, SIMPLE RETURN %, ANNUALIZED %")
+		t.Error("capital summary labels do not match expected: GROSS CASH BALANCE, CAPITAL RETURN $, CAPITAL RETURN %, SIMPLE RETURN %, ANNUALIZED %")
 	}
 
 	// Verify capital gain values have color classes applied
@@ -563,7 +563,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 			const row = document.querySelector('.portfolio-summary-capital');
 			if (!row) return false;
 			const items = row.querySelectorAll('.portfolio-summary-item .text-bold');
-			// Items 1-4 are CAPITAL GAIN $, CAPITAL GAIN %, SIMPLE RETURN %, ANNUALIZED %
+			// Items 1-4 are CAPITAL RETURN $, CAPITAL RETURN %, SIMPLE RETURN %, ANNUALIZED %
 			let hasGainClass = false;
 			for (let i = 1; i < items.length; i++) {
 				if (items[i].classList.contains('gain-positive') || items[i].classList.contains('gain-negative')) {

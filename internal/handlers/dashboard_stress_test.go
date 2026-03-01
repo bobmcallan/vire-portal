@@ -563,12 +563,16 @@ func TestDashboardHandler_StressNewFieldBindingsSafe(t *testing.T) {
 	if strings.Contains(body, `gainClass(availableCash)`) {
 		t.Error("LOGIC: availableCash should not use gainClass — it is a neutral value, not a gain/loss")
 	}
+	// GROSS CASH BALANCE must use x-text (not x-html) and fmt() for formatting
+	if !strings.Contains(body, `x-text="fmt(grossCashBalance)"`) {
+		t.Error("expected grossCashBalance displayed with x-text fmt() binding")
+	}
 
-	// CAPITAL GAIN % must use x-text with pct() formatting
+	// CAPITAL RETURN % must use x-text with pct() formatting
 	if !strings.Contains(body, `x-text="pct(capitalGainPct)"`) {
 		t.Error("expected capitalGainPct displayed with x-text pct() binding")
 	}
-	// CAPITAL GAIN % must use gainClass for color
+	// CAPITAL RETURN % must use gainClass for color
 	if !strings.Contains(body, `gainClass(capitalGainPct)`) {
 		t.Error("expected capitalGainPct to use gainClass for gain/loss coloring")
 	}
@@ -586,7 +590,7 @@ func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
 
 	body := w.Body.String()
 
-	capitalLabels := []string{"TOTAL DEPOSITED", "CAPITAL GAIN $", "CAPITAL GAIN %", "SIMPLE RETURN %", "ANNUALIZED %"}
+	capitalLabels := []string{"GROSS CASH BALANCE", "CAPITAL RETURN $", "CAPITAL RETURN %", "SIMPLE RETURN %", "ANNUALIZED %"}
 	for _, label := range capitalLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected capital performance label %q in dashboard", label)

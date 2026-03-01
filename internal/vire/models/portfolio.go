@@ -47,10 +47,9 @@ type Portfolio struct {
 	Holdings            []Holding `json:"holdings"`
 	PortfolioValue      float64   `json:"portfolio_value"`
 	NetEquityCost       float64   `json:"net_equity_cost"`
-	TotalGain           float64   `json:"total_gain"`
-	TotalGainPct        float64   `json:"total_gain_pct"`
 	NetEquityReturn     float64   `json:"net_equity_return"`
 	NetEquityReturnPct  float64   `json:"net_equity_return_pct"`
+	GrossCashBalance    float64   `json:"gross_cash_balance,omitempty"`
 	NetCashBalance      float64   `json:"net_cash_balance,omitempty"`
 	NetCapitalReturn    float64   `json:"net_capital_return,omitempty"`
 	NetCapitalReturnPct float64   `json:"net_capital_return_pct,omitempty"`
@@ -70,16 +69,12 @@ type Holding struct {
 	AvgCost                    float64        `json:"avg_cost"`
 	CurrentPrice               float64        `json:"current_price"`
 	MarketValue                float64        `json:"market_value"`
-	GainLoss                   float64        `json:"gain_loss"`
-	GainLossPct                float64        `json:"gain_loss_pct"`        // IRR p.a. from Navexa
 	PortfolioWeightPct         float64        `json:"portfolio_weight_pct"` // Portfolio weight percentage
 	CostBasis                  float64        `json:"cost_basis"`
 	GrossProceeds              float64        `json:"gross_proceeds,omitempty"`
 	DividendReturn             float64        `json:"dividend_return"`
-	AnnualizedCapitalReturnPct float64        `json:"annualized_capital_return_pct"` // IRR p.a. from Navexa
-	TotalReturnValue           float64        `json:"total_return_value"`
-	TotalReturnPct             float64        `json:"total_return_pct"`         // IRR p.a. from Navexa
-	TimeWeightedReturnPct      float64        `json:"time_weighted_return_pct"` // Time-weighted return (computed locally)
+	AnnualizedCapitalReturnPct float64        `json:"annualized_capital_return_pct"`
+	TimeWeightedReturnPct      float64        `json:"time_weighted_return_pct"`
 	NetReturn                  float64        `json:"net_return"`
 	NetReturnPct               float64        `json:"net_return_pct"`
 	Currency                   string         `json:"currency"`          // Holding currency (AUD, USD)
@@ -100,8 +95,6 @@ type PortfolioReview struct {
 	ReviewDate            time.Time         `json:"review_date"`
 	PortfolioValue        float64           `json:"portfolio_value"`
 	NetEquityCost         float64           `json:"net_equity_cost"`
-	TotalGain             float64           `json:"total_gain"`
-	TotalGainPct          float64           `json:"total_gain_pct"`
 	PortfolioDayChange    float64           `json:"portfolio_day_change"`
 	PortfolioDayChangePct float64           `json:"portfolio_day_change_pct"`
 	FXRate                float64           `json:"fx_rate,omitempty"` // AUDUSD rate used for currency conversion
@@ -163,8 +156,6 @@ type PortfolioSnapshot struct {
 	Holdings      []SnapshotHolding
 	EquityValue   float64
 	NetEquityCost float64
-	TotalGain     float64
-	TotalGainPct  float64
 }
 
 // SnapshotHolding represents a single position within a historical portfolio snapshot.
@@ -172,7 +163,6 @@ type SnapshotHolding struct {
 	Ticker, Name              string
 	Units, AvgCost, CostBasis float64
 	ClosePrice, MarketValue   float64
-	GainLoss, GainLossPct     float64
 	PortfolioWeightPct        float64
 }
 
@@ -182,8 +172,6 @@ type GrowthDataPoint struct {
 	Date          time.Time
 	EquityValue   float64
 	NetEquityCost float64
-	GainLoss      float64
-	GainLossPct   float64
 	HoldingCount  int
 }
 

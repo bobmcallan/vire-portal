@@ -190,6 +190,7 @@ function portfolioDashboard() {
         annualizedReturnPct: 0,
         hasCapitalData: false,
         capitalGainPct: 0,
+        grossCashBalance: 0,
         availableCash: 0,
         refreshing: false,
         trend: '',
@@ -264,6 +265,7 @@ function portfolioDashboard() {
                     this.portfolioGain = Number(holdingsData.net_equity_return) || 0;
                     this.portfolioGainPct = Number(holdingsData.net_equity_return_pct) || 0;
                     this.portfolioCost = Number(holdingsData.net_equity_cost) || 0;
+                    this.grossCashBalance = Number(holdingsData.gross_cash_balance) || 0;
                     this.availableCash = Number(holdingsData.net_cash_balance) || 0;
                     // Parse capital performance
                     const cp = holdingsData.capital_performance;
@@ -286,6 +288,7 @@ function portfolioDashboard() {
                     this.portfolioGain = 0;
                     this.portfolioGainPct = 0;
                     this.portfolioCost = 0;
+                    this.grossCashBalance = 0;
                     this.availableCash = 0;
                     this.capitalInvested = 0; this.capitalGain = 0; this.capitalGainPct = 0;
                     this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
@@ -363,7 +366,7 @@ function portfolioDashboard() {
                 return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             });
             const totalValues = this.growthData.map(p => p.portfolio_value || p.value || 0);
-            const totalCosts = this.growthData.map(p => p.net_equity_cost || 0);
+            const equityValues = this.growthData.map(p => p.equity_value || 0);
             const capitalLine = this.growthData.map(p => p.net_capital_deployed || this.capitalInvested || 0);
 
             this.chartInstance = new Chart(canvas, {
@@ -383,8 +386,8 @@ function portfolioDashboard() {
                             tension: 0,
                         },
                         {
-                            label: 'Cost Basis',
-                            data: totalCosts,
+                            label: 'Equity Value',
+                            data: equityValues,
                             borderColor: '#888',
                             borderWidth: 1,
                             borderDash: [6, 3],
@@ -496,6 +499,7 @@ function portfolioDashboard() {
                     this.portfolioGain = Number(data.net_equity_return) || 0;
                     this.portfolioGainPct = Number(data.net_equity_return_pct) || 0;
                     this.portfolioCost = Number(data.net_equity_cost) || 0;
+                    this.grossCashBalance = Number(data.gross_cash_balance) || 0;
                     this.availableCash = Number(data.net_cash_balance) || 0;
                     // Re-parse capital performance
                     const cp = data.capital_performance;
