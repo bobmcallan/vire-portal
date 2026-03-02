@@ -499,7 +499,7 @@ func TestAdminUsersHandler_StressPageStructure(t *testing.T) {
 	}
 }
 
-func TestAdminUsersHandler_StressNavUsersLinkForAdmin(t *testing.T) {
+func TestAdminUsersHandler_StressNavAdminLinkForAdmin(t *testing.T) {
 	handler := newAdminUsersTestHandler("admin")
 
 	req := httptest.NewRequest("GET", "/admin/users", nil)
@@ -510,12 +510,12 @@ func TestAdminUsersHandler_StressNavUsersLinkForAdmin(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Admin must see the Users nav link with active class
+	// Admin must see the Admin nav link in hamburger/mobile menu
 	if !strings.Contains(body, `href="/admin/users"`) {
-		t.Error("expected Users nav link for admin")
+		t.Error("expected Admin nav link for admin user")
 	}
-	if !strings.Contains(body, `class="active">Users</a>`) {
-		t.Error("expected Users nav link to have active class on users page")
+	if !strings.Contains(body, `>Admin</a>`) {
+		t.Error("expected Admin link text in nav for admin user")
 	}
 }
 

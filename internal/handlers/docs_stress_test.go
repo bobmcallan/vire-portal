@@ -408,52 +408,52 @@ func TestNavBrandLink_StressBrandHrefInTemplate(t *testing.T) {
 // Nav Docs Item Stress Tests — all three locations
 // =============================================================================
 
-func TestNavDocsItem_StressDesktopNavPresent(t *testing.T) {
+func TestNavHelpItem_StressDesktopNavPresent(t *testing.T) {
 	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
-	req := httptest.NewRequest("GET", "/docs", nil)
+	req := httptest.NewRequest("GET", "/help", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.ServePage("docs.html", "docs")(w, req)
+	handler.ServePage("help.html", "help")(w, req)
 
 	body := w.Body.String()
-	// Desktop nav should have Docs link in nav-links
-	if !strings.Contains(body, `href="/docs"`) {
-		t.Error("expected /docs link in nav")
+	// Desktop nav should have Help link in nav-links
+	if !strings.Contains(body, `href="/help"`) {
+		t.Error("expected /help link in nav")
 	}
 }
 
-func TestNavDocsItem_StressMobileNavPresent(t *testing.T) {
+func TestNavHelpItem_StressMobileNavPresent(t *testing.T) {
 	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
-	req := httptest.NewRequest("GET", "/docs", nil)
+	req := httptest.NewRequest("GET", "/help", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.ServePage("docs.html", "docs")(w, req)
+	handler.ServePage("help.html", "help")(w, req)
 
 	body := w.Body.String()
-	// Count docs links — should appear in desktop nav, mobile menu, and hamburger dropdown
-	count := strings.Count(body, `href="/docs"`)
+	// Count help links — should appear in desktop nav, mobile menu, and hamburger dropdown
+	count := strings.Count(body, `href="/help"`)
 	if count < 3 {
-		t.Errorf("expected at least 3 /docs links (desktop, mobile, dropdown), found %d", count)
+		t.Errorf("expected at least 3 /help links (desktop, mobile, dropdown), found %d", count)
 	}
 }
 
-func TestNavDocsItem_StressDropdownOrderCorrect(t *testing.T) {
-	// In the hamburger dropdown, Docs should appear after Profile and before Logout.
+func TestNavHelpItem_StressDropdownOrderCorrect(t *testing.T) {
+	// In the hamburger dropdown, Help should appear after Profile and before Logout.
 	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
-	req := httptest.NewRequest("GET", "/docs", nil)
+	req := httptest.NewRequest("GET", "/help", nil)
 	addAuthCookie(req, "test-user")
 	w := httptest.NewRecorder()
 
-	handler.ServePage("docs.html", "docs")(w, req)
+	handler.ServePage("help.html", "help")(w, req)
 
 	body := w.Body.String()
 
-	// Find the nav-dropdown section and verify order: Profile, Docs, Logout
+	// Find the nav-dropdown section and verify order: Profile, Help, Logout
 	dropdownIdx := strings.Index(body, "nav-dropdown")
 	if dropdownIdx < 0 {
 		t.Fatal("nav-dropdown not found in rendered page")
@@ -461,15 +461,15 @@ func TestNavDocsItem_StressDropdownOrderCorrect(t *testing.T) {
 	dropdownSection := body[dropdownIdx:]
 
 	profileIdx := strings.Index(dropdownSection, `href="/profile"`)
-	docsIdx := strings.Index(dropdownSection, `href="/docs"`)
+	helpIdx := strings.Index(dropdownSection, `href="/help"`)
 	logoutIdx := strings.Index(dropdownSection, "nav-dropdown-logout")
 
-	if profileIdx < 0 || docsIdx < 0 || logoutIdx < 0 {
-		t.Fatal("missing items in dropdown: Profile, Docs, or Logout")
+	if profileIdx < 0 || helpIdx < 0 || logoutIdx < 0 {
+		t.Fatal("missing items in dropdown: Profile, Help, or Logout")
 	}
 
-	if !(profileIdx < docsIdx && docsIdx < logoutIdx) {
-		t.Error("dropdown order should be: Profile, Docs, Logout")
+	if !(profileIdx < helpIdx && helpIdx < logoutIdx) {
+		t.Error("dropdown order should be: Profile, Help, Logout")
 	}
 }
 
