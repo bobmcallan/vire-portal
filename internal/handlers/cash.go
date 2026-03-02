@@ -10,8 +10,8 @@ import (
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
-// CapitalHandler serves the capital page with cash transaction display.
-type CapitalHandler struct {
+// CashHandler serves the cash page with cash transaction display.
+type CashHandler struct {
 	logger       *common.Logger
 	templates    *template.Template
 	devMode      bool
@@ -20,14 +20,14 @@ type CapitalHandler struct {
 	apiURL       string
 }
 
-// NewCapitalHandler creates a new capital handler.
-func NewCapitalHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userLookupFn func(string) (*client.UserProfile, error)) *CapitalHandler {
+// NewCashHandler creates a new cash handler.
+func NewCashHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userLookupFn func(string) (*client.UserProfile, error)) *CashHandler {
 	pagesDir := FindPagesDir()
 
 	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
 	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
 
-	return &CapitalHandler{
+	return &CashHandler{
 		logger:       logger,
 		templates:    templates,
 		devMode:      devMode,
@@ -37,12 +37,12 @@ func NewCapitalHandler(logger *common.Logger, devMode bool, jwtSecret []byte, us
 }
 
 // SetAPIURL sets the API URL for server version fetching.
-func (h *CapitalHandler) SetAPIURL(apiURL string) {
+func (h *CashHandler) SetAPIURL(apiURL string) {
 	h.apiURL = apiURL
 }
 
-// ServeHTTP renders the capital page.
-func (h *CapitalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP renders the cash page.
+func (h *CashHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
 
 	// Redirect unauthenticated users to landing page
@@ -64,7 +64,7 @@ func (h *CapitalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Page":             "capital",
+		"Page":             "cash",
 		"DevMode":          h.devMode,
 		"LoggedIn":         loggedIn,
 		"NavexaKeyMissing": navexaKeyMissing,
@@ -73,9 +73,9 @@ func (h *CapitalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"ServerVersion":    GetServerVersion(h.apiURL),
 	}
 
-	if err := h.templates.ExecuteTemplate(w, "capital.html", data); err != nil {
+	if err := h.templates.ExecuteTemplate(w, "cash.html", data); err != nil {
 		if h.logger != nil {
-			h.logger.Error().Str("template", "capital.html").Str("error", err.Error()).Msg("failed to render capital page")
+			h.logger.Error().Str("template", "cash.html").Str("error", err.Error()).Msg("failed to render cash page")
 		}
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}

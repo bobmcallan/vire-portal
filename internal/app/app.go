@@ -45,7 +45,7 @@ type App struct {
 	AuthHandler         *handlers.AuthHandler
 	DashboardHandler    *handlers.DashboardHandler
 	StrategyHandler     *handlers.StrategyHandler
-	CapitalHandler      *handlers.CapitalHandler
+	CashHandler         *handlers.CashHandler
 	MCPPageHandler      *handlers.MCPPageHandler
 	ProfileHandler      *handlers.ProfileHandler
 	ServerHealthHandler *handlers.ServerHealthHandler
@@ -153,13 +153,13 @@ func (a *App) initHandlers() {
 	)
 	a.StrategyHandler.SetAPIURL(a.Config.API.URL)
 
-	a.CapitalHandler = handlers.NewCapitalHandler(
+	a.CashHandler = handlers.NewCashHandler(
 		a.Logger,
 		a.Config.IsDevMode(),
 		jwtSecret,
 		userLookup,
 	)
-	a.CapitalHandler.SetAPIURL(a.Config.API.URL)
+	a.CashHandler.SetAPIURL(a.Config.API.URL)
 
 	a.MCPPageHandler = handlers.NewMCPPageHandler(
 		a.Logger,

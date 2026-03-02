@@ -757,13 +757,13 @@ func TestStrategyHandler_StressPassesUserRole(t *testing.T) {
 	}
 }
 
-func TestCapitalHandler_StressPassesUserRole(t *testing.T) {
+func TestCashHandler_StressPassesUserRole(t *testing.T) {
 	userLookup := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Role: "admin"}, nil
 	}
-	handler := NewCapitalHandler(nil, true, []byte(testJWTSecret), userLookup)
+	handler := NewCashHandler(nil, true, []byte(testJWTSecret), userLookup)
 
-	req := httptest.NewRequest("GET", "/capital", nil)
+	req := httptest.NewRequest("GET", "/cash", nil)
 	addAuthCookie(req, "admin-user")
 	w := httptest.NewRecorder()
 
@@ -772,7 +772,7 @@ func TestCapitalHandler_StressPassesUserRole(t *testing.T) {
 	body := w.Body.String()
 
 	if !strings.Contains(body, `href="/admin/users"`) {
-		t.Error("capital does not pass UserRole — admin Users link missing")
+		t.Error("cash does not pass UserRole — admin Users link missing")
 	}
 }
 

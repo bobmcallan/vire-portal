@@ -25,7 +25,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `GET /` | PageHandler | No | Landing page (server-rendered HTML template) |
 | `GET /dashboard` | DashboardHandler | No | Dashboard (portfolio management, holdings, capital performance, indicators, growth chart) |
 | `GET /strategy` | StrategyHandler | No | Strategy page (portfolio strategy and plan editors) |
-| `GET /capital` | CapitalHandler | No | Capital page (cash transactions ledger, paged table) |
+| `GET /cash` | CashHandler | No | Cash page (cash transactions ledger, paged table) |
 | `GET /mcp-info` | MCPPageHandler | No | MCP info page (connection config, tools catalog) |
 | `GET /docs` | PageHandler | No | Docs page (Navexa setup instructions) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
@@ -1068,7 +1068,7 @@ vire-portal/
 ├── pages/
 │   ├── dashboard.html                # Dashboard page (portfolio selector, holdings, capital performance, indicators, growth chart, refresh)
 │   ├── strategy.html                # Strategy page (portfolio strategy and plan editors)
-│   ├── capital.html                  # Capital page (cash transactions ledger, paged table)
+│   ├── cash.html                     # Cash page (cash transactions ledger, paged table)
 │   ├── mcp.html                     # MCP info page (connection details, tools table)
 │   ├── landing.html                  # Landing page (Go html/template)
 │   ├── profile.html                  # Profile page (user info + Navexa API key management)

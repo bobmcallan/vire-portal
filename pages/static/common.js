@@ -265,7 +265,7 @@ function portfolioDashboard() {
                 if (holdingsRes.ok) {
                     const holdingsData = await holdingsRes.json();
                     this.holdings = vireStore.dedup(holdingsData.holdings || [], 'ticker');
-                    this.totalDividends = this.holdings.reduce((sum, h) => sum + (Number(h.dividend_return) || 0), 0);
+                    this.totalDividends = Number(holdingsData.dividend_forecast) || 0;
                     this.portfolioTotalValue = Number(holdingsData.portfolio_value) || 0;
                     this.portfolioGain = Number(holdingsData.net_equity_return) || 0;
                     this.portfolioGainPct = Number(holdingsData.net_equity_return_pct) || 0;
@@ -323,9 +323,10 @@ function portfolioDashboard() {
             }
         },
 
-        async fetchGrowthData() {
+        async fetchGrowthData(force) {
             try {
-                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/timeline');
+                const url = '/api/portfolios/' + encodeURIComponent(this.selected) + '/timeline' + (force ? '?force_refresh=true' : '');
+                const res = await vireStore.fetch(url);
                 if (res.ok) {
                     const data = await res.json();
                     const points = data.data_points || [];
@@ -506,7 +507,7 @@ function portfolioDashboard() {
                 if (res.ok) {
                     const data = await res.json();
                     this.holdings = vireStore.dedup(data.holdings || [], 'ticker');
-                    this.totalDividends = this.holdings.reduce((sum, h) => sum + (Number(h.dividend_return) || 0), 0);
+                    this.totalDividends = Number(data.dividend_forecast) || 0;
                     this.portfolioTotalValue = Number(data.portfolio_value) || 0;
                     this.portfolioGain = Number(data.net_equity_return) || 0;
                     this.portfolioGainPct = Number(data.net_equity_return_pct) || 0;
@@ -542,8 +543,8 @@ function portfolioDashboard() {
                             this.hasIndicators = true;
                         }
                     }).catch(() => { this.hasIndicators = false; });
-                // Re-fetch growth data
-                this.fetchGrowthData();
+                // Re-fetch growth data with force refresh
+                this.fetchGrowthData(true);
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Portfolio refreshed' } }));
             } catch (e) {
                 debugError('portfolioDashboard', 'refreshPortfolio failed', e);

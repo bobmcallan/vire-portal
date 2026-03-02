@@ -9,53 +9,53 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
-func TestCapitalAuthLoad(t *testing.T) {
+func TestCashAuthLoad(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	takeScreenshot(t, ctx, "capital", "auth-load.png")
+	takeScreenshot(t, ctx, "cash", "auth-load.png")
 
 	visible, err := isVisible(ctx, ".page")
 	if err != nil {
-		t.Fatalf("error checking capital page visibility: %v", err)
+		t.Fatalf("error checking cash page visibility: %v", err)
 	}
 	if !visible {
-		t.Fatal("capital .page not visible after login")
+		t.Fatal("cash .page not visible after login")
 	}
 }
 
-func TestCapitalNoJSErrors(t *testing.T) {
+func TestCashNoJSErrors(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
 	errs := newJSErrorCollector(ctx)
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	takeScreenshot(t, ctx, "capital", "no-js-errors.png")
+	takeScreenshot(t, ctx, "cash", "no-js-errors.png")
 
 	if jsErrs := errs.Errors(); len(jsErrs) > 0 {
-		t.Errorf("JS errors on capital page:\n  %s", strings.Join(jsErrs, "\n  "))
+		t.Errorf("JS errors on cash page:\n  %s", strings.Join(jsErrs, "\n  "))
 	}
 }
 
-func TestCapitalAlpineInit(t *testing.T) {
+func TestCashAlpineInit(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	takeScreenshot(t, ctx, "capital", "alpine-init.png")
+	takeScreenshot(t, ctx, "cash", "alpine-init.png")
 
 	alpineReady, err := commontest.EvalBool(ctx, `typeof Alpine !== 'undefined'`)
 	if err != nil {
@@ -66,11 +66,11 @@ func TestCapitalAlpineInit(t *testing.T) {
 	}
 }
 
-func TestCapitalPortfolioDropdown(t *testing.T) {
+func TestCashPortfolioDropdown(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestCapitalPortfolioDropdown(t *testing.T) {
 	// Wait for Alpine to load portfolio data
 	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 
-	takeScreenshot(t, ctx, "capital", "portfolio-dropdown.png")
+	takeScreenshot(t, ctx, "cash", "portfolio-dropdown.png")
 
 	visible, err := isVisible(ctx, "select.portfolio-select")
 	if err != nil {
@@ -89,17 +89,17 @@ func TestCapitalPortfolioDropdown(t *testing.T) {
 	}
 }
 
-func TestCapitalAccountBalances(t *testing.T) {
+func TestCashAccountBalances(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
-	takeScreenshot(t, ctx, "capital", "account-balances.png")
+	takeScreenshot(t, ctx, "cash", "account-balances.png")
 
 	visible, err := isVisible(ctx, ".portfolio-summary-accounts")
 	if err != nil {
@@ -136,17 +136,17 @@ func TestCapitalAccountBalances(t *testing.T) {
 	}
 }
 
-func TestCapitalCategoryBreakdown(t *testing.T) {
+func TestCashCategoryBreakdown(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
-	takeScreenshot(t, ctx, "capital", "category-breakdown.png")
+	takeScreenshot(t, ctx, "cash", "category-breakdown.png")
 
 	hasCategoryRow, err := commontest.EvalBool(ctx, `
 		(() => {
@@ -191,11 +191,11 @@ func TestCapitalCategoryBreakdown(t *testing.T) {
 	}
 }
 
-func TestCapitalTransactionsTable(t *testing.T) {
+func TestCashTransactionsTable(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestCapitalTransactionsTable(t *testing.T) {
 	// Wait for Alpine to load transaction data
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
 
-	takeScreenshot(t, ctx, "capital", "transactions-table.png")
+	takeScreenshot(t, ctx, "cash", "transactions-table.png")
 
 	// Check if panel-headed section exists
 	visible, err := isVisible(ctx, ".panel-headed")
@@ -248,11 +248,11 @@ func TestCapitalTransactionsTable(t *testing.T) {
 	}
 }
 
-func TestCapitalTransactionColors(t *testing.T) {
+func TestCashTransactionColors(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestCapitalTransactionColors(t *testing.T) {
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
 
-	takeScreenshot(t, ctx, "capital", "transaction-colors.png")
+	takeScreenshot(t, ctx, "cash", "transaction-colors.png")
 
 	// Check if table has rows
 	count, err := elementCount(ctx, ".tool-table tbody tr")
@@ -294,11 +294,11 @@ func TestCapitalTransactionColors(t *testing.T) {
 	}
 }
 
-func TestCapitalPagination(t *testing.T) {
+func TestCashPagination(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestCapitalPagination(t *testing.T) {
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
 
-	takeScreenshot(t, ctx, "capital", "pagination.png")
+	takeScreenshot(t, ctx, "cash", "pagination.png")
 
 	// Check if pagination element exists
 	paginationExists, err := commontest.EvalBool(ctx, `document.querySelector('.pagination') !== null`)
@@ -334,11 +334,11 @@ func TestCapitalPagination(t *testing.T) {
 	}
 }
 
-func TestCapitalDefaultCheckbox(t *testing.T) {
+func TestCashDefaultCheckbox(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
@@ -346,7 +346,7 @@ func TestCapitalDefaultCheckbox(t *testing.T) {
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 
-	takeScreenshot(t, ctx, "capital", "default-checkbox.png")
+	takeScreenshot(t, ctx, "cash", "default-checkbox.png")
 
 	count, err := elementCount(ctx, ".portfolio-default-label input[type='checkbox']")
 	if err != nil {
@@ -357,11 +357,11 @@ func TestCapitalDefaultCheckbox(t *testing.T) {
 	}
 }
 
-func TestCapitalNoRefreshButton(t *testing.T) {
+func TestCashNoRefreshButton(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
@@ -369,9 +369,9 @@ func TestCapitalNoRefreshButton(t *testing.T) {
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 
-	takeScreenshot(t, ctx, "capital", "no-refresh-button.png")
+	takeScreenshot(t, ctx, "cash", "no-refresh-button.png")
 
-	// Capital page should NOT have a refresh button (per requirements)
+	// Cash page should NOT have a refresh button (per requirements)
 	headerVisible, err := isVisible(ctx, ".portfolio-header")
 	if err != nil {
 		t.Fatalf("error checking portfolio header visibility: %v", err)
@@ -392,20 +392,20 @@ func TestCapitalNoRefreshButton(t *testing.T) {
 		t.Fatalf("error checking for refresh button: %v", err)
 	}
 	if hasRefresh {
-		t.Error("capital page should NOT have a refresh button")
+		t.Error("cash page should NOT have a refresh button")
 	}
 }
 
-func TestCapitalNoTemplateMarkers(t *testing.T) {
+func TestCashNoTemplateMarkers(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	takeScreenshot(t, ctx, "capital", "no-template-markers.png")
+	takeScreenshot(t, ctx, "cash", "no-template-markers.png")
 
 	var bodyText string
 	err = chromedp.Run(ctx, chromedp.Evaluate(`document.body.innerText`, &bodyText))
@@ -421,16 +421,16 @@ func TestCapitalNoTemplateMarkers(t *testing.T) {
 	}
 }
 
-func TestCapitalDesign(t *testing.T) {
+func TestCashDesign(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	takeScreenshot(t, ctx, "capital", "design.png")
+	takeScreenshot(t, ctx, "cash", "design.png")
 
 	// Check font-family
 	var fontFamily string
@@ -493,7 +493,7 @@ func TestCapitalDesign(t *testing.T) {
 	}
 }
 
-func TestCapitalNavLinkFromDashboard(t *testing.T) {
+func TestCashNavLinkFromDashboard(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -502,33 +502,33 @@ func TestCapitalNavLinkFromDashboard(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	takeScreenshot(t, ctx, "capital", "nav-link-from-dashboard.png")
+	takeScreenshot(t, ctx, "cash", "nav-link-from-dashboard.png")
 
-	// Verify Capital nav link exists in .nav-links
-	exists, err := commontest.Exists(ctx, `.nav-links a[href="/capital"]`)
+	// Verify Cash nav link exists in .nav-links
+	exists, err := commontest.Exists(ctx, `.nav-links a[href="/cash"]`)
 	if err != nil {
-		t.Fatalf("error checking capital nav link: %v", err)
+		t.Fatalf("error checking cash nav link: %v", err)
 	}
 	if !exists {
-		t.Error("Capital link (a[href='/capital']) not found in .nav-links")
+		t.Error("Cash link (a[href='/cash']) not found in .nav-links")
 	}
 }
 
-func TestCapitalNavLinkActive(t *testing.T) {
+func TestCashNavLinkActive(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
-	err := loginAndNavigate(ctx, serverURL()+"/capital")
+	err := loginAndNavigate(ctx, serverURL()+"/cash")
 	if err != nil {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	takeScreenshot(t, ctx, "capital", "nav-link-active.png")
+	takeScreenshot(t, ctx, "cash", "nav-link-active.png")
 
-	// Verify Capital nav link is active on /capital page
+	// Verify Cash nav link is active on /cash page
 	navLinkActive, err := commontest.EvalBool(ctx, `
 		(() => {
-			const link = document.querySelector('.nav-links a[href="/capital"]');
+			const link = document.querySelector('.nav-links a[href="/cash"]');
 			return link !== null && link.classList.contains('active');
 		})()
 	`)
@@ -536,6 +536,6 @@ func TestCapitalNavLinkActive(t *testing.T) {
 		t.Fatalf("error checking nav link active state: %v", err)
 	}
 	if !navLinkActive {
-		t.Error("Capital nav link not found or not active on /capital page")
+		t.Error("Cash nav link not found or not active on /cash page")
 	}
 }

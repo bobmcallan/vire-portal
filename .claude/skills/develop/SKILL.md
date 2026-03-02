@@ -451,7 +451,7 @@ The portal is stateless -- all user data is managed by vire-server via REST API 
 | `GET /` | PageHandler | No |
 | `GET /dashboard` | DashboardHandler | No |
 | `GET /strategy` | StrategyHandler | No |
-| `GET /capital` | CapitalHandler | No |
+| `GET /cash` | CashHandler | No |
 | `GET /mcp-info` | MCPPageHandler | No |
 | `GET /docs` | PageHandler | No |
 | `GET /static/*` | PageHandler | No |
