@@ -9,59 +9,146 @@
     <main class="page" x-data="helpPage()" x-init="init()">
         <div class="page-body">
 
-            <div class="help-header">
-                <div class="help-contact">
-                    <span class="help-contact-label">CONTACT</span>
-                    <a href="mailto:bobmcallan@gmail.com">bobmcallan@gmail.com</a>
-                </div>
-                <a href="/docs" class="btn btn-secondary btn-sm">DOCUMENTATION</a>
-            </div>
+            <!-- SUPPORT -->
+            <section class="panel-headed">
+                <div class="panel-header">SUPPORT</div>
+                <div class="panel-content">
+                    <div class="help-support-row">
+                        <div class="help-support-contact">
+                            <span class="form-label">CONTACT</span>
+                            <a href="mailto:bobmcallan@gmail.com">bobmcallan@gmail.com</a>
+                        </div>
+                        <a href="/docs" class="btn btn-secondary btn-sm">DOCUMENTATION</a>
+                    </div>
 
-            <div class="help-search-wrap">
-                <input type="text"
-                       class="form-input help-search"
-                       placeholder="Search glossary..."
-                       x-model="query"
-                       @input="filter()">
-            </div>
-
-            <template x-if="loading">
-                <div class="help-loading">Loading glossary...</div>
-            </template>
-
-            <template x-if="error && !loading">
-                <div class="warning-banner" x-text="error"></div>
-            </template>
-
-            <template x-if="!loading && !error">
-                <div>
-                    <template x-for="cat in filtered" :key="cat.name">
-                        <section class="panel-headed help-category">
-                            <div class="panel-header" x-text="cat.name"></div>
-                            <div class="panel-content">
-                                <template x-for="t in cat.terms" :key="t.term">
-                                    <div class="help-term">
-                                        <div class="help-term-header">
-                                            <span class="help-term-label" x-text="t.label"></span>
-                                            <span class="help-term-id" x-text="t.term"></span>
-                                        </div>
-                                        <p class="help-term-def" x-text="t.definition"></p>
-                                        <template x-if="t.formula">
-                                            <p class="help-term-formula"><span class="help-term-formula-label">Formula:</span> <span x-text="t.formula"></span></p>
-                                        </template>
-                                    </div>
-                                </template>
-                                <template x-if="cat.terms.length === 0">
-                                    <p class="text-muted text-sm">No matching terms.</p>
-                                </template>
+                    <div class="help-feedback-form">
+                        <span class="form-label" style="margin-top:1rem">SUBMIT FEEDBACK</span>
+                        <div class="form-row" style="margin-top:0.5rem">
+                            <div class="form-group">
+                                <label class="form-label">CATEGORY</label>
+                                <select class="form-select" x-model="fb.category">
+                                    <option value="observation">Observation</option>
+                                    <option value="data_anomaly">Data Anomaly</option>
+                                    <option value="calculation_error">Calculation Error</option>
+                                    <option value="missing_data">Missing Data</option>
+                                    <option value="sync_delay">Sync Delay</option>
+                                    <option value="tool_error">Tool Error</option>
+                                    <option value="schema_change">Schema Change</option>
+                                </select>
                             </div>
-                        </section>
+                            <div class="form-group">
+                                <label class="form-label">SEVERITY</label>
+                                <select class="form-select" x-model="fb.severity">
+                                    <option value="low">Low</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">DESCRIPTION</label>
+                            <textarea class="form-textarea" rows="3" x-model="fb.description" placeholder="Describe the issue or observation..."></textarea>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:1rem">
+                            <button class="btn btn-primary btn-sm" @click="submitFeedback()" :disabled="fbSubmitting || !fb.description.trim()">
+                                <span x-show="!fbSubmitting">SUBMIT</span>
+                                <span x-show="fbSubmitting" x-cloak>SENDING...</span>
+                            </button>
+                            <span x-show="fbSuccess" x-cloak class="text-sm" style="color:#2d8a4e;font-weight:700" x-text="fbSuccess"></span>
+                            <span x-show="fbError" x-cloak class="text-sm" style="color:#a33;font-weight:700" x-text="fbError"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- YOUR FEEDBACK -->
+            <section class="panel-headed">
+                <div class="panel-header">YOUR FEEDBACK <template x-if="feedbackItems.length > 0"><span x-text="'[' + feedbackTotal + ']'"></span></template></div>
+                <div class="panel-content">
+                    <template x-if="feedbackLoading">
+                        <div class="help-loading">Loading feedback...</div>
                     </template>
-                    <template x-if="filtered.length === 0 && query.length > 0">
-                        <p class="text-muted">No results for "<span x-text="query"></span>"</p>
+                    <template x-if="feedbackError && !feedbackLoading">
+                        <p class="text-muted text-sm" x-text="feedbackError"></p>
+                    </template>
+                    <template x-if="!feedbackLoading && !feedbackError && feedbackItems.length === 0">
+                        <p class="text-muted text-sm">No feedback submitted yet.</p>
+                    </template>
+                    <template x-if="!feedbackLoading && !feedbackError && feedbackItems.length > 0">
+                        <div class="table-wrap">
+                            <table class="tool-table">
+                                <thead>
+                                    <tr>
+                                        <th>DATE</th>
+                                        <th>CATEGORY</th>
+                                        <th>DESCRIPTION</th>
+                                        <th>SEVERITY</th>
+                                        <th>STATUS</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="item in feedbackItems" :key="item.id">
+                                        <tr>
+                                            <td style="white-space:nowrap" x-text="formatDate(item.created_at)"></td>
+                                            <td><span class="badge" x-text="item.category"></span></td>
+                                            <td class="tool-desc" style="max-width:20rem" x-text="item.description"></td>
+                                            <td><span class="badge" :class="severityClass(item.severity)" x-text="item.severity"></span></td>
+                                            <td><span class="badge" :class="statusClass(item.status)" x-text="item.status"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
                     </template>
                 </div>
-            </template>
+            </section>
+
+            <!-- GLOSSARY -->
+            <section class="panel-headed">
+                <div class="panel-header">GLOSSARY</div>
+                <div class="panel-content">
+                    <div class="help-search-wrap">
+                        <input type="text"
+                               class="form-input help-search"
+                               placeholder="Search glossary..."
+                               x-model="query"
+                               @input="filterGlossary()">
+                    </div>
+
+                    <template x-if="glossaryLoading">
+                        <div class="help-loading">Loading glossary...</div>
+                    </template>
+
+                    <template x-if="glossaryError && !glossaryLoading">
+                        <p class="text-muted text-sm" x-text="glossaryError"></p>
+                    </template>
+
+                    <template x-if="!glossaryLoading && !glossaryError">
+                        <div>
+                            <template x-for="cat in glossaryFiltered" :key="cat.name">
+                                <div class="help-glossary-category">
+                                    <div class="help-glossary-category-title" x-text="cat.name"></div>
+                                    <template x-for="t in cat.terms" :key="t.term">
+                                        <div class="help-term">
+                                            <div class="help-term-header">
+                                                <span class="help-term-label" x-text="t.label"></span>
+                                                <span class="help-term-id" x-text="t.term"></span>
+                                            </div>
+                                            <p class="help-term-def" x-text="t.definition"></p>
+                                            <template x-if="t.formula">
+                                                <p class="help-term-formula"><span class="help-term-formula-label">Formula:</span> <span x-text="t.formula"></span></p>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                            <template x-if="glossaryFiltered.length === 0 && query.length > 0">
+                                <p class="text-muted text-sm">No results for "<span x-text="query"></span>"</p>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </section>
 
         </div>
     </main>
@@ -70,20 +157,38 @@
     <script>
     function helpPage() {
         return {
-            categories: [],
-            filtered: [],
+            // Glossary state
+            glossaryCategories: [],
+            glossaryFiltered: [],
             query: '',
-            loading: true,
-            error: null,
+            glossaryLoading: true,
+            glossaryError: null,
+
+            // Feedback form state
+            fb: { category: 'observation', severity: 'medium', description: '' },
+            fbSubmitting: false,
+            fbSuccess: null,
+            fbError: null,
+
+            // Feedback list state
+            feedbackItems: [],
+            feedbackTotal: 0,
+            feedbackLoading: true,
+            feedbackError: null,
 
             init() {
+                this.loadGlossary();
+                this.loadFeedback();
+            },
+
+            loadGlossary() {
                 fetch('/api/glossary')
                     .then(r => {
-                        if (!r.ok) throw new Error('Glossary unavailable (server returned ' + r.status + ')');
+                        if (!r.ok) throw new Error('Glossary endpoint not yet available');
                         return r.json();
                     })
                     .then(data => {
-                        this.categories = (data.categories || []).map(c => ({
+                        this.glossaryCategories = (data.categories || []).map(c => ({
                             name: c.name,
                             terms: (c.terms || []).map(t => ({
                                 term: t.term,
@@ -92,22 +197,22 @@
                                 formula: t.formula || null,
                             }))
                         }));
-                        this.filtered = this.categories;
-                        this.loading = false;
+                        this.glossaryFiltered = this.glossaryCategories;
+                        this.glossaryLoading = false;
                     })
                     .catch(err => {
-                        this.error = err.message;
-                        this.loading = false;
+                        this.glossaryError = err.message;
+                        this.glossaryLoading = false;
                     });
             },
 
-            filter() {
+            filterGlossary() {
                 const q = this.query.toLowerCase().trim();
                 if (!q) {
-                    this.filtered = this.categories;
+                    this.glossaryFiltered = this.glossaryCategories;
                     return;
                 }
-                this.filtered = this.categories
+                this.glossaryFiltered = this.glossaryCategories
                     .map(c => ({
                         name: c.name,
                         terms: c.terms.filter(t =>
@@ -118,7 +223,75 @@
                         )
                     }))
                     .filter(c => c.terms.length > 0);
-            }
+            },
+
+            loadFeedback() {
+                fetch('/api/feedback?per_page=50')
+                    .then(r => {
+                        if (!r.ok) throw new Error('Could not load feedback');
+                        return r.json();
+                    })
+                    .then(data => {
+                        this.feedbackItems = data.items || [];
+                        this.feedbackTotal = data.total || this.feedbackItems.length;
+                        this.feedbackLoading = false;
+                    })
+                    .catch(err => {
+                        this.feedbackError = err.message;
+                        this.feedbackLoading = false;
+                    });
+            },
+
+            submitFeedback() {
+                if (!this.fb.description.trim()) return;
+                this.fbSubmitting = true;
+                this.fbSuccess = null;
+                this.fbError = null;
+
+                fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        category: this.fb.category,
+                        severity: this.fb.severity,
+                        description: this.fb.description.trim(),
+                    }),
+                })
+                .then(r => {
+                    if (!r.ok) throw new Error('Failed to submit (server returned ' + r.status + ')');
+                    return r.json();
+                })
+                .then(() => {
+                    this.fbSuccess = 'Feedback submitted';
+                    this.fb.description = '';
+                    this.fbSubmitting = false;
+                    this.loadFeedback();
+                    setTimeout(() => { this.fbSuccess = null; }, 3000);
+                })
+                .catch(err => {
+                    this.fbError = err.message;
+                    this.fbSubmitting = false;
+                    setTimeout(() => { this.fbError = null; }, 5000);
+                });
+            },
+
+            formatDate(iso) {
+                if (!iso) return '';
+                const d = new Date(iso);
+                return d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+            },
+
+            severityClass(s) {
+                if (s === 'high') return 'badge-filled';
+                if (s === 'low') return 'badge-muted';
+                return '';
+            },
+
+            statusClass(s) {
+                if (s === 'resolved') return 'badge-filled';
+                if (s === 'dismissed') return 'badge-muted';
+                return '';
+            },
         };
     }
     </script>

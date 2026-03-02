@@ -1127,30 +1127,26 @@ code {
    HELP PAGE
    ============================================================ */
 
-.help-header {
+.help-support-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border: 2px solid #000;
-    padding: 1rem 1.5rem;
-    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
 }
 
-.help-contact {
+.help-support-contact {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
 }
 
-.help-contact-label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    color: #888;
+.help-feedback-form {
+    margin-top: 0.5rem;
 }
 
 .help-search-wrap {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .help-search {
@@ -1158,19 +1154,34 @@ code {
 }
 
 .help-loading {
-    padding: 2rem;
+    padding: 1.5rem;
     text-align: center;
     color: #888;
     font-size: 0.8125rem;
     letter-spacing: 0.1em;
 }
 
-.help-category {
+.help-glossary-category {
     margin-bottom: 1.5rem;
 }
 
+.help-glossary-category:last-child {
+    margin-bottom: 0;
+}
+
+.help-glossary-category-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #888;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #000;
+    margin-bottom: 0.5rem;
+}
+
 .help-term {
-    padding: 0.75rem 0;
+    padding: 0.5rem 0;
     border-bottom: 1px solid #eee;
 }
 
@@ -1182,16 +1193,16 @@ code {
     display: flex;
     align-items: baseline;
     gap: 0.75rem;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.15rem;
 }
 
 .help-term-label {
     font-weight: 700;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
 }
 
 .help-term-id {
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     color: #888;
     letter-spacing: 0.05em;
 }
@@ -1205,7 +1216,7 @@ code {
 .help-term-formula {
     font-size: 0.75rem;
     color: #888;
-    margin-top: 0.25rem;
+    margin-top: 0.15rem;
 }
 
 .help-term-formula-label {
