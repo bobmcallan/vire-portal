@@ -59,14 +59,6 @@
                     <span class="label">TOTAL VALUE</span>
                     <span class="text-bold" x-text="fmt(totalValue)"></span>
                 </div>
-                <div class="portfolio-summary-item">
-                    <span class="label">GROSS CASH BALANCE</span>
-                    <span class="text-bold" x-text="fmt(grossCashBalance)"></span>
-                </div>
-                <div class="portfolio-summary-item">
-                    <span class="label">AVAILABLE CASH</span>
-                    <span class="text-bold" x-text="fmt(availableCash)"></span>
-                </div>
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
                     <span class="label">CAPITAL RETURN $</span>
                     <span class="text-bold" :class="gainClass(capitalGain)" x-text="fmt(capitalGain)"></span>
@@ -85,8 +77,28 @@
                 </div>
             </div>
 
+            <!-- Cash summary -->
+            <div class="portfolio-summary portfolio-summary-cash" x-show="filteredHoldings.length > 0" x-cloak>
+                <div class="portfolio-summary-item">
+                    <span class="label">GROSS CASH BALANCE</span>
+                    <span class="text-bold" x-text="fmt(grossCashBalance)"></span>
+                </div>
+                <div class="portfolio-summary-item">
+                    <span class="label">AVAILABLE CASH</span>
+                    <span class="text-bold" x-text="fmt(availableCash)"></span>
+                </div>
+                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
+                    <span class="label">GROSS CONTRIBUTIONS</span>
+                    <span class="text-bold" x-text="fmt(grossContributions)"></span>
+                </div>
+                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
+                    <span class="label">DIVIDENDS</span>
+                    <span class="text-bold" x-text="fmt(totalDividends)"></span>
+                </div>
+            </div>
+
             <!-- Equity performance -->
-            <div class="portfolio-summary portfolio-summary-capital" x-show="filteredHoldings.length > 0" x-cloak>
+            <div class="portfolio-summary portfolio-summary-equity" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="portfolio-summary-item">
                     <span class="label">NET EQUITY CAPITAL</span>
                     <span class="text-bold" x-text="fmt(totalCost)"></span>

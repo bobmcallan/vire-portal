@@ -499,8 +499,7 @@ a:hover {
 }
 
 .tool-table tr:hover td {
-    background: #000;
-    color: #fff;
+    background: #e5e5e5;
 }
 
 .tool-name {
@@ -1002,7 +1001,11 @@ code {
     white-space: nowrap;
 }
 
-.portfolio-summary-capital {
+.portfolio-summary-equity {
+    border-bottom: 1px solid #888;
+}
+
+.portfolio-summary-cash {
     border-bottom: 1px solid #888;
 }
 

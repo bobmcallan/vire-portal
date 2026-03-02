@@ -531,8 +531,8 @@ func TestDashboardHandler_StressPortfolioSummarySection(t *testing.T) {
 	if !strings.Contains(body, `x-show="filteredHoldings.length > 0"`) {
 		t.Error("portfolio summary should be conditional on filteredHoldings.length > 0")
 	}
-	// Verify all five summary items exist
-	summaryLabels := []string{"TOTAL VALUE", "NET EQUITY CAPITAL", "AVAILABLE CASH", "NET RETURN $", "NET RETURN %"}
+	// Verify all portfolio overview summary items exist (Row 1)
+	summaryLabels := []string{"TOTAL VALUE", "CAPITAL RETURN $", "CAPITAL RETURN %", "SIMPLE RETURN %", "ANNUALIZED %"}
 	for _, label := range summaryLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected summary label %q in dashboard", label)
@@ -576,10 +576,18 @@ func TestDashboardHandler_StressNewFieldBindingsSafe(t *testing.T) {
 	if !strings.Contains(body, `gainClass(capitalGainPct)`) {
 		t.Error("expected capitalGainPct to use gainClass for gain/loss coloring")
 	}
+	// GROSS CONTRIBUTIONS must use x-text fmt() binding
+	if !strings.Contains(body, `x-text="fmt(grossContributions)"`) {
+		t.Error("expected grossContributions displayed with x-text fmt() binding")
+	}
+	// DIVIDENDS must use x-text fmt() binding
+	if !strings.Contains(body, `x-text="fmt(totalDividends)"`) {
+		t.Error("expected totalDividends displayed with x-text fmt() binding")
+	}
 }
 
 func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
-	// Verify the capital performance row has the correct 5 labels
+	// Verify the cash row (Row 2) and equity row (Row 3) have the correct labels
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -590,10 +598,19 @@ func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
 
 	body := w.Body.String()
 
-	capitalLabels := []string{"GROSS CASH BALANCE", "CAPITAL RETURN $", "CAPITAL RETURN %", "SIMPLE RETURN %", "ANNUALIZED %"}
-	for _, label := range capitalLabels {
+	// Row 2: Cash summary labels
+	cashLabels := []string{"GROSS CASH BALANCE", "AVAILABLE CASH", "GROSS CONTRIBUTIONS", "DIVIDENDS"}
+	for _, label := range cashLabels {
 		if !strings.Contains(body, label) {
-			t.Errorf("expected capital performance label %q in dashboard", label)
+			t.Errorf("expected cash row label %q in dashboard", label)
+		}
+	}
+
+	// Row 3: Equity performance labels
+	equityLabels := []string{"NET EQUITY CAPITAL", "NET RETURN $", "NET RETURN %"}
+	for _, label := range equityLabels {
+		if !strings.Contains(body, label) {
+			t.Errorf("expected equity row label %q in dashboard", label)
 		}
 	}
 }
