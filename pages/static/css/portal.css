@@ -1145,6 +1145,17 @@ code {
     margin-top: 0.5rem;
 }
 
+.feedback-id {
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: #888;
+    border-bottom: 1px dashed #888;
+}
+.feedback-id:hover {
+    color: #000;
+    border-bottom-color: #000;
+}
+
 .help-search-wrap {
     margin-bottom: 1rem;
 }

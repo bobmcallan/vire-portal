@@ -121,6 +121,7 @@ func (a *App) initHandlers() {
 	a.PageHandler.SetAPIURL(a.Config.API.URL)
 	a.HealthHandler = handlers.NewHealthHandler(a.Logger)
 	a.VersionHandler = handlers.NewVersionHandler(a.Logger)
+	a.VersionHandler.SetAPIURL(a.Config.API.URL)
 	a.AuthHandler = handlers.NewAuthHandler(a.Logger, a.Config.IsDevMode(), a.Config.API.URL, a.Config.Auth.CallbackURL, jwtSecret)
 
 	a.MCPHandler = mcp.NewHandler(a.Config, a.Logger)

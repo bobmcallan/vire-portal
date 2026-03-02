@@ -53,19 +53,43 @@
                 <span>Loading portfolio...</span>
             </div>
 
-            <!-- Portfolio summary -->
+            <!-- Portfolio overview -->
             <div class="portfolio-summary" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="portfolio-summary-item">
                     <span class="label">TOTAL VALUE</span>
                     <span class="text-bold" x-text="fmt(totalValue)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">NET EQUITY CAPITAL</span>
-                    <span class="text-bold" x-text="fmt(totalCost)"></span>
+                    <span class="label">GROSS CASH BALANCE</span>
+                    <span class="text-bold" x-text="fmt(grossCashBalance)"></span>
                 </div>
                 <div class="portfolio-summary-item">
                     <span class="label">AVAILABLE CASH</span>
                     <span class="text-bold" x-text="fmt(availableCash)"></span>
+                </div>
+                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
+                    <span class="label">CAPITAL RETURN $</span>
+                    <span class="text-bold" :class="gainClass(capitalGain)" x-text="fmt(capitalGain)"></span>
+                </div>
+                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
+                    <span class="label">CAPITAL RETURN %</span>
+                    <span class="text-bold" :class="gainClass(capitalGainPct)" x-text="pct(capitalGainPct)"></span>
+                </div>
+                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
+                    <span class="label">SIMPLE RETURN %</span>
+                    <span class="text-bold" :class="gainClass(simpleReturnPct)" x-text="pct(simpleReturnPct)"></span>
+                </div>
+                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
+                    <span class="label">ANNUALIZED %</span>
+                    <span class="text-bold" :class="gainClass(annualizedReturnPct)" x-text="pct(annualizedReturnPct)"></span>
+                </div>
+            </div>
+
+            <!-- Equity performance -->
+            <div class="portfolio-summary portfolio-summary-capital" x-show="filteredHoldings.length > 0" x-cloak>
+                <div class="portfolio-summary-item">
+                    <span class="label">NET EQUITY CAPITAL</span>
+                    <span class="text-bold" x-text="fmt(totalCost)"></span>
                 </div>
                 <div class="portfolio-summary-item">
                     <span class="label">NET RETURN $</span>
@@ -74,30 +98,6 @@
                 <div class="portfolio-summary-item">
                     <span class="label">NET RETURN %</span>
                     <span class="text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></span>
-                </div>
-            </div>
-
-            <!-- Capital performance summary -->
-            <div class="portfolio-summary portfolio-summary-capital" x-show="hasCapitalData" x-cloak>
-                <div class="portfolio-summary-item">
-                    <span class="label">GROSS CASH BALANCE</span>
-                    <span class="text-bold" x-text="fmt(grossCashBalance)"></span>
-                </div>
-                <div class="portfolio-summary-item">
-                    <span class="label">CAPITAL RETURN $</span>
-                    <span class="text-bold" :class="gainClass(capitalGain)" x-text="fmt(capitalGain)"></span>
-                </div>
-                <div class="portfolio-summary-item">
-                    <span class="label">CAPITAL RETURN %</span>
-                    <span class="text-bold" :class="gainClass(capitalGainPct)" x-text="pct(capitalGainPct)"></span>
-                </div>
-                <div class="portfolio-summary-item">
-                    <span class="label">SIMPLE RETURN %</span>
-                    <span class="text-bold" :class="gainClass(simpleReturnPct)" x-text="pct(simpleReturnPct)"></span>
-                </div>
-                <div class="portfolio-summary-item">
-                    <span class="label">ANNUALIZED %</span>
-                    <span class="text-bold" :class="gainClass(annualizedReturnPct)" x-text="pct(annualizedReturnPct)"></span>
                 </div>
             </div>
 

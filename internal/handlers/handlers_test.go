@@ -109,14 +109,17 @@ func TestVersionHandler_ReturnsJSON(t *testing.T) {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
+	if _, ok := body["portal_version"]; !ok {
+		t.Error("expected portal_version field in response")
+	}
+	if _, ok := body["portal_build"]; !ok {
+		t.Error("expected portal_build field in response")
+	}
+	if _, ok := body["portal_commit"]; !ok {
+		t.Error("expected portal_commit field in response")
+	}
 	if _, ok := body["version"]; !ok {
-		t.Error("expected version field in response")
-	}
-	if _, ok := body["build"]; !ok {
-		t.Error("expected build field in response")
-	}
-	if _, ok := body["git_commit"]; !ok {
-		t.Error("expected git_commit field in response")
+		t.Error("expected version field in response (from server)")
 	}
 }
 

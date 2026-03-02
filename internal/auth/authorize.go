@@ -1,10 +1,14 @@
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -206,8 +210,25 @@ func (s *OAuthServer) createAuthSession(clientID, redirectURI, responseType, cod
 }
 
 // setSessionCookieAndRedirect sets the mcp_session_id cookie and redirects
-// to the landing page.
+// to the landing page for login. If the user already has a valid browser
+// session (vire_session cookie), the MCP authorization is completed immediately
+// to avoid the landing page clearing the existing session.
 func (s *OAuthServer) setSessionCookieAndRedirect(w http.ResponseWriter, r *http.Request, sessionID string) {
+	// Check if user already has a valid browser session
+	if userID := s.extractSessionUserID(r); userID != "" {
+		redirectURL, err := s.CompleteAuthorization(sessionID, userID)
+		if err == nil {
+			if s.logger != nil {
+				s.logger.Info().Str("user_id", userID).Msg("MCP OAuth completed via existing browser session")
+			}
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+			return
+		}
+		if s.logger != nil {
+			s.logger.Warn().Str("error", err.Error()).Msg("MCP OAuth: failed to complete via existing session, falling back to login")
+		}
+	}
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     "mcp_session_id",
 		Value:    sessionID,
@@ -217,6 +238,57 @@ func (s *OAuthServer) setSessionCookieAndRedirect(w http.ResponseWriter, r *http
 		MaxAge:   600,
 	})
 	http.Redirect(w, r, "/?mcp_session="+sessionID, http.StatusFound)
+}
+
+// extractSessionUserID checks the vire_session cookie for a valid JWT and
+// returns the user ID (sub claim). Returns empty string if no valid session.
+func (s *OAuthServer) extractSessionUserID(r *http.Request) string {
+	cookie, err := r.Cookie("vire_session")
+	if err != nil || cookie.Value == "" {
+		return ""
+	}
+
+	parts := strings.SplitN(cookie.Value, ".", 4)
+	if len(parts) != 3 {
+		return ""
+	}
+
+	// Verify HMAC-SHA256 signature
+	if len(s.jwtSecret) > 0 {
+		sigInput := parts[0] + "." + parts[1]
+		mac := hmac.New(sha256.New, s.jwtSecret)
+		mac.Write([]byte(sigInput))
+		expectedSig := mac.Sum(nil)
+
+		actualSig, err := base64.RawURLEncoding.DecodeString(parts[2])
+		if err != nil {
+			return ""
+		}
+		if !hmac.Equal(expectedSig, actualSig) {
+			return ""
+		}
+	}
+
+	// Decode payload and extract sub
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+
+	var claims struct {
+		Sub string `json:"sub"`
+		Exp int64  `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+
+	// Check expiry
+	if claims.Exp > 0 && claims.Exp < time.Now().Unix() {
+		return ""
+	}
+
+	return claims.Sub
 }
 
 // writeJSON writes a JSON response.

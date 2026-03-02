@@ -82,6 +82,7 @@
                             <table class="tool-table">
                                 <thead>
                                     <tr>
+                                        <th>ID</th>
                                         <th>DATE</th>
                                         <th>CATEGORY</th>
                                         <th>DESCRIPTION</th>
@@ -92,6 +93,9 @@
                                 <tbody>
                                     <template x-for="item in feedbackItems" :key="item.id">
                                         <tr>
+                                            <td style="white-space:nowrap">
+                                                <span class="feedback-id" x-text="item.id" @click="copyId(item.id)" title="Click to copy"></span>
+                                            </td>
                                             <td style="white-space:nowrap" x-text="formatDate(item.created_at)"></td>
                                             <td><span class="badge" x-text="item.category"></span></td>
                                             <td class="tool-desc" style="max-width:20rem" x-text="item.description"></td>
@@ -189,6 +193,13 @@
                 if (s === 'high') return 'badge-filled';
                 if (s === 'low') return 'badge-muted';
                 return '';
+            },
+
+            copyId(id) {
+                navigator.clipboard.writeText(id).then(() => {
+                    this.fbSuccess = 'Copied ' + id;
+                    setTimeout(() => { this.fbSuccess = null; }, 2000);
+                });
             },
 
             statusClass(s) {
