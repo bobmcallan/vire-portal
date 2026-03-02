@@ -124,6 +124,9 @@
             <div class="growth-chart-container" x-show="hasGrowthData" x-cloak>
                 <canvas id="growthChart"></canvas>
             </div>
+            <div class="growth-chart-ghost" x-show="!portfolioLoading && filteredHoldings.length > 0 && !hasGrowthData" x-cloak>
+                <span class="text-muted">GROWTH CHART — NO DATA</span>
+            </div>
 
             <!-- Holdings table -->
             <section class="panel-headed" x-show="holdings.length > 0" x-cloak>
