@@ -18,7 +18,10 @@
                             <span class="form-label">CONTACT</span>
                             <a href="mailto:bobmcallan@gmail.com">bobmcallan@gmail.com</a>
                         </div>
-                        <a href="/docs" class="btn btn-secondary btn-sm">DOCUMENTATION</a>
+                        <div class="btn-group">
+                            <a href="/docs" class="btn btn-secondary btn-sm">DOCUMENTATION</a>
+                            <a href="/glossary" class="btn btn-secondary btn-sm">GLOSSARY</a>
+                        </div>
                     </div>
 
                     <div class="help-feedback-form">
@@ -103,53 +106,6 @@
                 </div>
             </section>
 
-            <!-- GLOSSARY -->
-            <section class="panel-headed">
-                <div class="panel-header">GLOSSARY</div>
-                <div class="panel-content">
-                    <div class="help-search-wrap">
-                        <input type="text"
-                               class="form-input help-search"
-                               placeholder="Search glossary..."
-                               x-model="query"
-                               @input="filterGlossary()">
-                    </div>
-
-                    <template x-if="glossaryLoading">
-                        <div class="help-loading">Loading glossary...</div>
-                    </template>
-
-                    <template x-if="glossaryError && !glossaryLoading">
-                        <p class="text-muted text-sm" x-text="glossaryError"></p>
-                    </template>
-
-                    <template x-if="!glossaryLoading && !glossaryError">
-                        <div>
-                            <template x-for="cat in glossaryFiltered" :key="cat.name">
-                                <div class="help-glossary-category">
-                                    <div class="help-glossary-category-title" x-text="cat.name"></div>
-                                    <template x-for="t in cat.terms" :key="t.term">
-                                        <div class="help-term">
-                                            <div class="help-term-header">
-                                                <span class="help-term-label" x-text="t.label"></span>
-                                                <span class="help-term-id" x-text="t.term"></span>
-                                            </div>
-                                            <p class="help-term-def" x-text="t.definition"></p>
-                                            <template x-if="t.formula">
-                                                <p class="help-term-formula"><span class="help-term-formula-label">Formula:</span> <span x-text="t.formula"></span></p>
-                                            </template>
-                                        </div>
-                                    </template>
-                                </div>
-                            </template>
-                            <template x-if="glossaryFiltered.length === 0 && query.length > 0">
-                                <p class="text-muted text-sm">No results for "<span x-text="query"></span>"</p>
-                            </template>
-                        </div>
-                    </template>
-                </div>
-            </section>
-
         </div>
     </main>
     {{template "footer.html" .}}
@@ -157,13 +113,6 @@
     <script>
     function helpPage() {
         return {
-            // Glossary state
-            glossaryCategories: [],
-            glossaryFiltered: [],
-            query: '',
-            glossaryLoading: true,
-            glossaryError: null,
-
             // Feedback form state
             fb: { category: 'observation', severity: 'medium', description: '' },
             fbSubmitting: false,
@@ -177,52 +126,7 @@
             feedbackError: null,
 
             init() {
-                this.loadGlossary();
                 this.loadFeedback();
-            },
-
-            loadGlossary() {
-                fetch('/api/glossary')
-                    .then(r => {
-                        if (!r.ok) throw new Error('Glossary endpoint not yet available');
-                        return r.json();
-                    })
-                    .then(data => {
-                        this.glossaryCategories = (data.categories || []).map(c => ({
-                            name: c.name,
-                            terms: (c.terms || []).map(t => ({
-                                term: t.term,
-                                label: t.label,
-                                definition: t.definition,
-                                formula: t.formula || null,
-                            }))
-                        }));
-                        this.glossaryFiltered = this.glossaryCategories;
-                        this.glossaryLoading = false;
-                    })
-                    .catch(err => {
-                        this.glossaryError = err.message;
-                        this.glossaryLoading = false;
-                    });
-            },
-
-            filterGlossary() {
-                const q = this.query.toLowerCase().trim();
-                if (!q) {
-                    this.glossaryFiltered = this.glossaryCategories;
-                    return;
-                }
-                this.glossaryFiltered = this.glossaryCategories
-                    .map(c => ({
-                        name: c.name,
-                        terms: c.terms.filter(t =>
-                            t.label.toLowerCase().includes(q) ||
-                            t.term.toLowerCase().includes(q) ||
-                            t.definition.toLowerCase().includes(q) ||
-                            (t.formula && t.formula.toLowerCase().includes(q))
-                        )
-                    }))
-                    .filter(c => c.terms.length > 0);
             },
 
             loadFeedback() {
