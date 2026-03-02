@@ -19,7 +19,7 @@ func TestDocsPage_StressAccessibleWithoutAuth(t *testing.T) {
 	// The docs page uses ServePage with pageName="docs", which does NOT trigger
 	// auto-logout (only pageName="home" does). Unauthenticated users should see
 	// the page rendered successfully (200 OK, not a redirect).
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	w := httptest.NewRecorder()
@@ -42,7 +42,7 @@ func TestDocsPage_StressDoesNotClearSession(t *testing.T) {
 	// CRITICAL: ServePage with pageName="home" clears the vire_session cookie.
 	// The docs page uses pageName="docs" — it must NOT clear the cookie.
 	// If it did, visiting /docs while logged in would destroy the session.
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	addAuthCookie(req, "test-user")
@@ -67,7 +67,7 @@ func TestDocsPage_StressDoesNotClearSession(t *testing.T) {
 
 func TestDocsPage_StressNavRenderedWhenLoggedIn(t *testing.T) {
 	// When logged in, the nav should render ({{if .LoggedIn}}{{template "nav.html" .}}{{end}}).
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	addAuthCookie(req, "test-user")
@@ -83,7 +83,7 @@ func TestDocsPage_StressNavRenderedWhenLoggedIn(t *testing.T) {
 
 func TestDocsPage_StressNavHiddenWhenLoggedOut(t *testing.T) {
 	// When not logged in, the nav should NOT render.
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	w := httptest.NewRecorder()
@@ -99,7 +99,7 @@ func TestDocsPage_StressNavHiddenWhenLoggedOut(t *testing.T) {
 // --- Docs Page: Nav Active State ---
 
 func TestDocsPage_StressNavActiveState(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	addAuthCookie(req, "test-user")
@@ -109,10 +109,7 @@ func TestDocsPage_StressNavActiveState(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Docs link must be active
-	if !strings.Contains(body, `href="/docs" class="active"`) {
-		t.Error("expected docs nav link to have active class")
-	}
+	// Docs is accessible but no longer in the desktop nav — no active link expected
 	// Dashboard link must NOT be active
 	if strings.Contains(body, `href="/dashboard" class="active"`) {
 		t.Error("dashboard nav link should not be active on docs page")
@@ -124,7 +121,7 @@ func TestDocsPage_StressNavActiveState(t *testing.T) {
 func TestDocsPage_StressNoXHTMLDirectives(t *testing.T) {
 	// Docs page is static content. Verify no x-html directives that could
 	// render raw HTML. Should only use standard HTML elements.
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	w := httptest.NewRecorder()
@@ -138,7 +135,7 @@ func TestDocsPage_StressNoXHTMLDirectives(t *testing.T) {
 }
 
 func TestDocsPage_StressNoInlineEventHandlers(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	w := httptest.NewRecorder()
@@ -159,7 +156,7 @@ func TestDocsPage_StressNoInlineEventHandlers(t *testing.T) {
 }
 
 func TestDocsPage_StressNoJavaScriptProtocol(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	w := httptest.NewRecorder()
@@ -176,7 +173,7 @@ func TestDocsPage_StressNoJavaScriptProtocol(t *testing.T) {
 
 func TestDocsPage_StressExternalLinksPresent(t *testing.T) {
 	// Verify Navexa links are present and use https
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	w := httptest.NewRecorder()
@@ -196,7 +193,7 @@ func TestDocsPage_StressExternalLinksPresent(t *testing.T) {
 // --- Docs Page: Internal Links Safety ---
 
 func TestDocsPage_StressInternalLinksCorrect(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	w := httptest.NewRecorder()
@@ -218,7 +215,7 @@ func TestDocsPage_StressInternalLinksCorrect(t *testing.T) {
 // --- Docs Page: Content Integrity ---
 
 func TestDocsPage_StressAllSectionsPresent(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	w := httptest.NewRecorder()
@@ -280,7 +277,7 @@ func TestDocsPage_StressStrategyHandlerStillWorks(t *testing.T) {
 // --- Docs Page: Concurrent Access ---
 
 func TestDocsPage_StressConcurrentAccess(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 	serveDocs := handler.ServePage("docs.html", "docs")
 
 	var wg sync.WaitGroup
@@ -306,7 +303,7 @@ func TestDocsPage_StressConcurrentAccess(t *testing.T) {
 
 func TestDocsPage_StressConcurrentMixedPages(t *testing.T) {
 	// Verify serving docs concurrently with dashboard doesn't cause data leaks
-	pageHandler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	pageHandler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 	dashHandler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	serveDocs := pageHandler.ServePage("docs.html", "docs")
@@ -367,7 +364,7 @@ func TestNavBrandLink_StressLandingStillClearsSession(t *testing.T) {
 	// The "/" route still uses pageName="home" which triggers auto-logout.
 	// Even though the nav brand no longer links to /, direct navigation to /
 	// must still clear the session (e.g., bookmarks, typed URL).
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	addAuthCookie(req, "test-user")
@@ -390,7 +387,7 @@ func TestNavBrandLink_StressLandingStillClearsSession(t *testing.T) {
 
 func TestNavBrandLink_StressBrandHrefInTemplate(t *testing.T) {
 	// Verify the nav brand link actually points to /dashboard
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	addAuthCookie(req, "test-user")
@@ -412,7 +409,7 @@ func TestNavBrandLink_StressBrandHrefInTemplate(t *testing.T) {
 // =============================================================================
 
 func TestNavDocsItem_StressDesktopNavPresent(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	addAuthCookie(req, "test-user")
@@ -428,7 +425,7 @@ func TestNavDocsItem_StressDesktopNavPresent(t *testing.T) {
 }
 
 func TestNavDocsItem_StressMobileNavPresent(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	addAuthCookie(req, "test-user")
@@ -446,7 +443,7 @@ func TestNavDocsItem_StressMobileNavPresent(t *testing.T) {
 
 func TestNavDocsItem_StressDropdownOrderCorrect(t *testing.T) {
 	// In the hamburger dropdown, Docs should appear after Profile and before Logout.
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	addAuthCookie(req, "test-user")
@@ -516,7 +513,7 @@ func TestRefreshButton_StressDisabledStatePresent(t *testing.T) {
 // =============================================================================
 
 func TestDocsPage_StressCSSReference(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	w := httptest.NewRecorder()
@@ -535,8 +532,8 @@ func TestDocsPage_StressCSSReference(t *testing.T) {
 
 func TestDocsPage_StressPageNameIsolation(t *testing.T) {
 	// Verify that the docs page has .Page="docs" and not some other value.
-	// This is critical because the nav active state depends on .Page.
-	handler := NewPageHandler(nil, true, []byte(testJWTSecret))
+	// Docs is accessible but no longer in the desktop nav, so no active link expected.
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/docs", nil)
 	addAuthCookie(req, "test-user")
@@ -546,9 +543,9 @@ func TestDocsPage_StressPageNameIsolation(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Only the Docs nav item should have the active class
+	// No nav link should be active since docs is not in the desktop nav
 	activeLinks := strings.Count(body, `class="active"`)
-	if activeLinks != 1 {
-		t.Errorf("expected exactly 1 active nav link on docs page, found %d", activeLinks)
+	if activeLinks != 0 {
+		t.Errorf("expected 0 active nav links on docs page, found %d", activeLinks)
 	}
 }

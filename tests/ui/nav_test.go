@@ -418,7 +418,7 @@ func TestNavBrandHref(t *testing.T) {
 	}
 }
 
-func TestNavDocsLinkPresent(t *testing.T) {
+func TestNavHelpLinkPresent(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -427,18 +427,18 @@ func TestNavDocsLinkPresent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	takeScreenshot(t, ctx, "nav", "docs-link-present.png")
+	takeScreenshot(t, ctx, "nav", "help-link-present.png")
 
-	exists, err := common.Exists(ctx, `.nav-links a[href="/docs"]`)
+	exists, err := common.Exists(ctx, `.nav-links a[href="/help"]`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !exists {
-		t.Error("Docs link (a[href='/docs']) not found in .nav-links")
+		t.Error("Help link (a[href='/help']) not found in .nav-links")
 	}
 }
 
-func TestNavMobileDocsLink(t *testing.T) {
+func TestNavMobileHelpLink(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -471,18 +471,18 @@ func TestNavMobileDocsLink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	takeScreenshot(t, ctx, "nav", "mobile-docs-link.png")
+	takeScreenshot(t, ctx, "nav", "mobile-help-link.png")
 
-	exists, err := common.Exists(ctx, `.mobile-menu a[href="/docs"]`)
+	exists, err := common.Exists(ctx, `.mobile-menu a[href="/help"]`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !exists {
-		t.Error("Docs link (a[href='/docs']) not found in .mobile-menu")
+		t.Error("Help link (a[href='/help']) not found in .mobile-menu")
 	}
 }
 
-func TestNavDropdownDocsLink(t *testing.T) {
+func TestNavDropdownHelpLink(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -499,13 +499,13 @@ func TestNavDropdownDocsLink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	takeScreenshot(t, ctx, "nav", "dropdown-docs-link.png")
+	takeScreenshot(t, ctx, "nav", "dropdown-help-link.png")
 
-	exists, err := common.Exists(ctx, `.nav-dropdown a[href="/docs"]`)
+	exists, err := common.Exists(ctx, `.nav-dropdown a[href="/help"]`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !exists {
-		t.Error("Docs link (a[href='/docs']) not found in .nav-dropdown")
+		t.Error("Help link (a[href='/help']) not found in .nav-dropdown")
 	}
 }

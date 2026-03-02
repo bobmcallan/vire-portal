@@ -652,7 +652,7 @@ func TestServePage_LoggedIn_WithCookie(t *testing.T) {
 }
 
 func TestServePage_LoggedIn_WithoutCookie(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte{})
+	handler := NewPageHandler(nil, true, []byte{}, nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	// No cookie
@@ -799,7 +799,7 @@ func TestLogoutHandler_WorksInProdMode(t *testing.T) {
 // --- LoggedIn Edge Cases ---
 
 func TestServePage_LoggedIn_EmptyCookieValue(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte{})
+	handler := NewPageHandler(nil, true, []byte{}, nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	// Go's Cookie method returns the cookie even with empty value
@@ -817,7 +817,7 @@ func TestServePage_LoggedIn_EmptyCookieValue(t *testing.T) {
 }
 
 func TestServePage_LoggedIn_GarbageCookieValue(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte{})
+	handler := NewPageHandler(nil, true, []byte{}, nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "not-a-jwt-at-all"})
@@ -1672,7 +1672,7 @@ func TestNavTemplate_HamburgerDropdownPresent(t *testing.T) {
 
 func TestNavTemplate_NotRenderedWhenLoggedOut(t *testing.T) {
 	// When not logged in, nav should not render at all.
-	handler := NewPageHandler(nil, true, []byte{})
+	handler := NewPageHandler(nil, true, []byte{}, nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	// No cookie
@@ -1713,7 +1713,7 @@ func TestNavTemplate_ActiveStateForDashboard(t *testing.T) {
 
 func TestFooterTemplate_ToastContainer(t *testing.T) {
 	// Verify the toast notification container is rendered.
-	handler := NewPageHandler(nil, true, []byte{})
+	handler := NewPageHandler(nil, true, []byte{}, nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
@@ -1731,7 +1731,7 @@ func TestFooterTemplate_ToastContainer(t *testing.T) {
 }
 
 func TestFooterTemplate_GitHubLink(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte{})
+	handler := NewPageHandler(nil, true, []byte{}, nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
@@ -1748,7 +1748,7 @@ func TestFooterTemplate_GitHubLink(t *testing.T) {
 func TestHeadTemplate_AlpineJSNotDeferred(t *testing.T) {
 	// common.js must NOT be deferred so Alpine.data() registrations run before Alpine.js.
 	// Alpine.js IS deferred. If common.js is also deferred, components won't be registered.
-	handler := NewPageHandler(nil, true, []byte{})
+	handler := NewPageHandler(nil, true, []byte{}, nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
@@ -2635,7 +2635,7 @@ func TestGetServerVersion_TimeoutOnSlowServer(t *testing.T) {
 // --- Footer Version Display Tests ---
 
 func TestServePage_ContainsPortalVersion(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte{})
+	handler := NewPageHandler(nil, true, []byte{}, nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
@@ -2658,7 +2658,7 @@ func TestServePage_ContainsPortalVersion(t *testing.T) {
 }
 
 func TestServePage_ContainsServerVersion(t *testing.T) {
-	handler := NewPageHandler(nil, true, []byte{})
+	handler := NewPageHandler(nil, true, []byte{}, nil)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()

@@ -1584,7 +1584,7 @@ func TestGetServerVersion_StressDNSLookupFail(t *testing.T) {
 
 func TestServePage_StressVersionInTemplate(t *testing.T) {
 	// Verify that hostile version strings are properly escaped in the template
-	handler := NewPageHandler(nil, true, []byte{})
+	handler := NewPageHandler(nil, true, []byte{}, nil)
 	handler.SetAPIURL("") // Force "unavailable" for server version
 
 	// Create a test server that returns a hostile version

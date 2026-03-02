@@ -104,15 +104,9 @@ func New(cfg *config.Config, logger *common.Logger) (*App, error) {
 func (a *App) initHandlers() {
 	jwtSecret := []byte(a.Config.Auth.JWTSecret)
 
-	a.PageHandler = handlers.NewPageHandler(a.Logger, a.Config.IsDevMode(), jwtSecret)
-	a.PageHandler.SetAPIURL(a.Config.API.URL)
-	a.HealthHandler = handlers.NewHealthHandler(a.Logger)
-	a.VersionHandler = handlers.NewVersionHandler(a.Logger)
-	a.AuthHandler = handlers.NewAuthHandler(a.Logger, a.Config.IsDevMode(), a.Config.API.URL, a.Config.Auth.CallbackURL, jwtSecret)
-
 	vireClient := client.NewVireClient(a.Config.API.URL)
 
-	// User lookup via vire-server API (used by profile and dashboard)
+	// User lookup via vire-server API (used by profile, dashboard, and page handler)
 	userLookup := func(userID string) (*client.UserProfile, error) {
 		return vireClient.GetUser(userID)
 	}
@@ -122,6 +116,12 @@ func (a *App) initHandlers() {
 		_, err := vireClient.UpdateUser(userID, fields)
 		return err
 	}
+
+	a.PageHandler = handlers.NewPageHandler(a.Logger, a.Config.IsDevMode(), jwtSecret, userLookup)
+	a.PageHandler.SetAPIURL(a.Config.API.URL)
+	a.HealthHandler = handlers.NewHealthHandler(a.Logger)
+	a.VersionHandler = handlers.NewVersionHandler(a.Logger)
+	a.AuthHandler = handlers.NewAuthHandler(a.Logger, a.Config.IsDevMode(), a.Config.API.URL, a.Config.Auth.CallbackURL, jwtSecret)
 
 	a.MCPHandler = mcp.NewHandler(a.Config, a.Logger)
 	a.MCPDevHandler = mcp.NewDevHandler(

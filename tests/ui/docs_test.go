@@ -54,7 +54,7 @@ func TestDocsPageHasContent(t *testing.T) {
 	}
 }
 
-func TestDocsNavActiveState(t *testing.T) {
+func TestDocsPageHasNavigation(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -63,20 +63,14 @@ func TestDocsNavActiveState(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	takeScreenshot(t, ctx, "docs", "nav-active.png")
+	takeScreenshot(t, ctx, "docs", "nav-present.png")
 
-	// Verify the Docs nav link has the active class when on /docs
-	activeLink, err := commontest.EvalBool(ctx, `
-		(() => {
-			const a = document.querySelector('.nav-links a[href="/docs"]');
-			return a && a.classList.contains('active');
-		})()
-	`)
+	visible, err := isVisible(ctx, ".nav")
 	if err != nil {
-		t.Fatalf("error checking docs nav active state: %v", err)
+		t.Fatalf("error checking nav visibility: %v", err)
 	}
-	if !activeLink {
-		t.Error("Docs nav link should have 'active' class when on /docs page")
+	if !visible {
+		t.Error("nav should be visible on /docs page")
 	}
 }
 
@@ -94,26 +88,6 @@ func TestDocsPageNoJSErrors(t *testing.T) {
 
 	if jsErrs := errs.Errors(); len(jsErrs) > 0 {
 		t.Errorf("JS errors on docs page:\n  %v", jsErrs)
-	}
-}
-
-func TestDocsPageHasNav(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/docs")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "docs", "has-nav.png")
-
-	visible, err := isVisible(ctx, ".nav")
-	if err != nil {
-		t.Fatalf("error checking nav visibility: %v", err)
-	}
-	if !visible {
-		t.Error("nav should be visible on /docs page")
 	}
 }
 

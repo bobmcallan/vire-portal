@@ -6,31 +6,34 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/bobmcallan/vire-portal/internal/client"
 	"github.com/bobmcallan/vire-portal/internal/config"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 // PageHandler serves HTML pages rendered with Go templates.
 type PageHandler struct {
-	logger    *common.Logger
-	templates *template.Template
-	devMode   bool
-	jwtSecret []byte
-	apiURL    string
+	logger       *common.Logger
+	templates    *template.Template
+	devMode      bool
+	jwtSecret    []byte
+	apiURL       string
+	userLookupFn func(string) (*client.UserProfile, error)
 }
 
 // NewPageHandler creates a new page handler that loads templates from the pages directory.
-func NewPageHandler(logger *common.Logger, devMode bool, jwtSecret []byte) *PageHandler {
+func NewPageHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userLookupFn func(string) (*client.UserProfile, error)) *PageHandler {
 	pagesDir := FindPagesDir()
 
 	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
 	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
 
 	return &PageHandler{
-		logger:    logger,
-		templates: templates,
-		devMode:   devMode,
-		jwtSecret: jwtSecret,
+		logger:       logger,
+		templates:    templates,
+		devMode:      devMode,
+		jwtSecret:    jwtSecret,
+		userLookupFn: userLookupFn,
 	}
 }
 
@@ -61,7 +64,7 @@ func FindPagesDir() string {
 // ServePage creates a handler function for serving a specific page template.
 func (h *PageHandler) ServePage(templateName string, pageName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		loggedIn, _ := IsLoggedIn(r, h.jwtSecret)
+		loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
 
 		// Auto-logout on landing page: clear session cookie
 		if pageName == "home" {
@@ -76,10 +79,18 @@ func (h *PageHandler) ServePage(templateName string, pageName string) http.Handl
 			loggedIn = false
 		}
 
+		var userRole string
+		if loggedIn && h.userLookupFn != nil && claims != nil && claims.Sub != "" {
+			if user, err := h.userLookupFn(claims.Sub); err == nil && user != nil {
+				userRole = user.Role
+			}
+		}
+
 		data := map[string]interface{}{
 			"Page":          pageName,
 			"DevMode":       h.devMode,
 			"LoggedIn":      loggedIn,
+			"UserRole":      userRole,
 			"PortalVersion": config.GetVersion(),
 			"ServerVersion": GetServerVersion(h.apiURL),
 		}

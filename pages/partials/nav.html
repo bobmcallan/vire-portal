@@ -9,8 +9,7 @@
                 <li><a href="/strategy" {{if eq .Page "strategy"}}class="active"{{end}}>Strategy</a></li>
                 <li><a href="/capital" {{if eq .Page "capital"}}class="active"{{end}}>Capital</a></li>
                 <li><a href="/mcp-info" {{if eq .Page "mcp"}}class="active"{{end}}>MCP</a></li>
-                <li><a href="/docs" {{if eq .Page "docs"}}class="active"{{end}}>Docs</a></li>
-                {{if eq .UserRole "admin"}}<li><a href="/admin/users" {{if eq .Page "users"}}class="active"{{end}}>Users</a></li>{{end}}
+                <li><a href="/help" {{if eq .Page "help"}}class="active"{{end}}>Help</a></li>
             </ul>
 
             <div class="nav-hamburger-wrap" @click.outside="closeDropdown()">
@@ -23,8 +22,8 @@
                 </button>
                 <div x-show="dropdownOpen" x-cloak class="nav-dropdown">
                     <a href="/profile">Profile</a>
-                    {{if eq .UserRole "admin"}}<a href="/admin/users">Users</a>{{end}}
-                    <a href="/docs">Docs</a>
+                    {{if eq .UserRole "admin"}}<a href="/admin/users">Admin</a>{{end}}
+                    <a href="/help">Help</a>
                     <form method="POST" action="/api/auth/logout">
                         <button type="submit" class="nav-dropdown-logout">Logout</button>
                     </form>
@@ -42,8 +41,8 @@
                 <a href="/strategy">Strategy</a>
                 <a href="/capital">Capital</a>
                 <a href="/mcp-info">MCP</a>
-                {{if eq .UserRole "admin"}}<a href="/admin/users">Users</a>{{end}}
-                <a href="/docs">Docs</a>
+                <a href="/help">Help</a>
+                {{if eq .UserRole "admin"}}<a href="/admin/users">Admin</a>{{end}}
                 <a href="/profile">Profile</a>
                 <form method="POST" action="/api/auth/logout">
                     <button type="submit" style="display:block;width:100%;padding:0.6rem 0;font-weight:700;font-size:0.8rem;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;color:#000;border:none;border-bottom:1px solid #888;background:none;cursor:pointer;text-align:left;font-family:'IBM Plex Mono',ui-monospace,monospace;">Logout</button>
