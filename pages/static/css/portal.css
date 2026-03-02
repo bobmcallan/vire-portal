@@ -986,12 +986,8 @@ code {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    flex: 1;
-    text-align: right;
-}
-
-.portfolio-summary-item:first-child {
-    text-align: left;
+    flex: 1 1 0;
+    text-align: center;
 }
 
 .portfolio-summary-item .label {
