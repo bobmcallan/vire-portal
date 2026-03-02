@@ -5,6 +5,7 @@
 #   cp config/vire-portal.toml.example config/vire-portal.toml
 
 environment = "dev"                # dev | development, prod | production (default: prod)
+admin_users = ""                   # Comma-separated admin emails (synced on startup). Env: VIRE_ADMIN_USERS
 
 [server]
 port = 4241

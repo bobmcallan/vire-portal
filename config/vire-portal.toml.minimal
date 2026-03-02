@@ -9,6 +9,7 @@
 #   VIRE_API_URL            → api.url
 #   VIRE_AUTH_JWT_SECRET    → auth.jwt_secret   (required in production)
 #   VIRE_ENV                → environment         (dev | prod)
+#   VIRE_ADMIN_USERS        → admin_users        (comma-separated admin emails)
 #
 # Optional overrides (sensible defaults: 0.0.0.0:8080):
 #   VIRE_SERVER_PORT        → server.port        (or -port / -p flag)
