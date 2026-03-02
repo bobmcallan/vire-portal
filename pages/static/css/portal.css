@@ -990,6 +990,14 @@ code {
     text-align: center;
 }
 
+.portfolio-summary-item:first-child {
+    text-align: left;
+}
+
+.portfolio-summary-item:last-child {
+    text-align: right;
+}
+
 .portfolio-summary-item .label {
     font-size: 0.6875rem;
     letter-spacing: 0.1em;
