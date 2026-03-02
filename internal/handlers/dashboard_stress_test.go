@@ -580,9 +580,9 @@ func TestDashboardHandler_StressNewFieldBindingsSafe(t *testing.T) {
 	if !strings.Contains(body, `x-text="fmt(grossContributions)"`) {
 		t.Error("expected grossContributions displayed with x-text fmt() binding")
 	}
-	// DIVIDENDS must use x-text fmt() binding
-	if !strings.Contains(body, `x-text="fmt(totalDividends)"`) {
-		t.Error("expected totalDividends displayed with x-text fmt() binding")
+	// DIVIDENDS must show actual (forecast) format
+	if !strings.Contains(body, `fmt(ledgerDividendReturn)`) || !strings.Contains(body, `fmt(totalDividends)`) {
+		t.Error("expected dividends displayed with ledgerDividendReturn and totalDividends bindings")
 	}
 }
 

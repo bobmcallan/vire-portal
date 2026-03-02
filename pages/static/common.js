@@ -194,6 +194,7 @@ function portfolioDashboard() {
         availableCash: 0,
         grossContributions: 0,
         totalDividends: 0,
+        ledgerDividendReturn: 0,
         refreshing: false,
         trend: '',
         rsiSignal: '',
@@ -266,6 +267,7 @@ function portfolioDashboard() {
                     const holdingsData = await holdingsRes.json();
                     this.holdings = vireStore.dedup(holdingsData.holdings || [], 'ticker');
                     this.totalDividends = Number(holdingsData.dividend_forecast) || 0;
+                    this.ledgerDividendReturn = Number(holdingsData.ledger_dividend_return) || 0;
                     this.portfolioTotalValue = Number(holdingsData.portfolio_value) || 0;
                     this.portfolioGain = Number(holdingsData.net_equity_return) || 0;
                     this.portfolioGainPct = Number(holdingsData.net_equity_return_pct) || 0;
@@ -299,6 +301,7 @@ function portfolioDashboard() {
                     this.availableCash = 0;
                     this.grossContributions = 0;
                     this.totalDividends = 0;
+                    this.ledgerDividendReturn = 0;
                     this.capitalInvested = 0; this.capitalGain = 0; this.capitalGainPct = 0;
                     this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
                     this.hasCapitalData = false;
@@ -508,6 +511,7 @@ function portfolioDashboard() {
                     const data = await res.json();
                     this.holdings = vireStore.dedup(data.holdings || [], 'ticker');
                     this.totalDividends = Number(data.dividend_forecast) || 0;
+                    this.ledgerDividendReturn = Number(data.ledger_dividend_return) || 0;
                     this.portfolioTotalValue = Number(data.portfolio_value) || 0;
                     this.portfolioGain = Number(data.net_equity_return) || 0;
                     this.portfolioGainPct = Number(data.net_equity_return_pct) || 0;
