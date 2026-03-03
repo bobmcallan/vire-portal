@@ -217,14 +217,14 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
 			if (labels.length === 0) return false;
-			// First label is always PORTFOLIO VALUE
-			if (labels[0].textContent.trim() !== 'PORTFOLIO VALUE') return false;
+			// First label is always PORTFOLIO VALUE (text may include tooltip "i")
+			if (!labels[0].textContent.includes('PORTFOLIO VALUE')) return false;
 			// If more labels exist, check they are capital-related
 			if (labels.length > 1) {
 				const expected = ['PORTFOLIO VALUE', 'CAPITAL RETURN $', 'CAPITAL RETURN %', 'SIMPLE RETURN %', 'ANNUALIZED %'];
 				if (labels.length !== 5) return false;
 				for (let i = 0; i < 5; i++) {
-					if (labels[i].textContent.trim() !== expected[i]) return false;
+					if (!labels[i].textContent.includes(expected[i])) return false;
 				}
 			}
 			return true;
@@ -547,14 +547,14 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
 			if (labels.length === 0) return false;
-			// First two are always present
-			if (labels[0].textContent.trim() !== 'GROSS CASH BALANCE') return false;
-			if (labels[1].textContent.trim() !== 'AVAILABLE CASH') return false;
+			// First two are always present (text may include tooltip "i")
+			if (!labels[0].textContent.includes('GROSS CASH BALANCE')) return false;
+			if (!labels[1].textContent.includes('AVAILABLE CASH')) return false;
 			// If 4 items, check the optional ones
 			if (labels.length === 4) {
 				const expected = ['GROSS CASH BALANCE', 'AVAILABLE CASH', 'GROSS CONTRIBUTIONS', 'DIVIDENDS'];
 				for (let i = 0; i < 4; i++) {
-					if (labels[i].textContent.trim() !== expected[i]) return false;
+					if (!labels[i].textContent.includes(expected[i])) return false;
 				}
 			}
 			return true;
@@ -595,7 +595,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 			if (labels.length !== 3) return false;
 			const expected = ['NET EQUITY CAPITAL', 'NET RETURN $', 'NET RETURN %'];
 			for (let i = 0; i < 3; i++) {
-				if (labels[i].textContent.trim() !== expected[i]) return false;
+				if (!labels[i].textContent.includes(expected[i])) return false;
 			}
 			return true;
 		})()
@@ -1002,6 +1002,224 @@ func TestDashboardChangesRow(t *testing.T) {
 	}
 }
 
+func TestDashboardCashChangesRow(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "cash-changes-row.png")
+
+	visible, err := isVisible(ctx, ".portfolio-summary-cash")
+	if err != nil {
+		t.Fatalf("error checking cash summary visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("cash summary not visible (no holdings data available)")
+	}
+
+	hasChanges, err := commontest.EvalBool(ctx, `
+		(() => {
+			const firstItem = document.querySelector('.portfolio-summary-cash .portfolio-summary-item');
+			if (!firstItem) return false;
+			const changes = firstItem.querySelector('.portfolio-changes');
+			return changes !== null;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking cash changes element: %v", err)
+	}
+	if !hasChanges {
+		t.Skip("cash changes element not visible (no cash changes data available)")
+	}
+
+	badgesCorrect, err := commontest.EvalBool(ctx, `
+		(() => {
+			const cashRow = document.querySelector('.portfolio-summary-cash');
+			if (!cashRow) return false;
+			const changes = cashRow.querySelector('.portfolio-changes');
+			if (!changes) return false;
+			const text = changes.textContent.trim();
+			return text.includes('D:') && text.includes('W:') && text.includes('M:');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking cash change badges: %v", err)
+	}
+	if !badgesCorrect {
+		t.Error("cash changes badges do not contain expected D:/W:/M: labels")
+	}
+
+	classesApplied, err := commontest.EvalBool(ctx, `
+		(() => {
+			const cashRow = document.querySelector('.portfolio-summary-cash');
+			if (!cashRow) return false;
+			const badges = cashRow.querySelectorAll('.portfolio-changes span');
+			if (badges.length === 0) return false;
+			for (const badge of badges) {
+				const hasColorClass = badge.className.includes('change-up') || badge.className.includes('change-down') || badge.className.includes('change-neutral');
+				if (!hasColorClass) return false;
+			}
+			return true;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking cash change classes: %v", err)
+	}
+	if !classesApplied {
+		t.Error("cash change badges do not have color classes (change-up, change-down, or change-neutral)")
+	}
+}
+
+func TestDashboardEquityChangesRow(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "equity-changes-row.png")
+
+	visible, err := isVisible(ctx, ".portfolio-summary-equity")
+	if err != nil {
+		t.Fatalf("error checking equity summary visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("equity summary not visible (no holdings data available)")
+	}
+
+	hasChanges, err := commontest.EvalBool(ctx, `
+		(() => {
+			const firstItem = document.querySelector('.portfolio-summary-equity .portfolio-summary-item');
+			if (!firstItem) return false;
+			const changes = firstItem.querySelector('.portfolio-changes');
+			return changes !== null;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking equity changes element: %v", err)
+	}
+	if !hasChanges {
+		t.Skip("equity changes element not visible (no equity changes data available)")
+	}
+
+	badgesCorrect, err := commontest.EvalBool(ctx, `
+		(() => {
+			const equityRow = document.querySelector('.portfolio-summary-equity');
+			if (!equityRow) return false;
+			const changes = equityRow.querySelector('.portfolio-changes');
+			if (!changes) return false;
+			const text = changes.textContent.trim();
+			return text.includes('D:') && text.includes('W:') && text.includes('M:');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking equity change badges: %v", err)
+	}
+	if !badgesCorrect {
+		t.Error("equity changes badges do not contain expected D:/W:/M: labels")
+	}
+
+	classesApplied, err := commontest.EvalBool(ctx, `
+		(() => {
+			const equityRow = document.querySelector('.portfolio-summary-equity');
+			if (!equityRow) return false;
+			const badges = equityRow.querySelectorAll('.portfolio-changes span');
+			if (badges.length === 0) return false;
+			for (const badge of badges) {
+				const hasColorClass = badge.className.includes('change-up') || badge.className.includes('change-down') || badge.className.includes('change-neutral');
+				if (!hasColorClass) return false;
+			}
+			return true;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking equity change classes: %v", err)
+	}
+	if !classesApplied {
+		t.Error("equity change badges do not have color classes (change-up, change-down, or change-neutral)")
+	}
+}
+
+func TestDashboardGlossaryTooltips(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "glossary-tooltips.png")
+
+	visible, err := isVisible(ctx, ".portfolio-summary")
+	if err != nil {
+		t.Fatalf("error checking portfolio summary visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("portfolio summary not visible (no holdings data available)")
+	}
+
+	// Verify label-info tooltip icons exist
+	count, err := elementCount(ctx, ".portfolio-summary .label-info")
+	if err != nil {
+		t.Fatalf("error counting label-info elements: %v", err)
+	}
+	if count < 1 {
+		t.Error("no glossary tooltip icons (.label-info) found in portfolio summary")
+	}
+	t.Logf("found %d glossary tooltip icons", count)
+
+	// Verify at least some tooltips have data-tooltip attributes populated
+	tooltipsPopulated, err := commontest.EvalBool(ctx, `
+		(() => {
+			const icons = document.querySelectorAll('.portfolio-summary .label-info');
+			if (icons.length === 0) return false;
+			let populated = 0;
+			for (const icon of icons) {
+				const tooltip = icon.getAttribute('data-tooltip');
+				if (tooltip && tooltip.length > 0) populated++;
+			}
+			return populated > 0;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking tooltip content: %v", err)
+	}
+	if !tooltipsPopulated {
+		t.Log("glossary tooltips not yet populated (glossary API may be unavailable)")
+	}
+
+	// Verify tooltip icons contain "i" text
+	iconTextCorrect, err := commontest.EvalBool(ctx, `
+		(() => {
+			const icons = document.querySelectorAll('.portfolio-summary .label-info');
+			if (icons.length === 0) return false;
+			for (const icon of icons) {
+				if (icon.textContent.trim() !== 'i') return false;
+			}
+			return true;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking icon text: %v", err)
+	}
+	if !iconTextCorrect {
+		t.Error("label-info icons do not all contain 'i' text")
+	}
+}
+
 func TestDashboardLastSynced(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
@@ -1072,5 +1290,20 @@ func TestDashboardLastSynced(t *testing.T) {
 	}
 	if !hasMutedClass {
 		t.Error("portfolio synced span element does not have text-muted class")
+	}
+
+	// Verify synced element is right-aligned
+	rightAligned, err := commontest.EvalBool(ctx, `
+		(() => {
+			const el = document.querySelector('.portfolio-synced');
+			if (!el) return false;
+			return getComputedStyle(el).textAlign === 'right';
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking synced alignment: %v", err)
+	}
+	if !rightAligned {
+		t.Error("portfolio synced element should be right-aligned")
 	}
 }

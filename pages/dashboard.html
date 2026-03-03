@@ -61,7 +61,7 @@
             <!-- Portfolio overview -->
             <div class="portfolio-summary" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="portfolio-summary-item">
-                    <span class="label">PORTFOLIO VALUE</span>
+                    <span class="label">PORTFOLIO VALUE <span class="label-info" :data-tooltip="glossaryDef('portfolio_value')">i</span></span>
                     <span class="text-bold" x-text="fmt(totalValue)"></span>
                     <span class="portfolio-changes" x-show="hasChanges" x-cloak>
                         <span :class="changeClass(changeDayPct)" x-text="'D:' + changePct(changeDayPct)"></span>
@@ -70,19 +70,19 @@
                     </span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">CAPITAL RETURN $</span>
+                    <span class="label">CAPITAL RETURN $ <span class="label-info" :data-tooltip="glossaryDef('net_capital_return')">i</span></span>
                     <span class="text-bold" :class="gainClass(capitalGain)" x-text="fmt(capitalGain)"></span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">CAPITAL RETURN %</span>
+                    <span class="label">CAPITAL RETURN % <span class="label-info" :data-tooltip="glossaryDef('net_capital_return_pct')">i</span></span>
                     <span class="text-bold" :class="gainClass(capitalGainPct)" x-text="pct(capitalGainPct)"></span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">SIMPLE RETURN %</span>
+                    <span class="label">SIMPLE RETURN % <span class="label-info" :data-tooltip="glossaryDef('simple_capital_return_pct')">i</span></span>
                     <span class="text-bold" :class="gainClass(simpleReturnPct)" x-text="pct(simpleReturnPct)"></span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">ANNUALIZED %</span>
+                    <span class="label">ANNUALIZED % <span class="label-info" :data-tooltip="glossaryDef('annualized_capital_return_pct')">i</span></span>
                     <span class="text-bold" :class="gainClass(annualizedReturnPct)" x-text="pct(annualizedReturnPct)"></span>
                 </div>
             </div>
@@ -90,19 +90,24 @@
             <!-- Cash summary -->
             <div class="portfolio-summary portfolio-summary-cash" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="portfolio-summary-item">
-                    <span class="label">GROSS CASH BALANCE</span>
+                    <span class="label">GROSS CASH BALANCE <span class="label-info" :data-tooltip="glossaryDef('gross_cash_balance')">i</span></span>
                     <span class="text-bold" x-text="fmt(grossCashBalance)"></span>
+                    <span class="portfolio-changes" x-show="hasCashChanges" x-cloak>
+                        <span :class="changeClass(changeCashDayPct)" x-text="'D:' + changePct(changeCashDayPct)"></span>
+                        <span :class="changeClass(changeCashWeekPct)" x-text="'W:' + changePct(changeCashWeekPct)"></span>
+                        <span :class="changeClass(changeCashMonthPct)" x-text="'M:' + changePct(changeCashMonthPct)"></span>
+                    </span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">AVAILABLE CASH</span>
+                    <span class="label">AVAILABLE CASH <span class="label-info" :data-tooltip="glossaryDef('net_cash_balance')">i</span></span>
                     <span class="text-bold" x-text="fmt(availableCash)"></span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">GROSS CONTRIBUTIONS</span>
+                    <span class="label">GROSS CONTRIBUTIONS <span class="label-info" :data-tooltip="glossaryDef('gross_capital_deposited')">i</span></span>
                     <span class="text-bold" x-text="fmt(grossContributions)"></span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">DIVIDENDS</span>
+                    <span class="label">DIVIDENDS <span class="label-info" :data-tooltip="glossaryDef('dividend_forecast')">i</span></span>
                     <span class="text-bold" x-text="fmt(ledgerDividendReturn) + ' (' + fmt(totalDividends) + ')'"></span>
                 </div>
             </div>
@@ -110,15 +115,20 @@
             <!-- Equity performance -->
             <div class="portfolio-summary portfolio-summary-equity" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="portfolio-summary-item">
-                    <span class="label">NET EQUITY CAPITAL</span>
+                    <span class="label">NET EQUITY CAPITAL <span class="label-info" :data-tooltip="glossaryDef('net_equity_cost')">i</span></span>
                     <span class="text-bold" x-text="fmt(totalCost)"></span>
+                    <span class="portfolio-changes" x-show="hasEquityChanges" x-cloak>
+                        <span :class="changeClass(changeEquityDayPct)" x-text="'D:' + changePct(changeEquityDayPct)"></span>
+                        <span :class="changeClass(changeEquityWeekPct)" x-text="'W:' + changePct(changeEquityWeekPct)"></span>
+                        <span :class="changeClass(changeEquityMonthPct)" x-text="'M:' + changePct(changeEquityMonthPct)"></span>
+                    </span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">NET RETURN $</span>
+                    <span class="label">NET RETURN $ <span class="label-info" :data-tooltip="glossaryDef('net_equity_return')">i</span></span>
                     <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">NET RETURN %</span>
+                    <span class="label">NET RETURN % <span class="label-info" :data-tooltip="glossaryDef('net_equity_return_pct')">i</span></span>
                     <span class="text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></span>
                 </div>
             </div>

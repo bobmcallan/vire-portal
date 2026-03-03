@@ -1294,3 +1294,86 @@ func TestDashboardHandler_StressChangeClassBindingsPresent(t *testing.T) {
 		t.Error("expected portal.css reference — contains change color classes")
 	}
 }
+
+func TestDashboardHandler_StressCashEquityChangeBindings(t *testing.T) {
+	// Verify cash and equity D/W/M change bindings are present in template
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Cash change bindings
+	cashBindings := []string{
+		`:class="changeClass(changeCashDayPct)"`,
+		`:class="changeClass(changeCashWeekPct)"`,
+		`:class="changeClass(changeCashMonthPct)"`,
+	}
+	for _, binding := range cashBindings {
+		if !strings.Contains(body, binding) {
+			t.Errorf("expected %s in dashboard template", binding)
+		}
+	}
+
+	// Equity change bindings
+	equityBindings := []string{
+		`:class="changeClass(changeEquityDayPct)"`,
+		`:class="changeClass(changeEquityWeekPct)"`,
+		`:class="changeClass(changeEquityMonthPct)"`,
+	}
+	for _, binding := range equityBindings {
+		if !strings.Contains(body, binding) {
+			t.Errorf("expected %s in dashboard template", binding)
+		}
+	}
+
+	// Cash changes visibility
+	if !strings.Contains(body, `x-show="hasCashChanges"`) {
+		t.Error("expected hasCashChanges visibility binding")
+	}
+
+	// Equity changes visibility
+	if !strings.Contains(body, `x-show="hasEquityChanges"`) {
+		t.Error("expected hasEquityChanges visibility binding")
+	}
+}
+
+func TestDashboardHandler_StressGlossaryTooltipBindings(t *testing.T) {
+	// Verify glossary tooltip bindings use glossaryDef() (safe, no raw HTML)
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Verify label-info elements exist
+	if !strings.Contains(body, `class="label-info"`) {
+		t.Error("expected label-info tooltip elements in dashboard")
+	}
+
+	// Verify data-tooltip bindings use glossaryDef() (safe, no raw HTML)
+	expectedBindings := []string{
+		`glossaryDef('portfolio_value')`,
+		`glossaryDef('net_capital_return')`,
+		`glossaryDef('gross_cash_balance')`,
+		`glossaryDef('net_equity_cost')`,
+	}
+	for _, binding := range expectedBindings {
+		if !strings.Contains(body, binding) {
+			t.Errorf("expected glossary binding %s in dashboard template", binding)
+		}
+	}
+
+	// Verify tooltips use :data-tooltip (Alpine binding, not static)
+	if !strings.Contains(body, `:data-tooltip="glossaryDef(`) {
+		t.Error("expected :data-tooltip Alpine binding for glossary tooltips")
+	}
+}

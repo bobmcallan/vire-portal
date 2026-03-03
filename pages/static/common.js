@@ -200,6 +200,15 @@ function portfolioDashboard() {
         changeWeekPct: null,
         changeMonthPct: null,
         hasChanges: false,
+        changeCashDayPct: null,
+        changeCashWeekPct: null,
+        changeCashMonthPct: null,
+        hasCashChanges: false,
+        changeEquityDayPct: null,
+        changeEquityWeekPct: null,
+        changeEquityMonthPct: null,
+        hasEquityChanges: false,
+        glossary: {},
         refreshing: false,
         trend: '',
         rsiSignal: '',
@@ -254,6 +263,20 @@ function portfolioDashboard() {
                     this.selected = this.portfolios[0].name;
                 }
                 if (this.selected) await this.loadPortfolio();
+                // Fetch glossary for tooltips (non-blocking)
+                vireStore.fetch('/api/glossary')
+                    .then(async res => {
+                        if (res.ok) {
+                            const data = await res.json();
+                            const map = {};
+                            for (const cat of (data.categories || [])) {
+                                for (const t of (cat.terms || [])) {
+                                    map[t.term] = t.definition;
+                                }
+                            }
+                            this.glossary = map;
+                        }
+                    }).catch(() => {});
             } catch (e) {
                 debugError('portfolioDashboard', 'init failed', e);
                 this.error = 'Failed to connect to server';
@@ -282,11 +305,29 @@ function portfolioDashboard() {
                         this.changeWeekPct = changes.week?.portfolio_value?.has_previous ? changes.week.portfolio_value.pct_change : null;
                         this.changeMonthPct = changes.month?.portfolio_value?.has_previous ? changes.month.portfolio_value.pct_change : null;
                         this.hasChanges = this.changeDayPct !== null || this.changeWeekPct !== null || this.changeMonthPct !== null;
+                        // Cash changes
+                        this.changeCashDayPct = changes.yesterday?.gross_cash?.has_previous ? changes.yesterday.gross_cash.pct_change : null;
+                        this.changeCashWeekPct = changes.week?.gross_cash?.has_previous ? changes.week.gross_cash.pct_change : null;
+                        this.changeCashMonthPct = changes.month?.gross_cash?.has_previous ? changes.month.gross_cash.pct_change : null;
+                        this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
+                        // Equity changes
+                        this.changeEquityDayPct = changes.yesterday?.equity_value?.has_previous ? changes.yesterday.equity_value.pct_change : null;
+                        this.changeEquityWeekPct = changes.week?.equity_value?.has_previous ? changes.week.equity_value.pct_change : null;
+                        this.changeEquityMonthPct = changes.month?.equity_value?.has_previous ? changes.month.equity_value.pct_change : null;
+                        this.hasEquityChanges = this.changeEquityDayPct !== null || this.changeEquityWeekPct !== null || this.changeEquityMonthPct !== null;
                     } else {
                         this.changeDayPct = null;
                         this.changeWeekPct = null;
                         this.changeMonthPct = null;
                         this.hasChanges = false;
+                        this.changeCashDayPct = null;
+                        this.changeCashWeekPct = null;
+                        this.changeCashMonthPct = null;
+                        this.hasCashChanges = false;
+                        this.changeEquityDayPct = null;
+                        this.changeEquityWeekPct = null;
+                        this.changeEquityMonthPct = null;
+                        this.hasEquityChanges = false;
                     }
                     this.portfolioTotalValue = Number(holdingsData.portfolio_value) || 0;
                     this.portfolioGain = Number(holdingsData.net_equity_return) || 0;
@@ -327,6 +368,14 @@ function portfolioDashboard() {
                     this.changeWeekPct = null;
                     this.changeMonthPct = null;
                     this.hasChanges = false;
+                    this.changeCashDayPct = null;
+                    this.changeCashWeekPct = null;
+                    this.changeCashMonthPct = null;
+                    this.hasCashChanges = false;
+                    this.changeEquityDayPct = null;
+                    this.changeEquityWeekPct = null;
+                    this.changeEquityMonthPct = null;
+                    this.hasEquityChanges = false;
                     this.capitalInvested = 0; this.capitalGain = 0; this.capitalGainPct = 0;
                     this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
                     this.hasCapitalData = false;
@@ -552,11 +601,29 @@ function portfolioDashboard() {
                         this.changeWeekPct = changes.week?.portfolio_value?.has_previous ? changes.week.portfolio_value.pct_change : null;
                         this.changeMonthPct = changes.month?.portfolio_value?.has_previous ? changes.month.portfolio_value.pct_change : null;
                         this.hasChanges = this.changeDayPct !== null || this.changeWeekPct !== null || this.changeMonthPct !== null;
+                        // Cash changes
+                        this.changeCashDayPct = changes.yesterday?.gross_cash?.has_previous ? changes.yesterday.gross_cash.pct_change : null;
+                        this.changeCashWeekPct = changes.week?.gross_cash?.has_previous ? changes.week.gross_cash.pct_change : null;
+                        this.changeCashMonthPct = changes.month?.gross_cash?.has_previous ? changes.month.gross_cash.pct_change : null;
+                        this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
+                        // Equity changes
+                        this.changeEquityDayPct = changes.yesterday?.equity_value?.has_previous ? changes.yesterday.equity_value.pct_change : null;
+                        this.changeEquityWeekPct = changes.week?.equity_value?.has_previous ? changes.week.equity_value.pct_change : null;
+                        this.changeEquityMonthPct = changes.month?.equity_value?.has_previous ? changes.month.equity_value.pct_change : null;
+                        this.hasEquityChanges = this.changeEquityDayPct !== null || this.changeEquityWeekPct !== null || this.changeEquityMonthPct !== null;
                     } else {
                         this.changeDayPct = null;
                         this.changeWeekPct = null;
                         this.changeMonthPct = null;
                         this.hasChanges = false;
+                        this.changeCashDayPct = null;
+                        this.changeCashWeekPct = null;
+                        this.changeCashMonthPct = null;
+                        this.hasCashChanges = false;
+                        this.changeEquityDayPct = null;
+                        this.changeEquityWeekPct = null;
+                        this.changeEquityMonthPct = null;
+                        this.hasEquityChanges = false;
                     }
                     // Re-parse capital performance
                     const cp = data.capital_performance;
@@ -621,6 +688,9 @@ function portfolioDashboard() {
         changeClass(val) {
             if (val == null || val === 0) return 'change-neutral';
             return val > 0 ? 'change-up' : 'change-down';
+        },
+        glossaryDef(term) {
+            return this.glossary[term] || '';
         },
     };
 }
