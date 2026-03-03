@@ -587,7 +587,7 @@ func TestRoutes_DashboardContainsConfigStatus(t *testing.T) {
 	if !containsString(body, "portfolio-select") {
 		t.Error("expected dashboard to contain portfolio selector")
 	}
-	if !containsString(body, "TOTAL VALUE") {
+	if !containsString(body, "PORTFOLIO VALUE") {
 		t.Error("expected dashboard to contain portfolio summary")
 	}
 }
