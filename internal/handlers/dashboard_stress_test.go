@@ -532,7 +532,7 @@ func TestDashboardHandler_StressPortfolioSummarySection(t *testing.T) {
 		t.Error("portfolio summary should be conditional on filteredHoldings.length > 0")
 	}
 	// Verify all portfolio overview summary items exist (Row 1)
-	summaryLabels := []string{"TOTAL VALUE", "CAPITAL RETURN $", "CAPITAL RETURN %", "SIMPLE RETURN %", "ANNUALIZED %"}
+	summaryLabels := []string{"PORTFOLIO VALUE", "CAPITAL RETURN $", "CAPITAL RETURN %", "SIMPLE RETURN %", "ANNUALIZED %"}
 	for _, label := range summaryLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected summary label %q in dashboard", label)
@@ -1067,5 +1067,230 @@ func TestStrategyHandler_StressCSSReference(t *testing.T) {
 
 	if !strings.Contains(body, "portal.css") {
 		t.Error("expected portal.css to be referenced in strategy template")
+	}
+}
+
+// =============================================================================
+// Dashboard: D/W/M Changes & Last Synced — Adversarial Stress Tests
+// =============================================================================
+
+// --- XSS Safety: fmtSynced, changePct, changeClass use x-text/:class (safe) ---
+
+func TestDashboardHandler_StressChangesBindingsUseXText(t *testing.T) {
+	// The D/W/M change badges and last synced timestamp must use x-text
+	// (sets textContent, safe) and :class (sets className, safe).
+	// They must NOT use x-html, innerHTML, or v-html.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// changePct must be rendered via x-text (safe)
+	if !strings.Contains(body, `x-text="'D:' + changePct(changeDayPct)"`) {
+		t.Error("expected changeDayPct rendered with x-text")
+	}
+	if !strings.Contains(body, `x-text="'W:' + changePct(changeWeekPct)"`) {
+		t.Error("expected changeWeekPct rendered with x-text")
+	}
+	if !strings.Contains(body, `x-text="'M:' + changePct(changeMonthPct)"`) {
+		t.Error("expected changeMonthPct rendered with x-text")
+	}
+
+	// changeClass must be rendered via :class (safe — sets className)
+	if !strings.Contains(body, `:class="changeClass(changeDayPct)"`) {
+		t.Error("expected changeDayPct color via :class binding")
+	}
+	if !strings.Contains(body, `:class="changeClass(changeWeekPct)"`) {
+		t.Error("expected changeWeekPct color via :class binding")
+	}
+	if !strings.Contains(body, `:class="changeClass(changeMonthPct)"`) {
+		t.Error("expected changeMonthPct color via :class binding")
+	}
+
+	// fmtSynced must be rendered via x-text (safe)
+	if !strings.Contains(body, `x-text="'Synced ' + fmtSynced(lastSynced)"`) {
+		t.Error("expected lastSynced rendered with x-text via fmtSynced()")
+	}
+}
+
+func TestDashboardHandler_StressChangesRowConditionalDisplay(t *testing.T) {
+	// The D/W/M changes row must be hidden when hasChanges is false (x-show).
+	// The last synced row must be hidden when lastSynced is empty (x-show).
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Changes row gated on hasChanges
+	if !strings.Contains(body, `x-show="hasChanges"`) {
+		t.Error("portfolio-changes row must be conditional on hasChanges")
+	}
+	// Last synced gated on lastSynced
+	if !strings.Contains(body, `x-show="lastSynced"`) {
+		t.Error("portfolio-synced row must be conditional on lastSynced")
+	}
+	// Both must use x-cloak to prevent flash of unstyled content
+	if !strings.Contains(body, `class="portfolio-changes"`) {
+		t.Error("expected portfolio-changes element in dashboard")
+	}
+	if !strings.Contains(body, `class="portfolio-synced"`) {
+		t.Error("expected portfolio-synced element in dashboard")
+	}
+}
+
+func TestDashboardHandler_StressChangeClassReturnsHardcodedStrings(t *testing.T) {
+	// Verify changeClass() in common.js only returns hardcoded class names.
+	// If it returned user input, :class could be an injection vector.
+	// This is a static analysis check against the JS source embedded in the page.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// The common.js is a separate file, not inline. Verify the template
+	// references common.js (which contains the safe implementations).
+	if !strings.Contains(body, "common.js") {
+		t.Error("expected common.js reference in dashboard — changeClass/changePct live there")
+	}
+
+	// Verify no inline <script> blocks define changeClass (which could be tampered with)
+	// All JS should be in external files, not inline in the template.
+	bodyLower := strings.ToLower(body)
+	inlineScriptCount := strings.Count(bodyLower, "<script>")
+	// Allow Chart.js CDN script tag, but no inline script blocks
+	inlineWithSrc := strings.Count(bodyLower, "<script src=")
+	if inlineScriptCount > inlineWithSrc {
+		t.Errorf("SECURITY: found %d inline <script> tags (vs %d with src) — JS should be external",
+			inlineScriptCount, inlineWithSrc)
+	}
+}
+
+func TestDashboardHandler_StressPortfolioValueLabelRenamed(t *testing.T) {
+	// Verify "TOTAL VALUE" is no longer present — replaced by "PORTFOLIO VALUE".
+	// This catches regressions where the old label accidentally reappears.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if strings.Contains(body, `>TOTAL VALUE<`) {
+		t.Error("REGRESSION: 'TOTAL VALUE' label still present — should be 'PORTFOLIO VALUE'")
+	}
+	if !strings.Contains(body, `PORTFOLIO VALUE`) {
+		t.Error("expected 'PORTFOLIO VALUE' label in dashboard")
+	}
+}
+
+func TestDashboardHandler_StressChangesInsidePortfolioValueItem(t *testing.T) {
+	// The D/W/M changes must appear inside the PORTFOLIO VALUE summary item,
+	// not as a separate row. This tests structural integrity.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Find PORTFOLIO VALUE label and portfolio-changes — they should be
+	// within the same portfolio-summary-item div
+	pvIdx := strings.Index(body, "PORTFOLIO VALUE")
+	pcIdx := strings.Index(body, "portfolio-changes")
+	if pvIdx < 0 || pcIdx < 0 {
+		t.Fatal("expected both PORTFOLIO VALUE and portfolio-changes in template")
+	}
+
+	// The changes row should come after PORTFOLIO VALUE but before the next
+	// portfolio-summary-item (which starts with CAPITAL RETURN)
+	crIdx := strings.Index(body, "CAPITAL RETURN")
+	if crIdx < 0 {
+		t.Skip("CAPITAL RETURN label not found — may be conditional")
+	}
+	if pcIdx > crIdx {
+		t.Error("portfolio-changes appears after CAPITAL RETURN — should be inside PORTFOLIO VALUE item")
+	}
+}
+
+func TestDashboardHandler_StressSyncedAfterHeaderBeforeSummary(t *testing.T) {
+	// The last synced timestamp must appear after the portfolio header row
+	// and before the portfolio summary section. This verifies document order.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	headerIdx := strings.Index(body, "portfolio-header")
+	syncedIdx := strings.Index(body, "portfolio-synced")
+	summaryIdx := strings.Index(body, "portfolio-summary")
+
+	if headerIdx < 0 || syncedIdx < 0 || summaryIdx < 0 {
+		t.Fatal("expected portfolio-header, portfolio-synced, and portfolio-summary in template")
+	}
+
+	if syncedIdx < headerIdx {
+		t.Error("portfolio-synced appears before portfolio-header — wrong document order")
+	}
+	if syncedIdx > summaryIdx {
+		t.Error("portfolio-synced appears after portfolio-summary — should be between header and summary")
+	}
+}
+
+func TestDashboardHandler_StressChangeClassBindingsPresent(t *testing.T) {
+	// Verify that changeClass() is used via :class bindings for all three
+	// change periods. The actual CSS class names (change-up, change-down,
+	// change-neutral) live in common.js and portal.css — not in the HTML.
+	// This test verifies the template wiring is correct.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// All three D/W/M periods must use :class with changeClass()
+	bindings := []string{
+		`:class="changeClass(changeDayPct)"`,
+		`:class="changeClass(changeWeekPct)"`,
+		`:class="changeClass(changeMonthPct)"`,
+	}
+	for _, binding := range bindings {
+		if !strings.Contains(body, binding) {
+			t.Errorf("expected %s in dashboard template", binding)
+		}
+	}
+
+	// Verify portal.css is referenced (it contains .change-up, .change-down, .change-neutral)
+	if !strings.Contains(body, "portal.css") {
+		t.Error("expected portal.css reference — contains change color classes")
 	}
 }

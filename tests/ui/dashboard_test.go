@@ -217,11 +217,11 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
 			if (labels.length === 0) return false;
-			// First label is always TOTAL VALUE
-			if (labels[0].textContent.trim() !== 'TOTAL VALUE') return false;
+			// First label is always PORTFOLIO VALUE
+			if (labels[0].textContent.trim() !== 'PORTFOLIO VALUE') return false;
 			// If more labels exist, check they are capital-related
 			if (labels.length > 1) {
-				const expected = ['TOTAL VALUE', 'CAPITAL RETURN $', 'CAPITAL RETURN %', 'SIMPLE RETURN %', 'ANNUALIZED %'];
+				const expected = ['PORTFOLIO VALUE', 'CAPITAL RETURN $', 'CAPITAL RETURN %', 'SIMPLE RETURN %', 'ANNUALIZED %'];
 				if (labels.length !== 5) return false;
 				for (let i = 0; i < 5; i++) {
 					if (labels[i].textContent.trim() !== expected[i]) return false;
@@ -234,7 +234,7 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Fatalf("error checking summary labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("portfolio summary labels do not match expected: TOTAL VALUE, and optionally CAPITAL RETURN $, CAPITAL RETURN %, SIMPLE RETURN %, ANNUALIZED %")
+		t.Error("portfolio summary labels do not match expected: PORTFOLIO VALUE, and optionally CAPITAL RETURN $, CAPITAL RETURN %, SIMPLE RETURN %, ANNUALIZED %")
 	}
 
 	// Verify summary spans full content width (justify-content: space-between)
@@ -912,5 +912,165 @@ func TestDashboardDesign(t *testing.T) {
 	}
 	if boxShadowViolators != "" {
 		t.Errorf("box-shadow found on: %s", boxShadowViolators)
+	}
+}
+
+func TestDashboardChangesRow(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render
+	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "changes-row.png")
+
+	// Check if portfolio summary is visible (only shows when filteredHoldings > 0)
+	visible, err := isVisible(ctx, ".portfolio-summary")
+	if err != nil {
+		t.Fatalf("error checking portfolio summary visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("portfolio summary not visible (no holdings data available)")
+	}
+
+	// Verify .portfolio-changes element exists within the first portfolio-summary-item
+	hasChanges, err := commontest.EvalBool(ctx, `
+		(() => {
+			const firstItem = document.querySelector('.portfolio-summary:not(.portfolio-summary-cash):not(.portfolio-summary-equity) .portfolio-summary-item');
+			if (!firstItem) return false;
+			const changes = firstItem.querySelector('.portfolio-changes');
+			return changes !== null;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking changes element: %v", err)
+	}
+	if !hasChanges {
+		t.Skip("portfolio changes element not visible (no changes data available)")
+	}
+
+	// Verify D/W/M badges are present
+	badgeCount, err := elementCount(ctx, ".portfolio-changes span")
+	if err != nil {
+		t.Fatalf("error counting change badges: %v", err)
+	}
+	// Should have 3 badges: D, W, M (when hasChanges is true)
+	if badgeCount < 1 {
+		t.Error("portfolio changes badges not found")
+	}
+
+	// Verify D/W/M labels exist
+	badgesCorrect, err := commontest.EvalBool(ctx, `
+		(() => {
+			const changes = document.querySelector('.portfolio-changes');
+			if (!changes) return false;
+			const text = changes.textContent.trim();
+			// Should contain D:, W:, M: labels (and percentages)
+			return text.includes('D:') && text.includes('W:') && text.includes('M:');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking change badge labels: %v", err)
+	}
+	if !badgesCorrect {
+		t.Error("portfolio changes badges do not contain expected D:/W:/M: labels")
+	}
+
+	// Verify change-up/change-down/change-neutral classes are applied
+	classesApplied, err := commontest.EvalBool(ctx, `
+		(() => {
+			const badges = document.querySelectorAll('.portfolio-changes span');
+			if (badges.length === 0) return false;
+			for (const badge of badges) {
+				const classes = badge.className;
+				const hasColorClass = classes.includes('change-up') || classes.includes('change-down') || classes.includes('change-neutral');
+				if (!hasColorClass) return false;
+			}
+			return true;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking change badge classes: %v", err)
+	}
+	if !classesApplied {
+		t.Error("portfolio change badges do not have color classes (change-up, change-down, or change-neutral)")
+	}
+}
+
+func TestDashboardLastSynced(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render
+	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "last-synced.png")
+
+	// Check if .portfolio-synced element exists
+	visible, err := isVisible(ctx, ".portfolio-synced")
+	if err != nil {
+		t.Fatalf("error checking synced element visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("portfolio synced element not visible (no last_synced data available)")
+	}
+
+	// Verify "Synced" text is present
+	syncedText, err := commontest.EvalBool(ctx, `
+		(() => {
+			const el = document.querySelector('.portfolio-synced');
+			if (!el) return false;
+			const text = el.textContent.trim();
+			return text.includes('Synced');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking synced text: %v", err)
+	}
+	if !syncedText {
+		t.Error("portfolio synced element does not contain 'Synced' text")
+	}
+
+	// Verify date format (should contain day/month/year and time)
+	dateFormatted, err := commontest.EvalBool(ctx, `
+		(() => {
+			const el = document.querySelector('.portfolio-synced');
+			if (!el) return false;
+			const text = el.textContent.trim();
+			// Should match format like "Synced 3 Mar 2026 15:30"
+			// Check for numbers (day/year) and month abbreviation
+			return /\d+\s+\w+\s+\d{4}\s+\d{2}:\d{2}/.test(text);
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking date format: %v", err)
+	}
+	if !dateFormatted {
+		t.Error("portfolio synced element does not contain properly formatted date/time")
+	}
+
+	// Verify element has text-muted class for styling
+	hasMutedClass, err := commontest.EvalBool(ctx, `
+		(() => {
+			const el = document.querySelector('.portfolio-synced span');
+			if (!el) return false;
+			return el.className.includes('text-muted');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking muted class: %v", err)
+	}
+	if !hasMutedClass {
+		t.Error("portfolio synced span element does not have text-muted class")
 	}
 }

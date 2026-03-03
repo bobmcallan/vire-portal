@@ -43,6 +43,11 @@
                 </button>
             </div>
 
+            <!-- Last synced timestamp -->
+            <div class="portfolio-synced" x-show="lastSynced" x-cloak>
+                <span class="text-muted" x-text="'Synced ' + fmtSynced(lastSynced)"></span>
+            </div>
+
             <!-- Empty state -->
             <div x-show="!loading && portfolios.length === 0 && !error" class="text-muted" style="padding: 2rem 0;">
                 No portfolios found. Configure your Navexa API key in <a href="/profile">Profile</a>.
@@ -56,8 +61,13 @@
             <!-- Portfolio overview -->
             <div class="portfolio-summary" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="portfolio-summary-item">
-                    <span class="label">TOTAL VALUE</span>
+                    <span class="label">PORTFOLIO VALUE</span>
                     <span class="text-bold" x-text="fmt(totalValue)"></span>
+                    <span class="portfolio-changes" x-show="hasChanges" x-cloak>
+                        <span :class="changeClass(changeDayPct)" x-text="'D:' + changePct(changeDayPct)"></span>
+                        <span :class="changeClass(changeWeekPct)" x-text="'W:' + changePct(changeWeekPct)"></span>
+                        <span :class="changeClass(changeMonthPct)" x-text="'M:' + changePct(changeMonthPct)"></span>
+                    </span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
                     <span class="label">CAPITAL RETURN $</span>

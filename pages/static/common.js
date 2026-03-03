@@ -195,6 +195,11 @@ function portfolioDashboard() {
         grossContributions: 0,
         totalDividends: 0,
         ledgerDividendReturn: 0,
+        lastSynced: '',
+        changeDayPct: null,
+        changeWeekPct: null,
+        changeMonthPct: null,
+        hasChanges: false,
         refreshing: false,
         trend: '',
         rsiSignal: '',
@@ -268,6 +273,21 @@ function portfolioDashboard() {
                     this.holdings = vireStore.dedup(holdingsData.holdings || [], 'ticker');
                     this.totalDividends = Number(holdingsData.dividend_forecast) || 0;
                     this.ledgerDividendReturn = Number(holdingsData.ledger_dividend_return) || 0;
+                    // Parse last_synced (UTC → local time)
+                    this.lastSynced = holdingsData.last_synced || '';
+                    // Parse changes
+                    const changes = holdingsData.changes;
+                    if (changes) {
+                        this.changeDayPct = changes.yesterday?.portfolio_value?.has_previous ? changes.yesterday.portfolio_value.pct_change : null;
+                        this.changeWeekPct = changes.week?.portfolio_value?.has_previous ? changes.week.portfolio_value.pct_change : null;
+                        this.changeMonthPct = changes.month?.portfolio_value?.has_previous ? changes.month.portfolio_value.pct_change : null;
+                        this.hasChanges = this.changeDayPct !== null || this.changeWeekPct !== null || this.changeMonthPct !== null;
+                    } else {
+                        this.changeDayPct = null;
+                        this.changeWeekPct = null;
+                        this.changeMonthPct = null;
+                        this.hasChanges = false;
+                    }
                     this.portfolioTotalValue = Number(holdingsData.portfolio_value) || 0;
                     this.portfolioGain = Number(holdingsData.net_equity_return) || 0;
                     this.portfolioGainPct = Number(holdingsData.net_equity_return_pct) || 0;
@@ -302,6 +322,11 @@ function portfolioDashboard() {
                     this.grossContributions = 0;
                     this.totalDividends = 0;
                     this.ledgerDividendReturn = 0;
+                    this.lastSynced = '';
+                    this.changeDayPct = null;
+                    this.changeWeekPct = null;
+                    this.changeMonthPct = null;
+                    this.hasChanges = false;
                     this.capitalInvested = 0; this.capitalGain = 0; this.capitalGainPct = 0;
                     this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
                     this.hasCapitalData = false;
@@ -518,6 +543,21 @@ function portfolioDashboard() {
                     this.portfolioCost = Number(data.net_equity_cost) || 0;
                     this.grossCashBalance = Number(data.gross_cash_balance) || 0;
                     this.availableCash = Number(data.net_cash_balance) || 0;
+                    // Parse last_synced (UTC → local time)
+                    this.lastSynced = data.last_synced || '';
+                    // Parse changes
+                    const changes = data.changes;
+                    if (changes) {
+                        this.changeDayPct = changes.yesterday?.portfolio_value?.has_previous ? changes.yesterday.portfolio_value.pct_change : null;
+                        this.changeWeekPct = changes.week?.portfolio_value?.has_previous ? changes.week.portfolio_value.pct_change : null;
+                        this.changeMonthPct = changes.month?.portfolio_value?.has_previous ? changes.month.portfolio_value.pct_change : null;
+                        this.hasChanges = this.changeDayPct !== null || this.changeWeekPct !== null || this.changeMonthPct !== null;
+                    } else {
+                        this.changeDayPct = null;
+                        this.changeWeekPct = null;
+                        this.changeMonthPct = null;
+                        this.hasChanges = false;
+                    }
                     // Re-parse capital performance
                     const cp = data.capital_performance;
                     if (cp && cp.transaction_count > 0) {
@@ -562,6 +602,25 @@ function portfolioDashboard() {
         },
         pct(val) {
             return val != null ? Number(val).toFixed(2) + '%' : '-';
+        },
+        fmtSynced(utcStr) {
+            if (!utcStr) return '';
+            try {
+                const d = new Date(utcStr);
+                if (isNaN(d.getTime())) return '';
+                return d.toLocaleString('en-AU', {
+                    day: 'numeric', month: 'short', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit', hour12: false
+                });
+            } catch { return ''; }
+        },
+        changePct(val) {
+            if (val == null) return '-';
+            return (val >= 0 ? '+' : '') + Number(val).toFixed(1) + '%';
+        },
+        changeClass(val) {
+            if (val == null || val === 0) return 'change-neutral';
+            return val > 0 ? 'change-up' : 'change-down';
         },
     };
 }
