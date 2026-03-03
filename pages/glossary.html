@@ -69,6 +69,11 @@
             error: null,
 
             init() {
+                const params = new URLSearchParams(window.location.search);
+                const termParam = params.get('term');
+                if (termParam) {
+                    this.query = termParam;
+                }
                 fetch('/api/glossary')
                     .then(r => {
                         if (!r.ok) throw new Error('Glossary endpoint not yet available');
@@ -84,7 +89,7 @@
                                 formula: t.formula || null,
                             }))
                         }));
-                        this.filtered = this.categories;
+                        this.filter();
                         this.loading = false;
                     })
                     .catch(err => {

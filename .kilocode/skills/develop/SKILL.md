@@ -1,124 +1,140 @@
 # /vire-portal-develop - Vire Portal Development Workflow
-
-Develop and test Vire portal features using an agent team.
+---
+name: develop
+description: Develop and test Vire portal features using an agent team.
+---
 
 ## Usage
 ```
 /vire-portal-develop <feature-description>
 ```
 
-## Outputs
+## Team
 
-Every invocation produces documentation in `.claude/workdir/<datetime>-<taskname>/`:
-- `requirements.md` — what was requested, scope, approach chosen
-- `summary.md` — what was built, files changed, tests added, outcome
+Six teammates with distinct roles. The team lead (you) investigates, plans (using an Opus Plan agent), spawns, and coordinates.
 
-## Procedure
+| Role | Model | Purpose |
+|------|-------|---------|
+| **implementer** | sonnet | Executes the implementation spec. Writes tests first, then code. Fixes issues raised by reviewers. Handles build/verify/docs. |
+| **architect** | ~~sonnet~~ **haiku** | Guards portal architecture. Reviews handler patterns, template structure, auth flows against `docs/`. |
+| **reviewer** | haiku | Code quality, pattern consistency, test coverage. Quick, focused reviews. |
+| **devils-advocate** | opus | Security, failure modes, edge cases, hostile inputs. Deep adversarial analysis. |
+| **test-creator** | ~~sonnet~~ **haiku** | Creates/reviews UI tests in `tests/ui/` following test-common and test-create-review skills. |
+| **test-executor** | haiku | Runs UI tests via chromedp, reports results. Read-only for test code. |
 
-### Step 1: Create Work Directory
+### Model Change Rationale
 
-Generate the work directory path using the current datetime and a short task slug:
+| Role | Old | New | Reason |
+|------|-----|-----|--------|
+| architect | sonnet | haiku | Pattern verification against known conventions — "does this match existing patterns?" is mechanical, not novel reasoning |
+| test-creator | sonnet | haiku | Reading HTML templates and checking selectors is mechanical work well within haiku's capability |
+
+**Unchanged:** planner and devils-advocate remain on opus (quality anchors). Implementer remains on sonnet (code generation quality critical).
+
+**Estimated cost saving:** ~30-40% per session.
+
+---
+
+## Docker Safety
+
+**Non-negotiable.** Test containers use the `-tc` suffix and are managed by `containers.go`.
+
+1. **NEVER run `docker rm`, `docker stop`, `docker kill`, or any destructive Docker command** manually. The test infrastructure handles stale container cleanup automatically.
+2. **NEVER touch containers without the `-tc` suffix.** The user's dev stack (`vire-server`, `vire-surrealdb`, etc.) must never be affected.
+3. If a Docker container conflict occurs during testing, it is a bug in `containers.go` — fix the code, don't run manual Docker commands.
+
+## Workflow
+
+### Step 0: Cleanup Stale State
+
+Sessions can end before `TeamDelete` runs (user closes conversation, context exhausted, crash).
+This leaves stale team configs with phantom "in-process" members that appear to still be running.
+
+**Always run this before creating a new team:**
+
+1. Check if team `vire-portal-develop` already exists: `Read ~/.claude/teams/vire-portal-develop/config.json`
+2. If it exists, call `TeamDelete` to remove the stale team and its tasks
+3. Also clean up any stale task directories: `rm -rf ~/.claude/tasks/vire-portal-develop/`
+
+This ensures a clean slate regardless of how the previous session ended.
+
+### Step 1: Plan
+
+1. Create work directory: `.claude/workdir/YYYYMMDD-HHMM-<slug>/`
+2. Use the Explore agent to investigate relevant files, patterns, existing code
+3. Spawn a **Plan agent** (opus) to produce a detailed implementation spec. The Plan agent receives the Explore findings and the feature description, and writes `requirements.md` containing:
+   - Scope and approach
+   - File-by-file change list with descriptions of what to add/modify
+   - Function/method signatures for new code
+   - Test case list (unit tests and UI tests)
+   - Template structure and CSS class names (if UI changes)
+   - Edge cases and error handling expectations
+4. Review the Plan agent's `requirements.md` — adjust if needed before proceeding
+
+The Plan agent runs synchronously (foreground) so its output is available before the team is created. This concentrates Opus-level reasoning into a short planning phase (~5 min) rather than spreading it across the full implementation (~30-40 min).
+
+**Plan agent spawn config:**
 ```
-.claude/workdir/YYYYMMDD-HHMM-<task-slug>/
+name: "planner"
+subagent_type: "Plan"
+model: "opus"
+```
+```
+You are planning the implementation of a feature for the Vire Portal.
+
+Working dir: /home/bobmc/development/vire-portal
+Docs: docs/
+
+You have been given Explore findings and a feature description. Produce a detailed
+implementation spec and write it to the work directory as requirements.md.
+
+The spec must be detailed enough for a Sonnet-class model to implement without
+needing to make architectural decisions. Include:
+
+1. **Scope** — what the feature does, what it does NOT do
+2. **File changes** — for each file to create/modify:
+   - File path
+   - What to add or change (be specific: function names, struct fields, route patterns)
+   - Code patterns to follow (reference existing similar code in the codebase)
+3. **Function signatures** — exact Go function/method signatures for new handlers, helpers
+4. **Template structure** — HTML structure, Alpine.js bindings, CSS classes (if UI changes)
+5. **Test cases** — list of unit test functions and what each validates
+6. **UI test cases** — list of UI test functions and what each validates (if pages change)
+7. **Edge cases** — error states, auth boundaries, empty data scenarios
+8. **Dependencies** — new imports, packages, or external resources needed
+
+Be precise. The implementer will follow this spec mechanically.
 ```
 
-Example: `.claude/workdir/20260214-1430-oauth-handler/`
+### Step 2: Create Team and Tasks
 
-Create the directory and write `requirements.md`:
+Call `TeamCreate` with team_name `"vire-portal-develop"`.
 
-```markdown
-# Requirements: <feature-description>
-
-**Date:** <date>
-**Requested:** <what the user asked for>
-
-## Scope
-- <what's in scope>
-- <what's out of scope>
-
-## Approach
-<chosen approach and rationale>
-
-## Files Expected to Change
-- <file list>
-```
-
-### Step 2: Investigate and Plan
-
-Before creating the team, the team lead investigates the codebase directly:
-
-1. Use the Explore agent to understand relevant files, patterns, and existing implementations
-2. Determine the approach, files to change, and any risks
-3. Write this into `requirements.md` (created in Step 1) under the Approach section
-4. Use this knowledge to write detailed task descriptions — teammates should NOT need to re-investigate
-
-### Step 3: Create Team and Tasks
-
-Call `TeamCreate`:
-```
-team_name: "vire-portal-develop"
-description: "Developing: <feature-description>"
-```
-
-Create tasks across 3–4 phases using `TaskCreate`. Set `blockedBy` dependencies via `TaskUpdate`.
-Use 3 phases for backend-only changes. Add **Phase 2b** when the feature touches web pages
-(`pages/`, `pages/static/`, `pages/partials/`, CSS, JS, or handler template rendering).
+Create tasks across 5 phases using `TaskCreate`. Set `blockedBy` via `TaskUpdate`.
 
 **Phase 1 — Implement** (no dependencies):
-- "Write tests and implement <feature>" — owner: implementer
-  Task description includes: approach, files to change, test strategy, and acceptance criteria.
-- "Review implementation and tests" — owner: reviewer, blockedBy: [implement task]
-  Scope: code quality, pattern consistency, test coverage.
-- "Stress-test implementation" — owner: devils-advocate, blockedBy: [implement task]
-  Scope: security, failure modes, edge cases, hostile inputs.
+- implementer: "Write tests and implement <feature>"
+  **MANDATORY:** If UI elements are added, removed, or renamed, include corresponding tests in `tests/ui/`.
 
-**Phase 2 — Verify** (blockedBy: review + stress-test):
-- "Build, test, and run locally" — owner: implementer
-  Run `go test ./...`, `go vet ./...`, then `./scripts/run.sh restart` (rebuilds and restarts; leaves the server running for subsequent verification tasks).
-- "Validate running server" — owner: reviewer, blockedBy: [build task]
+**Phase 2 — Review** (parallel, blockedBy: Phase 1):
+- architect: "Review architecture alignment and update docs"
+- reviewer: "Review code quality and patterns"
+- devils-advocate: "Stress-test implementation"
 
-**Phase 2b — UI Verification** (only if web pages changed; blockedBy: build task):
+**Phase 3 — UI Tests** (blockedBy: Phase 2; MANDATORY when web pages changed):
 Applies when the feature touches: `pages/`, `pages/static/`, `pages/partials/`, HTML templates, CSS, or JS files.
-See `.claude/skills/browser-check/SKILL.md` for full `browser-check` syntax.
+- test-creator: "Review/create UI tests"
 
-- "Run chromedp UI test suite" — owner: implementer, blockedBy: [build task]
-  Run against the deployed container:
-  ```
-  VIRE_TEST_URL="http://localhost:${PORTAL_PORT:-8500}" go test ./tests/ -run "^TestUI" -v -count=1 -timeout 120s
-  ```
-- "Browser-check validation" — owner: implementer, blockedBy: [build task]
-  Run `go run ./tests/browser-check` against affected pages. Pick checks based on what changed:
-  ```bash
-  # Smoke test every affected page (catches JS errors)
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/
+**Phase 4 — Test Execution** (blockedBy: Phase 3):
+- test-executor: "Execute all tests and report results"
 
-  # If nav changed (use -login to see authenticated nav)
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
-    -check '.nav-brand|text=VIRE' \
-    -check '.nav-hamburger|visible' \
-    -check '.nav-dropdown|hidden'
+**Phase 5 — Verify** (blockedBy: Phase 4):
+- implementer: "Build, vet, run locally, update docs"
+- reviewer: "Validate docs match implementation"
 
-  # If responsive/mobile changed
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
-    -viewport 375x812 -check '.nav-links|hidden'
+### Step 3: Spawn Teammates
 
-  # Save screenshots to the work directory (with -login for authenticated nav)
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/dashboard -login \
-    -screenshot <workdir>/dashboard.png
-  go run ./tests/browser-check -url http://localhost:${PORTAL_PORT:-8500}/ -login \
-    -screenshot <workdir>/landing.png
-  ```
-  Replace `<workdir>` with the actual work directory path (e.g. `.claude/workdir/20260214-1430-oauth-handler/`).
-  If checks fail, fix before proceeding to Phase 3.
-
-**Phase 3 — Document** (blockedBy: validate, and UI verification if applicable):
-- "Update affected documentation" — owner: implementer
-- "Verify documentation matches implementation" — owner: reviewer, blockedBy: [update docs task]
-
-### Step 4: Spawn Teammates
-
-Spawn all three teammates in parallel using the `Task` tool:
+Spawn all six teammates in parallel using `Task` with `run_in_background: true`. Each teammate reads the task list and works through their tasks autonomously.
 
 **implementer:**
 ```
@@ -128,28 +144,67 @@ model: "sonnet"
 mode: "bypassPermissions"
 team_name: "vire-portal-develop"
 run_in_background: true
-prompt: |
-  You are the implementer on a development team. You write tests and code.
+```
+```
+You are the implementer. You execute the implementation spec in requirements.md precisely.
 
-  Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
-  Read .claude/skills/develop/SKILL.md Reference section for conventions, routes, config, and API details.
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
+Docs: docs/
 
-  Workflow:
-  1. Read TaskList, claim your tasks (owner: "implementer") by setting status to "in_progress"
-  2. Work through tasks in ID order, mark each completed before moving to the next
-  3. After each task, check TaskList for your next available task
+FIRST: Read requirements.md in the work directory (path will be in your task description).
+This spec was produced by an Opus planner and contains exact file changes, function
+signatures, test cases, and edge cases. Follow it closely.
 
-  For implement tasks: write tests first, then implement to pass them.
-  For verify tasks: run go test ./..., go vet ./..., then build and restart:
-    ./scripts/run.sh restart
-    curl -s http://localhost:${PORTAL_PORT:-8500}/api/health
-    Leave the server running — subsequent tasks (UI verification, validation) need it.
-  For UI verification tasks: run browser-check against the running server (see .claude/skills/browser-check/SKILL.md).
-    Save screenshots to the work directory with -screenshot flag.
-  For documentation tasks: update affected files in docs/, README.md, and .claude/skills/.
+Workflow:
+1. Read TaskList, claim tasks (owner: "implementer") by setting status to "in_progress"
+2. Read requirements.md to understand the full implementation plan
+3. Work through tasks in order, mark completed before moving on
+4. Check TaskList for next available task after each completion
 
-  Do NOT send status messages. Only message teammates for: blocking issues, review findings, or questions.
-  Mark tasks completed via TaskUpdate — the system handles notifications.
+For implement tasks: write tests first (as listed in the spec), then implement to pass them.
+  Follow the spec's function signatures, file changes, and patterns exactly.
+  If UI elements change, create/update tests in tests/ui/ as specified.
+  If you encounter an ambiguity not covered by the spec, message the team lead.
+For verify tasks:
+  go test ./...
+  go vet ./...
+  ./scripts/run.sh restart
+  curl -s http://localhost:${PORTAL_PORT:-8500}/api/health
+  Leave server running.
+For docs tasks: update README.md and affected skill files.
+
+Only message teammates for blocking issues or questions. Mark tasks via TaskUpdate.
+```
+
+**architect:**
+```
+name: "architect"
+subagent_type: "general-purpose"
+model: "haiku"
+team_name: "vire-portal-develop"
+run_in_background: true
+```
+```
+You are the architect. You guard the portal architecture and ensure implementations
+align with established patterns.
+
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
+Docs: docs/ (authentication, features, assessments)
+
+Workflow:
+1. Read TaskList, claim tasks (owner: "architect") by setting status to "in_progress"
+2. Work through tasks in order, mark completed before moving on
+
+For architecture review tasks:
+- Read the implementation files and relevant docs
+- Verify handler patterns, template structure, auth flows follow existing conventions
+- Check that new routes follow the established pattern in internal/handlers/
+- If the feature changes architecture, update relevant docs in docs/
+- Consider: does this introduce new dependencies? Does it break existing contracts?
+  Does the data flow make sense? Are the right abstractions being used?
+
+Send findings to "implementer" via SendMessage only if fixes are needed.
+Mark tasks via TaskUpdate.
 ```
 
 **reviewer:**
@@ -159,119 +214,189 @@ subagent_type: "general-purpose"
 model: "haiku"
 team_name: "vire-portal-develop"
 run_in_background: true
-prompt: |
-  You are the reviewer on a development team. You review for code quality, pattern
-  consistency, test coverage, and documentation accuracy.
+```
+```
+You are the reviewer. Quick, focused code quality checks.
 
-  Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
-  Read .claude/skills/develop/SKILL.md Reference section for conventions, routes, config, and API details.
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
+Docs: docs/
 
-  Workflow:
-  1. Read TaskList, claim your tasks (owner: "reviewer") by setting status to "in_progress"
-  2. Work through tasks in ID order, mark each completed before moving to the next
-  3. After each task, check TaskList for your next available task
+Workflow:
+1. Read TaskList, claim tasks (owner: "reviewer") by setting status to "in_progress"
+2. Work through tasks in order, mark completed before moving on
 
-  When reviewing code: read changed files and surrounding context, check for bugs, verify
-  consistency with existing patterns, validate test coverage is adequate.
-  When reviewing docs: check accuracy against implementation, verify examples work.
-  When validating deployment: confirm health endpoint responds, test key routes.
+For code review: check for bugs, verify pattern consistency, validate test coverage.
+For docs review: check accuracy against implementation.
 
-  Send findings to "implementer" via SendMessage only if fixes are needed.
-  Do NOT send status messages. Mark tasks completed via TaskUpdate — the system handles notifications.
+Send findings to "implementer" via SendMessage only if fixes are needed.
+Mark tasks via TaskUpdate.
 ```
 
 **devils-advocate:**
 ```
 name: "devils-advocate"
 subagent_type: "general-purpose"
-model: "sonnet"
+model: "opus"
 team_name: "vire-portal-develop"
 run_in_background: true
-prompt: |
-  You are the devils-advocate on a development team. Your scope: security vulnerabilities,
-  failure modes, edge cases, and hostile inputs.
+```
+```
+You are the devils-advocate. Your job is adversarial analysis — find what can break.
 
-  Team: "vire-portal-develop". Working directory: /home/bobmc/development/vire-portal
-  Read .claude/skills/develop/SKILL.md Reference section for conventions, routes, config, and API details.
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
+Docs: docs/
 
-  Workflow:
-  1. Read TaskList, claim your tasks (owner: "devils-advocate") by setting status to "in_progress"
-  2. Work through tasks in ID order, mark each completed before moving to the next
-  3. After each task, check TaskList for your next available task
+Workflow:
+1. Read TaskList, claim tasks (owner: "devils-advocate") by setting status to "in_progress"
+2. Work through tasks in order, mark completed before moving on
 
-  Stress-test the implementation: input validation, injection attacks, broken auth flows,
-  missing error states, race conditions, resource leaks, crash recovery. Write stress tests
-  where appropriate. Play the role of a hostile input source.
+Scope: input validation, injection attacks, broken auth flows, session fixation, CSRF,
+missing error states, race conditions, resource leaks, XSS in templates.
+Write stress tests where appropriate.
 
-  Send findings to "implementer" via SendMessage only if fixes are needed.
-  Do NOT send status messages. Mark tasks completed via TaskUpdate — the system handles notifications.
+Send findings to "implementer" via SendMessage only if fixes are needed.
+Mark tasks via TaskUpdate.
 ```
 
-### Step 5: Coordinate
+**test-creator:**
+```
+name: "test-creator"
+subagent_type: "general-purpose"
+model: "haiku"
+mode: "bypassPermissions"
+team_name: "vire-portal-develop"
+run_in_background: true
+```
+```
+You are the test-creator. You write and review UI tests following project conventions.
 
-As team lead, your job is lightweight coordination:
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
 
-1. **Relay information** — If one teammate's findings affect another, forward via `SendMessage`.
-2. **Resolve conflicts** — If the devils-advocate and implementer disagree, make the call.
-3. **Apply direct fixes** — For trivial issues (typos, missing imports), fix them directly rather than round-tripping through the implementer.
+Workflow:
+1. Read TaskList, claim tasks (owner: "test-creator") by setting status to "in_progress"
+2. Read implementation files to understand what was built
+3. Review test files for selector accuracy against current HTML templates in pages/
+4. Fix stale selectors, create new tests if UI elements were added
+5. All tests must follow chromedp patterns in tests/ui/
 
-### Step 6: Completion
+Only message teammates for blocking issues. Mark tasks via TaskUpdate.
+```
 
-When all tasks are complete:
+**test-executor:**
+```
+name: "test-executor"
+subagent_type: "general-purpose"
+model: "haiku"
+mode: "bypassPermissions"
+team_name: "vire-portal-develop"
+run_in_background: true
+```
+```
+You are the test-executor. You run tests and report results. NEVER modify test files.
 
-1. Verify the code quality checklist:
-   - All new code has tests
-   - All tests pass (`go test ./...`)
-   - Go vet is clean (`go vet ./...`)
+Team: "vire-portal-develop". Working dir: /home/bobmc/development/vire-portal
+
+DOCKER SAFETY: NEVER run docker rm, docker stop, docker kill, or any destructive Docker
+command. If containers conflict, report the error — do not attempt to fix it yourself.
+The test infrastructure (containers.go) handles cleanup automatically.
+
+Workflow:
+1. Read TaskList, claim tasks (owner: "test-executor") by setting status to "in_progress"
+2. Run unit tests:
+   go test ./...
+   go vet ./...
+3. Run UI tests (if web pages changed):
+   VIRE_TEST_URL="http://localhost:${PORTAL_PORT:-8500}" go test ./tests/ -run "^TestUI" -v -count=1 -timeout 120s
+4. Report results to team lead
+
+FEEDBACK LOOP (critical):
+- PASS: mark task completed with results
+- FAIL: send failure details to "implementer" via SendMessage. Wait for fix, re-run.
+  Max 3 rounds, then document remaining failures.
+
+Mark tasks via TaskUpdate.
+```
+
+### Step 4: Coordinate
+
+Lightweight coordination as team lead:
+1. **Relay** — Forward findings between teammates when needed
+2. **Resolve** — Break deadlocks between teammates
+3. **Fix trivially** — Typos, missing imports — fix directly rather than round-tripping
+4. **Monitor test loop** — Ensure implementer receives test-executor failures. Intervene only if the cycle stalls.
+5. **Log activity** — Append key events to `activity.log` in the work directory as they happen
+6. **Docker safety** — NEVER run destructive Docker commands (`docker rm`, `docker stop`, `docker kill`) to unblock tests. Container conflicts are handled by `containers.go` automatically.
+
+#### Activity Log
+
+Maintain `.claude/workdir/<task>/activity.log` throughout the session. Append timestamped entries for:
+- Phase transitions (e.g. "Phase 2 started — reviewers spawned")
+- Task completions (e.g. "Task #1 completed by implementer")
+- Blockers and resolutions (e.g. "test-creator: stale selector in settings_test.go — relayed to fix")
+- Teammate messages relayed (e.g. "Forwarded devils-advocate findings to implementer")
+- Test results (e.g. "test-executor: 8/8 UI tests pass")
+
+Format:
+```
+HH:MM  <event description>
+```
+
+This provides a chronological record of the development session alongside the structured `requirements.md` and `summary.md`.
+
+### Step 5: Complete
+
+When all tasks finish:
+
+1. Verify checklist:
+   - New code has tests
+   - All tests pass (`go test ./...`) — verified by reviewing actual command output
+   - `go vet ./...` clean
    - Server builds and runs (`./scripts/run.sh restart`) — leave it running
    - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8500}/api/health`)
    - Script validation passes (`./scripts/test-scripts.sh`)
-   - If web pages changed: chromedp UI tests pass (`go test ./tests/ -run "^TestUI"`)
-   - If web pages changed: browser-check validation passed (`go run ./tests/browser-check`)
+   - **If web pages changed:** UI tests pass (`go test ./tests/ -run "^TestUI"`)
+   - Architecture docs updated (architect signed off)
+   - Devils-advocate signed off
    - README.md updated if user-facing behaviour changed
-   - API contract documentation matches implementation
-   - Devils-advocate has signed off
-   - Server is left running after completion
 
-2. Write `summary.md` in the work directory:
+2. Write `summary.md` in work directory:
+   ```markdown
+   # Summary: <feature>
 
-```markdown
-# Summary: <feature-description>
+   **Status:** completed | partial | blocked
 
-**Date:** <date>
-**Status:** <completed | partial | blocked>
+   ## Changes
+   | File | Change |
+   |------|--------|
 
-## What Changed
+   ## Tests
+   - Unit tests added/modified
+   - UI tests created/updated
+   - Test results: pass/fail
+   - Fix rounds: N
 
-| File | Change |
-|------|--------|
-| `path/to/file` | <brief description> |
+   ## Architecture
+   - Docs updated by architect
 
-## Tests
-- <tests added or modified>
-- <test results: pass/fail>
+   ## Devils-Advocate
+   - Key findings and resolutions
 
-## Documentation Updated
-- <list of docs/README changes>
-
-## Devils-Advocate Findings
-- <key issues raised and how they were resolved>
-
-## Notes
-- <anything notable: trade-offs, follow-up work, risks>
-```
-
-3. Shut down teammates:
-   ```
-   SendMessage type: "shutdown_request" to each teammate
+   ## Notes
+   - Trade-offs, follow-up work, risks
    ```
 
-4. Clean up:
-   ```
-   TeamDelete
-   ```
+3. Shutdown teammates: `SendMessage type: "shutdown_request"` to each
+4. `TeamDelete`
+5. Summarise to user
 
-5. Summarise what was built, changed, and tested.
+## Test Commands
+
+| Command | Scope |
+|---------|-------|
+| `go test ./...` | Full unit test suite |
+| `go vet ./...` | Static analysis |
+| `VIRE_TEST_URL="http://localhost:${PORTAL_PORT:-8500}" go test ./tests/ -run "^TestUI" -v -count=1 -timeout 120s` | UI tests via chromedp |
+| `./scripts/test-scripts.sh` | Script validation |
 
 ## Reference
 
@@ -286,6 +411,7 @@ When all tasks are complete:
 | Auth / OAuth Discovery | `internal/auth/` |
 | HTTP Handlers | `internal/handlers/` |
 | MCP Server | `internal/mcp/` |
+| API Response Cache | `internal/cache/` |
 | HTTP Server | `internal/server/` |
 | HTML Templates | `pages/` |
 | Template Partials | `pages/partials/` |
@@ -309,6 +435,10 @@ The portal is stateless -- all user data is managed by vire-server via REST API 
 | `POST /token` | OAuthServer | No (code exchange / refresh) |
 | `GET /` | PageHandler | No |
 | `GET /dashboard` | DashboardHandler | No |
+| `GET /strategy` | StrategyHandler | No |
+| `GET /cash` | CashHandler | No |
+| `GET /mcp-info` | MCPPageHandler | No |
+| `GET /docs` | PageHandler | No |
 | `GET /static/*` | PageHandler | No |
 | `POST /mcp` | MCPHandler | Bearer token or session cookie |
 | `GET /api/health` | HealthHandler | No |
@@ -316,12 +446,12 @@ The portal is stateless -- all user data is managed by vire-server via REST API 
 | `GET /api/version` | VersionHandler | No |
 | `POST /api/auth/login` | AuthHandler | No (forwards to vire-server) |
 | `POST /api/auth/logout` | AuthHandler | No |
-| `GET /api/auth/login/google` | AuthHandler | No (redirects to vire-server) |
-| `GET /api/auth/login/github` | AuthHandler | No (redirects to vire-server) |
+| `GET /api/auth/login/google` | AuthHandler | No (proxies OAuth redirect from vire-server) |
+| `GET /api/auth/login/github` | AuthHandler | No (proxies OAuth redirect from vire-server) |
 | `GET /auth/callback` | AuthHandler | No (OAuth callback, sets session cookie or completes MCP flow) |
 | `POST /api/shutdown` | Server | No (dev mode only, 403 in prod) |
-| `GET /settings` | SettingsHandler | No |
-| `POST /settings` | SettingsHandler | No (requires session cookie) |
+| `GET /profile` | ProfileHandler | No |
+| `POST /profile` | ProfileHandler | No (requires session cookie) |
 
 ### Configuration
 
@@ -333,10 +463,13 @@ Config priority: defaults < TOML file < env vars (VIRE_ prefix) < CLI flags.
 | Server host | `VIRE_SERVER_HOST` | `localhost` |
 | API URL | `VIRE_API_URL` | `http://localhost:8080` |
 | JWT secret | `VIRE_AUTH_JWT_SECRET` | `""` (empty = skip signature verification) |
-| OAuth callback URL | `VIRE_AUTH_CALLBACK_URL` | `http://localhost:8500/auth/callback` |
+| OAuth callback URL | `VIRE_AUTH_CALLBACK_URL` | `http://localhost:8080/auth/callback` |
 | Portal URL | `VIRE_PORTAL_URL` | `""` (empty = derive from host:port) |
 | Default portfolio | `VIRE_DEFAULT_PORTFOLIO` | `""` |
 | Display currency | `VIRE_DISPLAY_CURRENCY` | `""` |
+| Admin users | `VIRE_ADMIN_USERS` | `""` |
+| Service key | `VIRE_SERVICE_KEY` | `""` |
+| Portal ID | `VIRE_PORTAL_ID` | hostname |
 | Environment | `VIRE_ENV` | `prod` |
 | Log level | `VIRE_LOG_LEVEL` | `info` |
 | Log format | `VIRE_LOG_FORMAT` | `text` |
@@ -356,14 +489,9 @@ MCP tool calls are proxied to vire-server with X-Vire-* header injection:
 - User data: fetched from vire-server via `internal/client/vire_client.go` (GET/PUT `/api/users/{id}`)
 - Navexa key: resolved by vire-server from X-Vire-User-ID (portal never handles the raw key)
 
-Future gateway integration (deferred):
-- Auth: JWT in `Authorization: Bearer` header
-- Error responses follow consistent `{ error: { code, message } }` shape
-- Token refresh: `POST /api/auth/refresh` (automatic on 401)
-
 ### Documentation to Update
 
 When the feature affects user-facing behaviour or API contracts, update:
 - `README.md` — if new capabilities, changed routes, or prerequisites
-- `docs/requirements.md` — if API contracts or architecture changed
+- `docs/` — if architecture, auth flows, or feature design changed
 - `.claude/skills/` — affected skill files
