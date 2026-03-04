@@ -9,17 +9,21 @@
     <main class="page" x-data="changelogPage()" x-init="init()">
         <div class="page-body">
 
-            <template x-if="loading && entries.length === 0">
+            <template x-if="loading">
                 <div class="help-loading">Loading changelog...</div>
             </template>
 
-            <template x-if="error && entries.length === 0">
+            <template x-if="error">
                 <div class="warning-banner" x-text="error"></div>
             </template>
 
-            <template x-if="entries.length > 0">
+            <template x-if="!loading && !error && entries.length === 0">
+                <p class="text-muted text-sm">No changelog entries.</p>
+            </template>
+
+            <template x-if="!loading && entries.length > 0">
                 <div>
-                    <template x-for="entry in entries" :key="entry.id">
+                    <template x-for="entry in pagedEntries" :key="entry.id">
                         <section class="panel-headed changelog-entry" style="margin-bottom:1.5rem">
                             <div class="panel-header">
                                 <span x-text="formatDate(entry.created_at)"></span>
@@ -35,20 +39,12 @@
                         </section>
                     </template>
 
-                    <div x-ref="sentinel" style="height:1px"></div>
-
-                    <template x-if="loading && entries.length > 0">
-                        <div class="help-loading" style="margin:1rem 0">Loading more...</div>
-                    </template>
-
-                    <template x-if="!hasMore && entries.length > 0">
-                        <p class="text-muted text-sm" style="text-align:center;margin:1rem 0">End of changelog.</p>
-                    </template>
+                    <div class="pagination" x-show="totalPages > 1" x-cloak>
+                        <button class="btn btn-secondary btn-sm" @click="prevPage()" :disabled="currentPage <= 1">PREV</button>
+                        <span class="pagination-info" x-text="'PAGE ' + currentPage + ' OF ' + totalPages"></span>
+                        <button class="btn btn-secondary btn-sm" @click="nextPage()" :disabled="currentPage >= totalPages">NEXT</button>
+                    </div>
                 </div>
-            </template>
-
-            <template x-if="!loading && !error && entries.length === 0">
-                <p class="text-muted text-sm">No changelog entries.</p>
             </template>
 
         </div>
@@ -60,59 +56,47 @@
         return {
             entries: [],
             loading: true,
-            fetching: false,
             error: null,
-            currentPage: 0,
-            totalPages: 1,
+            currentPage: 1,
             pageSize: 10,
-            hasMore: true,
-            observer: null,
+
+            get totalPages() {
+                return Math.max(1, Math.ceil(this.entries.length / this.pageSize));
+            },
+
+            get pagedEntries() {
+                const start = (this.currentPage - 1) * this.pageSize;
+                return this.entries.slice(start, start + this.pageSize);
+            },
 
             init() {
-                this.loadNextPage();
-                this.$nextTick(() => { this.setupObserver(); });
-            },
-
-            setupObserver() {
-                if (this.observer) return;
-                const sentinel = this.$refs.sentinel;
-                if (!sentinel) {
-                    setTimeout(() => this.setupObserver(), 200);
-                    return;
-                }
-                this.observer = new IntersectionObserver((items) => {
-                    if (items[0].isIntersecting && !this.fetching && this.hasMore) {
-                        this.loadNextPage();
-                    }
-                }, { rootMargin: '200px' });
-                this.observer.observe(sentinel);
-            },
-
-            loadNextPage() {
-                if (this.fetching) return;
-                this.fetching = true;
-                this.loading = true;
-                const nextPage = this.currentPage + 1;
-                fetch('/api/changelog?per_page=' + this.pageSize + '&page=' + nextPage)
+                fetch('/api/changelog?per_page=100&page=1')
                     .then(r => {
                         if (!r.ok) throw new Error('Failed to load changelog');
                         return r.json();
                     })
                     .then(data => {
-                        const newItems = data.items || [];
-                        this.entries = this.entries.concat(newItems);
-                        this.currentPage = data.page || nextPage;
-                        this.totalPages = data.pages || 1;
-                        this.hasMore = this.currentPage < this.totalPages;
+                        this.entries = data.items || [];
                         this.loading = false;
-                        this.fetching = false;
-                        this.$nextTick(() => this.setupObserver());
                     })
                     .catch(err => {
                         this.error = err.message;
                         this.loading = false;
-                        this.fetching = false;
                     });
+            },
+
+            prevPage() {
+                if (this.currentPage > 1) {
+                    this.currentPage--;
+                    window.scrollTo(0, 0);
+                }
+            },
+
+            nextPage() {
+                if (this.currentPage < this.totalPages) {
+                    this.currentPage++;
+                    window.scrollTo(0, 0);
+                }
             },
 
             formatDate(iso) {
