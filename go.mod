@@ -5,11 +5,12 @@ go 1.25.5
 require (
 	github.com/chromedp/cdproto v0.0.0-20250803210736-d308e07a266d
 	github.com/chromedp/chromedp v0.14.2
+	github.com/docker/docker v28.5.1+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v0.43.2
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/phuslu/log v1.0.120
-	github.com/ternarybob/arbor v1.4.66
+	github.com/ternarybob/arbor v1.4.67
 	github.com/testcontainers/testcontainers-go v0.40.0
 )
 
@@ -29,7 +30,6 @@ require (
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/docker v28.5.1+incompatible // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect

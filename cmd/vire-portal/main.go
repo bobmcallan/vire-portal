@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/app"
+	"github.com/bobmcallan/vire-portal/internal/client"
 	"github.com/bobmcallan/vire-portal/internal/config"
 	"github.com/bobmcallan/vire-portal/internal/server"
 	common "github.com/bobmcallan/vire-portal/internal/vire/common"
@@ -111,6 +112,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Wire remote log store if service key is configured
+	var logStore *client.HTTPLogStore
+	if cfg.Service.Key != "" {
+		portalID := cfg.Service.PortalID
+		if portalID == "" {
+			portalID, _ = os.Hostname()
+		}
+		serviceID := "service:" + portalID
+		logStore = client.NewHTTPLogStore(cfg.API.URL, serviceID)
+		logger.AttachLogStore(logStore)
+		logger.Info().Msg("remote log store attached")
+	}
+
 	// Create HTTP server with shutdown channel
 	shutdownChan := make(chan struct{})
 	srv := server.New(application)
@@ -152,6 +166,10 @@ func main() {
 
 	if err := application.Close(); err != nil {
 		logger.Error().Str("error", err.Error()).Msg("application shutdown failed")
+	}
+
+	if logStore != nil {
+		logStore.Close()
 	}
 
 	logger.Info().Msg("server stopped")

@@ -13,6 +13,7 @@ import (
 
 	"github.com/bobmcallan/vire-portal/internal/vire/interfaces"
 	toml "github.com/pelletier/go-toml/v2"
+	"github.com/ternarybob/arbor/writers"
 )
 
 // Config holds all configuration for Vire
@@ -130,6 +131,10 @@ type LoggingConfig struct {
 	FilePath   string   `toml:"file_path" mapstructure:"file_path"`
 	MaxSizeMB  int      `toml:"max_size_mb" mapstructure:"max_size_mb"`
 	MaxBackups int      `toml:"max_backups" mapstructure:"max_backups"`
+
+	// LogStore is an optional external log store (e.g. SurrealDB).
+	// When set, logs are also written to this store via arbor's WithLogStore.
+	LogStore writers.ILogStore `toml:"-" mapstructure:"-"`
 }
 
 // NewDefaultConfig returns a Config with sensible defaults
