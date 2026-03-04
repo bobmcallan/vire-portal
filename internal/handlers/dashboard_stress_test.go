@@ -1358,7 +1358,7 @@ func TestDashboardHandler_StressGlossaryTooltipBindings(t *testing.T) {
 		`glossaryDef('portfolio_value')`,
 		`glossaryDef('gross_cash_balance')`,
 		`glossaryDef('net_cash_balance')`,
-		`glossaryDef('net_equity_cost')`,
+		`glossaryDef('equity_value')`,
 		`glossaryDef('net_equity_return')`,
 		`glossaryDef('net_equity_return_pct')`,
 		`glossaryDef('dividend_forecast')`,

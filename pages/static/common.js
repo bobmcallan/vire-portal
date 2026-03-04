@@ -184,6 +184,7 @@ function portfolioDashboard() {
         portfolioGain: 0,
         portfolioGainPct: 0,
         portfolioCost: 0,
+        equityValue: 0,
         capitalInvested: 0,
         hasCapitalData: false,
         grossCashBalance: 0,
@@ -338,6 +339,7 @@ function portfolioDashboard() {
                     this.portfolioGain = Number(holdingsData.net_equity_return) || 0;
                     this.portfolioGainPct = Number(holdingsData.net_equity_return_pct) || 0;
                     this.portfolioCost = Number(holdingsData.net_equity_cost) || 0;
+                    this.equityValue = Number(holdingsData.equity_value) || 0;
                     this.grossCashBalance = Number(holdingsData.gross_cash_balance) || 0;
                     this.availableCash = Number(holdingsData.net_cash_balance) || 0;
                     // Parse capital performance
@@ -357,6 +359,7 @@ function portfolioDashboard() {
                     this.portfolioGain = 0;
                     this.portfolioGainPct = 0;
                     this.portfolioCost = 0;
+                    this.equityValue = 0;
                     this.grossCashBalance = 0;
                     this.availableCash = 0;
                     this.grossContributions = 0;
@@ -581,6 +584,7 @@ function portfolioDashboard() {
                     this.portfolioGain = Number(data.net_equity_return) || 0;
                     this.portfolioGainPct = Number(data.net_equity_return_pct) || 0;
                     this.portfolioCost = Number(data.net_equity_cost) || 0;
+                    this.equityValue = Number(data.equity_value) || 0;
                     this.grossCashBalance = Number(data.gross_cash_balance) || 0;
                     this.availableCash = Number(data.net_cash_balance) || 0;
                     // Parse last_synced (UTC → local time)
