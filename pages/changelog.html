@@ -6,7 +6,7 @@
 </head>
 <body>
     {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
-    <main class="page" x-data="changelogPage()" x-init="init()">
+    <main class="page" x-data="changelogPage()">
         <div class="page-body">
 
             <template x-if="loading">

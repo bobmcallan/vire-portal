@@ -10,7 +10,7 @@
 
     {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
 
-    <main class="page" x-data="portfolioDashboard()" x-init="init()">
+    <main class="page" x-data="portfolioDashboard()">
         <div class="page-body" style="position:relative">
 
             {{if .NavexaKeyMissing}}
