@@ -69,22 +69,6 @@
                         <span :class="changeClass(changeMonthPct)" x-text="'M:' + changePct(changeMonthPct)"></span>
                     </span>
                 </div>
-                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">CAPITAL RETURN $ <span class="label-info" :data-tooltip="glossaryDef('net_capital_return')">i</span></span>
-                    <span class="text-bold" :class="gainClass(capitalGain)" x-text="fmt(capitalGain)"></span>
-                </div>
-                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">CAPITAL RETURN % <span class="label-info" :data-tooltip="glossaryDef('net_capital_return_pct')">i</span></span>
-                    <span class="text-bold" :class="gainClass(capitalGainPct)" x-text="pct(capitalGainPct)"></span>
-                </div>
-                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">SIMPLE RETURN % <span class="label-info" :data-tooltip="glossaryDef('simple_capital_return_pct')">i</span></span>
-                    <span class="text-bold" :class="gainClass(simpleReturnPct)" x-text="pct(simpleReturnPct)"></span>
-                </div>
-                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">ANNUALIZED % <span class="label-info" :data-tooltip="glossaryDef('annualized_capital_return_pct')">i</span></span>
-                    <span class="text-bold" :class="gainClass(annualizedReturnPct)" x-text="pct(annualizedReturnPct)"></span>
-                </div>
             </div>
 
             <!-- Cash summary -->
@@ -115,7 +99,7 @@
             <!-- Equity performance -->
             <div class="portfolio-summary portfolio-summary-equity" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="portfolio-summary-item">
-                    <span class="label">NET EQUITY CAPITAL <span class="label-info" :data-tooltip="glossaryDef('net_equity_cost')">i</span></span>
+                    <span class="label">NET EQUITY <span class="label-info" :data-tooltip="glossaryDef('net_equity_cost')">i</span></span>
                     <span class="text-bold" x-text="fmt(totalCost)"></span>
                     <span class="portfolio-changes" x-show="hasEquityChanges" x-cloak>
                         <span :class="changeClass(changeEquityDayPct)" x-text="'D:' + changePct(changeEquityDayPct)"></span>
@@ -131,13 +115,6 @@
                     <span class="label">NET RETURN % <span class="label-info" :data-tooltip="glossaryDef('net_equity_return_pct')">i</span></span>
                     <span class="text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></span>
                 </div>
-            </div>
-
-            <!-- Portfolio indicators -->
-            <div class="portfolio-indicators" x-show="hasIndicators" x-cloak>
-                <span class="indicator-item">TREND: <span class="text-bold" x-text="trend.toUpperCase()"></span></span>
-                <span class="indicator-item">RSI: <span class="text-bold" x-text="rsiSignal.toUpperCase()"></span></span>
-                <span class="indicator-item text-muted" x-text="dataPoints + ' DATA POINTS'"></span>
             </div>
 
             <!-- Growth chart -->

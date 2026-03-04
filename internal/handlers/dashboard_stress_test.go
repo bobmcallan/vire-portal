@@ -532,7 +532,7 @@ func TestDashboardHandler_StressPortfolioSummarySection(t *testing.T) {
 		t.Error("portfolio summary should be conditional on filteredHoldings.length > 0")
 	}
 	// Verify all portfolio overview summary items exist (Row 1)
-	summaryLabels := []string{"PORTFOLIO VALUE", "CAPITAL RETURN $", "CAPITAL RETURN %", "SIMPLE RETURN %", "ANNUALIZED %"}
+	summaryLabels := []string{"PORTFOLIO VALUE"}
 	for _, label := range summaryLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected summary label %q in dashboard", label)
@@ -543,8 +543,8 @@ func TestDashboardHandler_StressPortfolioSummarySection(t *testing.T) {
 // --- Dashboard: New Field Bindings Safety ---
 
 func TestDashboardHandler_StressNewFieldBindingsSafe(t *testing.T) {
-	// Verify the new dashboard fields (availableCash, capitalGainPct) use
-	// x-text bindings (safe) and that capitalGainPct uses gainClass (color).
+	// Verify the dashboard fields (availableCash, grossContributions, dividends)
+	// use x-text bindings (safe) with correct formatting helpers.
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -566,15 +566,6 @@ func TestDashboardHandler_StressNewFieldBindingsSafe(t *testing.T) {
 	// GROSS CASH BALANCE must use x-text (not x-html) and fmt() for formatting
 	if !strings.Contains(body, `x-text="fmt(grossCashBalance)"`) {
 		t.Error("expected grossCashBalance displayed with x-text fmt() binding")
-	}
-
-	// CAPITAL RETURN % must use x-text with pct() formatting
-	if !strings.Contains(body, `x-text="pct(capitalGainPct)"`) {
-		t.Error("expected capitalGainPct displayed with x-text pct() binding")
-	}
-	// CAPITAL RETURN % must use gainClass for color
-	if !strings.Contains(body, `gainClass(capitalGainPct)`) {
-		t.Error("expected capitalGainPct to use gainClass for gain/loss coloring")
 	}
 	// GROSS CONTRIBUTIONS must use x-text fmt() binding
 	if !strings.Contains(body, `x-text="fmt(grossContributions)"`) {
@@ -607,7 +598,7 @@ func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
 	}
 
 	// Row 3: Equity performance labels
-	equityLabels := []string{"NET EQUITY CAPITAL", "NET RETURN $", "NET RETURN %"}
+	equityLabels := []string{"NET EQUITY", "NET RETURN $", "NET RETURN %"}
 	for _, label := range equityLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected equity row label %q in dashboard", label)
@@ -1222,14 +1213,13 @@ func TestDashboardHandler_StressChangesInsidePortfolioValueItem(t *testing.T) {
 		t.Fatal("expected both PORTFOLIO VALUE and portfolio-changes in template")
 	}
 
-	// The changes row should come after PORTFOLIO VALUE but before the next
-	// portfolio-summary-item (which starts with CAPITAL RETURN)
-	crIdx := strings.Index(body, "CAPITAL RETURN")
-	if crIdx < 0 {
-		t.Skip("CAPITAL RETURN label not found — may be conditional")
+	// The changes row should come after PORTFOLIO VALUE but before the cash summary row
+	cashIdx := strings.Index(body, "portfolio-summary-cash")
+	if cashIdx < 0 {
+		t.Skip("Cash summary row not found")
 	}
-	if pcIdx > crIdx {
-		t.Error("portfolio-changes appears after CAPITAL RETURN — should be inside PORTFOLIO VALUE item")
+	if pcIdx > cashIdx {
+		t.Error("portfolio-changes appears after cash summary — should be inside PORTFOLIO VALUE item")
 	}
 }
 
@@ -1362,8 +1352,8 @@ func TestDashboardHandler_StressGlossaryTooltipBindings(t *testing.T) {
 	// Verify data-tooltip bindings use glossaryDef() (safe, no raw HTML)
 	expectedBindings := []string{
 		`glossaryDef('portfolio_value')`,
-		`glossaryDef('net_capital_return')`,
 		`glossaryDef('gross_cash_balance')`,
+		`glossaryDef('net_cash_balance')`,
 		`glossaryDef('net_equity_cost')`,
 	}
 	for _, binding := range expectedBindings {

@@ -200,41 +200,31 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Skip("portfolio summary not visible (no holdings data available)")
 	}
 
-	// Verify the first .portfolio-summary row has 1 or 5 items
-	// (1 when !hasCapitalData, 5 when hasCapitalData)
+	// Verify the first .portfolio-summary row has exactly 1 item (PORTFOLIO VALUE)
 	count, err := elementCount(ctx, ".portfolio-summary:not(.portfolio-summary-cash):not(.portfolio-summary-equity) .portfolio-summary-item")
 	if err != nil {
 		t.Fatalf("error counting summary items: %v", err)
 	}
-	if count != 1 && count != 5 {
-		t.Errorf("portfolio summary item count = %d, want 1 or 5", count)
+	if count != 1 {
+		t.Errorf("portfolio summary item count = %d, want 1", count)
 	}
 
-	// Verify the summary labels are "TOTAL VALUE" (always) and capital return labels when hasCapitalData
+	// Verify the summary label is "PORTFOLIO VALUE"
 	labelsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
 			const row = document.querySelector('.portfolio-summary:not(.portfolio-summary-cash):not(.portfolio-summary-equity)');
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
-			if (labels.length === 0) return false;
-			// First label is always PORTFOLIO VALUE (text may include tooltip "i")
-			if (!labels[0].textContent.includes('PORTFOLIO VALUE')) return false;
-			// If more labels exist, check they are capital-related
-			if (labels.length > 1) {
-				const expected = ['PORTFOLIO VALUE', 'CAPITAL RETURN $', 'CAPITAL RETURN %', 'SIMPLE RETURN %', 'ANNUALIZED %'];
-				if (labels.length !== 5) return false;
-				for (let i = 0; i < 5; i++) {
-					if (!labels[i].textContent.includes(expected[i])) return false;
-				}
-			}
-			return true;
+			if (labels.length !== 1) return false;
+			// Single label should be PORTFOLIO VALUE (text may include tooltip "i")
+			return labels[0].textContent.includes('PORTFOLIO VALUE');
 		})()
 	`)
 	if err != nil {
 		t.Fatalf("error checking summary labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("portfolio summary labels do not match expected: PORTFOLIO VALUE, and optionally CAPITAL RETURN $, CAPITAL RETURN %, SIMPLE RETURN %, ANNUALIZED %")
+		t.Error("portfolio summary label should be PORTFOLIO VALUE")
 	}
 
 	// Verify summary spans full content width (justify-content: space-between)
@@ -270,27 +260,6 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	}
 	if !valuesPopulated {
 		t.Error("portfolio summary values are empty")
-	}
-
-	// Verify capital gain values in summary have color classes applied (when hasCapitalData)
-	summaryGainColored, err := commontest.EvalBool(ctx, `
-		(() => {
-			const items = document.querySelectorAll('.portfolio-summary:not(.portfolio-summary-cash):not(.portfolio-summary-equity) .portfolio-summary-item .text-bold');
-			// Items at indices 1+ are capital return values — should have gain class if non-zero
-			let hasGainClass = false;
-			for (let i = 1; i < items.length; i++) {
-				if (items[i].classList.contains('gain-positive') || items[i].classList.contains('gain-negative')) {
-					hasGainClass = true;
-				}
-			}
-			return items.length <= 1 || hasGainClass;
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking summary gain colors: %v", err)
-	}
-	if !summaryGainColored {
-		t.Log("summary capital return values have no color class (gains may be zero)")
 	}
 }
 
@@ -593,7 +562,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
 			if (labels.length !== 3) return false;
-			const expected = ['NET EQUITY CAPITAL', 'NET RETURN $', 'NET RETURN %'];
+			const expected = ['NET EQUITY', 'NET RETURN $', 'NET RETURN %'];
 			for (let i = 0; i < 3; i++) {
 				if (!labels[i].textContent.includes(expected[i])) return false;
 			}
@@ -604,7 +573,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 		t.Fatalf("error checking equity labels: %v", err)
 	}
 	if !equityLabelsCorrect {
-		t.Error("equity summary labels do not match expected: NET EQUITY CAPITAL, NET RETURN $, NET RETURN %")
+		t.Error("equity summary labels do not match expected: NET EQUITY, NET RETURN $, NET RETURN %")
 	}
 
 	// Verify equity return values have color classes applied
@@ -686,55 +655,6 @@ func TestDashboardRefreshButton(t *testing.T) {
 	}
 	if !rightAligned {
 		t.Error("refresh button should have margin-left: auto (right-aligned in flex container)")
-	}
-}
-
-func TestDashboardIndicators(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	// Wait for Alpine to render + indicators fetch
-	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
-
-	takeScreenshot(t, ctx, "dashboard", "indicators.png")
-
-	// Check if indicators row exists (only shown when indicators data available)
-	indicatorsVisible, err := isVisible(ctx, ".portfolio-indicators")
-	if err != nil {
-		t.Fatalf("error checking indicators visibility: %v", err)
-	}
-	if !indicatorsVisible {
-		t.Skip("indicators row not visible (no indicator data available)")
-	}
-
-	// Verify indicator items exist
-	count, err := elementCount(ctx, ".portfolio-indicators .indicator-item")
-	if err != nil {
-		t.Fatalf("error counting indicator items: %v", err)
-	}
-	if count < 2 {
-		t.Errorf("indicator item count = %d, want >= 2", count)
-	}
-
-	// Verify TREND and RSI labels
-	labelsCorrect, err := commontest.EvalBool(ctx, `
-		(() => {
-			const row = document.querySelector('.portfolio-indicators');
-			if (!row) return false;
-			const text = row.textContent;
-			return text.includes('TREND:') && text.includes('RSI:');
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking indicator labels: %v", err)
-	}
-	if !labelsCorrect {
-		t.Error("indicator row does not contain expected TREND: and RSI: labels")
 	}
 }
 

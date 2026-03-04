@@ -1036,12 +1036,12 @@ code {
     text-align: center;
 }
 
-.portfolio-summary-item:first-child {
-    text-align: left;
-}
-
 .portfolio-summary-item:last-child {
     text-align: right;
+}
+
+.portfolio-summary-item:first-child {
+    text-align: left;
 }
 
 .portfolio-summary-item .label {
@@ -1121,20 +1121,6 @@ code {
 
 .portfolio-summary-accounts {
     border-bottom: 1px solid #888;
-}
-
-.portfolio-indicators {
-    display: flex;
-    gap: 2rem;
-    padding: 0.5rem 0;
-    margin-bottom: 1rem;
-    font-size: 0.75rem;
-    letter-spacing: 0.1em;
-    color: #888;
-}
-
-.indicator-item {
-    white-space: nowrap;
 }
 
 .pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 1rem 0; font-size: 0.75rem; letter-spacing: 0.1em; }

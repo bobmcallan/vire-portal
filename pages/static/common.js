@@ -185,11 +185,7 @@ function portfolioDashboard() {
         portfolioGainPct: 0,
         portfolioCost: 0,
         capitalInvested: 0,
-        capitalGain: 0,
-        simpleReturnPct: 0,
-        annualizedReturnPct: 0,
         hasCapitalData: false,
-        capitalGainPct: 0,
         grossCashBalance: 0,
         availableCash: 0,
         grossContributions: 0,
@@ -210,10 +206,6 @@ function portfolioDashboard() {
         hasEquityChanges: false,
         glossary: {},
         refreshing: false,
-        trend: '',
-        rsiSignal: '',
-        dataPoints: 0,
-        hasIndicators: false,
         growthData: [],
         hasGrowthData: false,
         chartInstance: null,
@@ -339,16 +331,10 @@ function portfolioDashboard() {
                     const cp = holdingsData.capital_performance;
                     if (cp && cp.transaction_count > 0) {
                         this.capitalInvested = Number(cp.net_capital_deployed) || 0;
-                        this.capitalGain = Number(holdingsData.net_capital_return) || 0;
-                        this.capitalGainPct = Number(holdingsData.net_capital_return_pct) || 0;
-                        this.simpleReturnPct = Number(cp.simple_capital_return_pct) || 0;
-                        this.annualizedReturnPct = Number(cp.annualized_capital_return_pct) || 0;
                         this.grossContributions = Number(cp.gross_capital_deposited) || 0;
                         this.hasCapitalData = true;
                     } else {
-                        this.capitalInvested = 0; this.capitalGain = 0;
-                        this.capitalGainPct = 0;
-                        this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
+                        this.capitalInvested = 0;
                         this.grossContributions = 0;
                         this.hasCapitalData = false;
                     }
@@ -376,21 +362,9 @@ function portfolioDashboard() {
                     this.changeEquityWeekPct = null;
                     this.changeEquityMonthPct = null;
                     this.hasEquityChanges = false;
-                    this.capitalInvested = 0; this.capitalGain = 0; this.capitalGainPct = 0;
-                    this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
+                    this.capitalInvested = 0;
                     this.hasCapitalData = false;
                 }
-                // Fetch indicators (non-blocking, non-fatal)
-                vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/indicators')
-                    .then(async res => {
-                        if (res.ok) {
-                            const ind = await res.json();
-                            this.trend = ind.trend || '';
-                            this.rsiSignal = ind.rsi_signal || '';
-                            this.dataPoints = ind.data_points || 0;
-                            this.hasIndicators = true;
-                        }
-                    }).catch(() => { this.hasIndicators = false; });
                 // Fetch growth history (non-blocking, non-fatal)
                 this.fetchGrowthData();
             } catch (e) {
@@ -629,31 +603,14 @@ function portfolioDashboard() {
                     const cp = data.capital_performance;
                     if (cp && cp.transaction_count > 0) {
                         this.capitalInvested = Number(cp.net_capital_deployed) || 0;
-                        this.capitalGain = Number(data.net_capital_return) || 0;
-                        this.capitalGainPct = Number(data.net_capital_return_pct) || 0;
-                        this.simpleReturnPct = Number(cp.simple_capital_return_pct) || 0;
-                        this.annualizedReturnPct = Number(cp.annualized_capital_return_pct) || 0;
                         this.grossContributions = Number(cp.gross_capital_deposited) || 0;
                         this.hasCapitalData = true;
                     } else {
-                        this.capitalInvested = 0; this.capitalGain = 0;
-                        this.capitalGainPct = 0;
-                        this.simpleReturnPct = 0; this.annualizedReturnPct = 0;
+                        this.capitalInvested = 0;
                         this.grossContributions = 0;
                         this.hasCapitalData = false;
                     }
                 }
-                // Re-fetch indicators
-                vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/indicators')
-                    .then(async res => {
-                        if (res.ok) {
-                            const ind = await res.json();
-                            this.trend = ind.trend || '';
-                            this.rsiSignal = ind.rsi_signal || '';
-                            this.dataPoints = ind.data_points || 0;
-                            this.hasIndicators = true;
-                        }
-                    }).catch(() => { this.hasIndicators = false; });
                 // Re-fetch growth data with force refresh
                 this.fetchGrowthData(true);
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Portfolio refreshed' } }));
