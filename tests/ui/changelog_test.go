@@ -59,6 +59,10 @@ func TestChangelogPageNoJSErrors(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
+	// Wait for Alpine component to initialise, fetch data, and for any
+	// IntersectionObserver / x-for rendering to complete (Rule 8)
+	chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
 	takeScreenshot(t, ctx, "changelog", "no-js-errors.png")
 
 	if jsErrs := errs.Errors(); len(jsErrs) > 0 {

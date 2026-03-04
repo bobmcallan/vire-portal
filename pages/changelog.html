@@ -60,6 +60,7 @@
         return {
             entries: [],
             loading: true,
+            fetching: false,
             error: null,
             currentPage: 0,
             totalPages: 1,
@@ -73,13 +74,14 @@
             },
 
             setupObserver() {
+                if (this.observer) return;
                 const sentinel = this.$refs.sentinel;
                 if (!sentinel) {
                     setTimeout(() => this.setupObserver(), 200);
                     return;
                 }
                 this.observer = new IntersectionObserver((items) => {
-                    if (items[0].isIntersecting && !this.loading && this.hasMore) {
+                    if (items[0].isIntersecting && !this.fetching && this.hasMore) {
                         this.loadNextPage();
                     }
                 }, { rootMargin: '200px' });
@@ -87,7 +89,8 @@
             },
 
             loadNextPage() {
-                if (this.loading && this.currentPage > 0) return;
+                if (this.fetching) return;
+                this.fetching = true;
                 this.loading = true;
                 const nextPage = this.currentPage + 1;
                 fetch('/api/changelog?per_page=' + this.pageSize + '&page=' + nextPage)
@@ -102,13 +105,13 @@
                         this.totalPages = data.pages || 1;
                         this.hasMore = this.currentPage < this.totalPages;
                         this.loading = false;
-                        if (this.hasMore && !this.observer) {
-                            this.$nextTick(() => this.setupObserver());
-                        }
+                        this.fetching = false;
+                        this.$nextTick(() => this.setupObserver());
                     })
                     .catch(err => {
                         this.error = err.message;
                         this.loading = false;
+                        this.fetching = false;
                     });
             },
 

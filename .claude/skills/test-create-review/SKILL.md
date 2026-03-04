@@ -61,6 +61,7 @@ Read the target test files and check each mandatory rule:
 | 4 | No stale references | No selectors for removed/renamed elements | Remove or update stale selectors |
 | 5 | Standard Go patterns | Uses `t.Fatal()`, `t.Error()`, `t.Skip()` correctly | Fix assertion patterns |
 | 6 | Validation screenshots | Every test calls `takeScreenshot()` after page load, before assertions | Add `takeScreenshot(t, ctx, "suite", "name.png")` call |
+| 7 | **JS error checking** | Pages with Alpine data fetching (`x-data`+`x-init`+`fetch()`) must have at least one test using `newJSErrorCollector` + 2s wait + assert no errors | Add `TestXxxNoJSErrors` per Rule 8 in test-common |
 
 For each non-compliant item: fix the test file directly, then document what was changed.
 
@@ -191,6 +192,7 @@ Before completing any create or review action:
 - [ ] Both success and error paths tested
 - [ ] Proper cleanup via `defer cancel()`
 - [ ] **Validation screenshot in every test** via `takeScreenshot(t, ctx, "suite", "name.png")` — placed after page load, before assertions
+- [ ] **JS error check for Alpine pages** — if page uses `x-data`+`x-init`+`fetch()`, at least one test uses `newJSErrorCollector` with 2s wait and asserts no errors (Rule 8)
 - [ ] Module path is `github.com/bobmcallan/vire-portal`
 - [ ] Executable via `go test` without Claude
 - [ ] Uses helpers from `ui_helpers_test.go`

@@ -34,12 +34,16 @@ Before executing any tests, validate structural compliance. Check each test file
 | 2 | Common browser setup | Uses `newBrowser(t)`, `loginAndNavigate()`, helpers from `ui_helpers_test.go` |
 | 3 | Correct selectors | CSS selectors match current HTML templates in `pages/` |
 | 4 | Standard Go patterns | Uses `t.Fatal()`, `t.Error()`, `t.Skip()`, `t.Logf()` correctly |
+| 5 | **JS error checking** | For pages with Alpine data fetching: at least one test uses `newJSErrorCollector` + assert no errors (Rule 8 from test-common) |
 
 **If non-compliant files are found:**
 1. Document each violation in the output report
 2. Advise the user to run `/test-create-review review` to fix
 3. Still execute the tests (non-compliance does not block execution)
 4. **DO NOT modify the test files**
+
+**After execution — check test output for JS console warnings:**
+Even if all tests pass, scan the test log for lines containing `Alpine Warning` or `Uncaught`. These indicate runtime component bugs that tests didn't catch because the JS error collector wasn't set up. Report them as non-compliance (Rule 8) alongside the pass/fail results.
 
 ### Step 2: Determine Test Scope
 
