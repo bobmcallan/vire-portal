@@ -1365,6 +1365,29 @@ code {
 }
 
 
+/* === CHANGELOG === */
+
+.changelog-meta {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.changelog-heading {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+}
+
+.changelog-body {
+    white-space: pre-wrap;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: #000;
+}
+
+
 /* ============================================================
    LANDING CONTACT
    ============================================================ */

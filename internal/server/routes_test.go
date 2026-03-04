@@ -470,6 +470,30 @@ func TestRoutes_LandingPage_ProdMode(t *testing.T) {
 	}
 }
 
+// --- Changelog Route Tests ---
+
+func TestRoutes_ChangelogPage(t *testing.T) {
+	application := newTestApp(t)
+	srv := New(application)
+
+	testToken := createTestJWT("test-user-123", application.Config.Auth.JWTSecret)
+
+	req := httptest.NewRequest("GET", "/changelog", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: testToken})
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "changelogPage") {
+		t.Error("expected changelog page to contain changelogPage Alpine component")
+	}
+}
+
 // --- Dashboard Route Tests ---
 
 func TestRoutes_DashboardPage(t *testing.T) {

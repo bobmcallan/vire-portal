@@ -22,6 +22,7 @@
                 </button>
                 <div x-show="dropdownOpen" x-cloak class="nav-dropdown">
                     <a href="/profile">Profile</a>
+                    <a href="/changelog">Changelog</a>
                     {{if eq .UserRole "admin"}}<a href="/admin/users">Admin</a>{{end}}
                     <a href="/help">Help</a>
                     <form method="POST" action="/api/auth/logout">
@@ -42,6 +43,7 @@
                 <a href="/cash">Cash</a>
                 <a href="/mcp-info">MCP</a>
                 <a href="/help">Help</a>
+                <a href="/changelog">Changelog</a>
                 {{if eq .UserRole "admin"}}<a href="/admin/users">Admin</a>{{end}}
                 <a href="/profile">Profile</a>
                 <form method="POST" action="/api/auth/logout">

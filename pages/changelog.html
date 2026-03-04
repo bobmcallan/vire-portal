@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{template "head.html" .}}
+    <title>VIRE CHANGELOG</title>
+</head>
+<body>
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+    <main class="page" x-data="changelogPage()" x-init="init()">
+        <div class="page-body">
+
+            <template x-if="loading && entries.length === 0">
+                <div class="help-loading">Loading changelog...</div>
+            </template>
+
+            <template x-if="error && entries.length === 0">
+                <div class="warning-banner" x-text="error"></div>
+            </template>
+
+            <template x-if="entries.length > 0">
+                <div>
+                    <template x-for="entry in entries" :key="entry.id">
+                        <section class="panel-headed changelog-entry" style="margin-bottom:1.5rem">
+                            <div class="panel-header">
+                                <span x-text="formatDate(entry.created_at)"></span>
+                            </div>
+                            <div class="panel-content">
+                                <div class="changelog-meta">
+                                    <span class="badge" x-text="entry.service"></span>
+                                    <span class="badge badge-muted" x-text="entry.service_version || ''"></span>
+                                </div>
+                                <h3 class="changelog-heading" x-text="parseHeading(entry.content)"></h3>
+                                <div class="changelog-body" x-text="parseBody(entry.content)"></div>
+                            </div>
+                        </section>
+                    </template>
+
+                    <div x-ref="sentinel" style="height:1px"></div>
+
+                    <template x-if="loading && entries.length > 0">
+                        <div class="help-loading" style="margin:1rem 0">Loading more...</div>
+                    </template>
+
+                    <template x-if="!hasMore && entries.length > 0">
+                        <p class="text-muted text-sm" style="text-align:center;margin:1rem 0">End of changelog.</p>
+                    </template>
+                </div>
+            </template>
+
+            <template x-if="!loading && !error && entries.length === 0">
+                <p class="text-muted text-sm">No changelog entries.</p>
+            </template>
+
+        </div>
+    </main>
+    {{template "footer.html" .}}
+
+    <script>
+    function changelogPage() {
+        return {
+            entries: [],
+            loading: true,
+            error: null,
+            currentPage: 0,
+            totalPages: 1,
+            pageSize: 10,
+            hasMore: true,
+            observer: null,
+
+            init() {
+                this.loadNextPage();
+                this.$nextTick(() => { this.setupObserver(); });
+            },
+
+            setupObserver() {
+                const sentinel = this.$refs.sentinel;
+                if (!sentinel) {
+                    setTimeout(() => this.setupObserver(), 200);
+                    return;
+                }
+                this.observer = new IntersectionObserver((items) => {
+                    if (items[0].isIntersecting && !this.loading && this.hasMore) {
+                        this.loadNextPage();
+                    }
+                }, { rootMargin: '200px' });
+                this.observer.observe(sentinel);
+            },
+
+            loadNextPage() {
+                if (this.loading && this.currentPage > 0) return;
+                this.loading = true;
+                const nextPage = this.currentPage + 1;
+                fetch('/api/changelog?per_page=' + this.pageSize + '&page=' + nextPage)
+                    .then(r => {
+                        if (!r.ok) throw new Error('Failed to load changelog');
+                        return r.json();
+                    })
+                    .then(data => {
+                        const newItems = data.items || [];
+                        this.entries = this.entries.concat(newItems);
+                        this.currentPage = data.page || nextPage;
+                        this.totalPages = data.pages || 1;
+                        this.hasMore = this.currentPage < this.totalPages;
+                        this.loading = false;
+                        if (this.hasMore && !this.observer) {
+                            this.$nextTick(() => this.setupObserver());
+                        }
+                    })
+                    .catch(err => {
+                        this.error = err.message;
+                        this.loading = false;
+                    });
+            },
+
+            formatDate(iso) {
+                if (!iso) return '';
+                const d = new Date(iso);
+                return d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+            },
+
+            parseHeading(content) {
+                if (!content) return '';
+                const firstLine = content.split('\n')[0] || '';
+                return firstLine.replace(/^#+\s*/, '').trim();
+            },
+
+            parseBody(content) {
+                if (!content) return '';
+                const lines = content.split('\n');
+                let start = 1;
+                while (start < lines.length && lines[start].trim() === '') { start++; }
+                return lines.slice(start).join('\n').trim();
+            },
+        };
+    }
+    </script>
+</body>
+</html>

@@ -36,6 +36,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.HandleFunc("GET /cash", s.app.CashHandler.ServeHTTP)
 	mux.HandleFunc("GET /mcp-info", s.app.MCPPageHandler.ServeHTTP)
 	mux.HandleFunc("GET /help", s.app.PageHandler.ServePage("help.html", "help"))
+	mux.HandleFunc("GET /changelog", s.app.PageHandler.ServePage("changelog.html", "changelog"))
 	mux.HandleFunc("GET /glossary", s.app.PageHandler.ServePage("glossary.html", "glossary"))
 	mux.HandleFunc("GET /docs", s.app.PageHandler.ServePage("docs.html", "docs"))
 	mux.HandleFunc("GET /error", s.app.PageHandler.ServePage("error.html", "error"))
