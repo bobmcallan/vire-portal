@@ -567,10 +567,6 @@ func TestDashboardHandler_StressNewFieldBindingsSafe(t *testing.T) {
 	if !strings.Contains(body, `x-text="fmt(grossCashBalance)"`) {
 		t.Error("expected grossCashBalance displayed with x-text fmt() binding")
 	}
-	// GROSS CONTRIBUTIONS must use x-text fmt() binding
-	if !strings.Contains(body, `x-text="fmt(grossContributions)"`) {
-		t.Error("expected grossContributions displayed with x-text fmt() binding")
-	}
 	// DIVIDENDS must show actual (forecast) format
 	if !strings.Contains(body, `fmt(ledgerDividendReturn)`) || !strings.Contains(body, `fmt(totalDividends)`) {
 		t.Error("expected dividends displayed with ledgerDividendReturn and totalDividends bindings")
@@ -578,7 +574,7 @@ func TestDashboardHandler_StressNewFieldBindingsSafe(t *testing.T) {
 }
 
 func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
-	// Verify the cash row (Row 2) and equity row (Row 3) have the correct labels
+	// Verify the composition row (Row 1) and performance row (Row 2) have the correct labels
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -589,19 +585,19 @@ func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Row 2: Cash summary labels
-	cashLabels := []string{"GROSS CASH BALANCE", "AVAILABLE CASH", "GROSS CONTRIBUTIONS", "DIVIDENDS"}
-	for _, label := range cashLabels {
+	// Row 1: Composition labels
+	compositionLabels := []string{"PORTFOLIO VALUE", "GROSS CASH BALANCE", "AVAILABLE CASH", "NET EQUITY"}
+	for _, label := range compositionLabels {
 		if !strings.Contains(body, label) {
-			t.Errorf("expected cash row label %q in dashboard", label)
+			t.Errorf("expected composition row label %q in dashboard", label)
 		}
 	}
 
-	// Row 3: Equity performance labels
-	equityLabels := []string{"NET EQUITY", "NET RETURN $", "NET RETURN %"}
-	for _, label := range equityLabels {
+	// Row 2: Performance labels
+	performanceLabels := []string{"NET RETURN $", "NET RETURN %", "DIVIDENDS"}
+	for _, label := range performanceLabels {
 		if !strings.Contains(body, label) {
-			t.Errorf("expected equity row label %q in dashboard", label)
+			t.Errorf("expected performance row label %q in dashboard", label)
 		}
 	}
 }
@@ -1126,6 +1122,14 @@ func TestDashboardHandler_StressChangesRowConditionalDisplay(t *testing.T) {
 	if !strings.Contains(body, `x-show="hasChanges"`) {
 		t.Error("portfolio-changes row must be conditional on hasChanges")
 	}
+	// Net return $ changes gated on hasReturnDollarChanges
+	if !strings.Contains(body, `x-show="hasReturnDollarChanges"`) {
+		t.Error("net return $ changes row must be conditional on hasReturnDollarChanges")
+	}
+	// Net return % changes gated on hasReturnPctChanges
+	if !strings.Contains(body, `x-show="hasReturnPctChanges"`) {
+		t.Error("net return % changes row must be conditional on hasReturnPctChanges")
+	}
 	// Last synced gated on lastSynced
 	if !strings.Contains(body, `x-show="lastSynced"`) {
 		t.Error("portfolio-synced row must be conditional on lastSynced")
@@ -1213,13 +1217,13 @@ func TestDashboardHandler_StressChangesInsidePortfolioValueItem(t *testing.T) {
 		t.Fatal("expected both PORTFOLIO VALUE and portfolio-changes in template")
 	}
 
-	// The changes row should come after PORTFOLIO VALUE but before the cash summary row
-	cashIdx := strings.Index(body, "portfolio-summary-cash")
-	if cashIdx < 0 {
-		t.Skip("Cash summary row not found")
+	// The changes row should come after PORTFOLIO VALUE but before the performance row
+	perfIdx := strings.Index(body, "portfolio-summary-performance")
+	if perfIdx < 0 {
+		t.Skip("Performance summary row not found")
 	}
-	if pcIdx > cashIdx {
-		t.Error("portfolio-changes appears after cash summary — should be inside PORTFOLIO VALUE item")
+	if pcIdx > perfIdx {
+		t.Error("portfolio-changes appears after performance summary — should be inside PORTFOLIO VALUE item")
 	}
 }
 
@@ -1285,8 +1289,8 @@ func TestDashboardHandler_StressChangeClassBindingsPresent(t *testing.T) {
 	}
 }
 
-func TestDashboardHandler_StressCashEquityChangeBindings(t *testing.T) {
-	// Verify cash and equity D/W/M change bindings are present in template
+func TestDashboardHandler_StressReturnChangeBindings(t *testing.T) {
+	// Verify net return D/W/M change bindings are present in template
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1297,38 +1301,38 @@ func TestDashboardHandler_StressCashEquityChangeBindings(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Cash change bindings
-	cashBindings := []string{
-		`:class="changeClass(changeCashDayPct)"`,
-		`:class="changeClass(changeCashWeekPct)"`,
-		`:class="changeClass(changeCashMonthPct)"`,
+	// Net return $ change bindings
+	returnDollarBindings := []string{
+		`:class="changeClass(changeReturnDayDollar)"`,
+		`:class="changeClass(changeReturnWeekDollar)"`,
+		`:class="changeClass(changeReturnMonthDollar)"`,
 	}
-	for _, binding := range cashBindings {
+	for _, binding := range returnDollarBindings {
 		if !strings.Contains(body, binding) {
 			t.Errorf("expected %s in dashboard template", binding)
 		}
 	}
 
-	// Equity change bindings
-	equityBindings := []string{
-		`:class="changeClass(changeEquityDayPct)"`,
-		`:class="changeClass(changeEquityWeekPct)"`,
-		`:class="changeClass(changeEquityMonthPct)"`,
+	// Net return % change bindings
+	returnPctBindings := []string{
+		`:class="changeClass(changeReturnDayPct)"`,
+		`:class="changeClass(changeReturnWeekPct)"`,
+		`:class="changeClass(changeReturnMonthPct)"`,
 	}
-	for _, binding := range equityBindings {
+	for _, binding := range returnPctBindings {
 		if !strings.Contains(body, binding) {
 			t.Errorf("expected %s in dashboard template", binding)
 		}
 	}
 
-	// Cash changes visibility
-	if !strings.Contains(body, `x-show="hasCashChanges"`) {
-		t.Error("expected hasCashChanges visibility binding")
+	// Net return $ changes visibility
+	if !strings.Contains(body, `x-show="hasReturnDollarChanges"`) {
+		t.Error("expected hasReturnDollarChanges visibility binding")
 	}
 
-	// Equity changes visibility
-	if !strings.Contains(body, `x-show="hasEquityChanges"`) {
-		t.Error("expected hasEquityChanges visibility binding")
+	// Net return % changes visibility
+	if !strings.Contains(body, `x-show="hasReturnPctChanges"`) {
+		t.Error("expected hasReturnPctChanges visibility binding")
 	}
 }
 
@@ -1355,6 +1359,9 @@ func TestDashboardHandler_StressGlossaryTooltipBindings(t *testing.T) {
 		`glossaryDef('gross_cash_balance')`,
 		`glossaryDef('net_cash_balance')`,
 		`glossaryDef('net_equity_cost')`,
+		`glossaryDef('net_equity_return')`,
+		`glossaryDef('net_equity_return_pct')`,
+		`glossaryDef('dividend_forecast')`,
 	}
 	for _, binding := range expectedBindings {
 		if !strings.Contains(body, binding) {

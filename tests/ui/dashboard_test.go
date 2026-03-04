@@ -200,31 +200,34 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Skip("portfolio summary not visible (no holdings data available)")
 	}
 
-	// Verify the first .portfolio-summary row has exactly 1 item (PORTFOLIO VALUE)
-	count, err := elementCount(ctx, ".portfolio-summary:not(.portfolio-summary-cash):not(.portfolio-summary-equity) .portfolio-summary-item")
+	// Verify the first .portfolio-summary row has exactly 4 items (PORTFOLIO VALUE, GROSS CASH BALANCE, AVAILABLE CASH, NET EQUITY)
+	count, err := elementCount(ctx, ".portfolio-summary:not(.portfolio-summary-performance) .portfolio-summary-item")
 	if err != nil {
 		t.Fatalf("error counting summary items: %v", err)
 	}
-	if count != 1 {
-		t.Errorf("portfolio summary item count = %d, want 1", count)
+	if count != 4 {
+		t.Errorf("portfolio summary item count = %d, want 4", count)
 	}
 
-	// Verify the summary label is "PORTFOLIO VALUE"
+	// Verify the composition row labels
 	labelsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
-			const row = document.querySelector('.portfolio-summary:not(.portfolio-summary-cash):not(.portfolio-summary-equity)');
+			const row = document.querySelector('.portfolio-summary:not(.portfolio-summary-performance)');
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
-			if (labels.length !== 1) return false;
-			// Single label should be PORTFOLIO VALUE (text may include tooltip "i")
-			return labels[0].textContent.includes('PORTFOLIO VALUE');
+			if (labels.length !== 4) return false;
+			const expected = ['PORTFOLIO VALUE', 'GROSS CASH BALANCE', 'AVAILABLE CASH', 'NET EQUITY'];
+			for (let i = 0; i < 4; i++) {
+				if (!labels[i].textContent.includes(expected[i])) return false;
+			}
+			return true;
 		})()
 	`)
 	if err != nil {
 		t.Fatalf("error checking summary labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("portfolio summary label should be PORTFOLIO VALUE")
+		t.Error("composition row labels should be PORTFOLIO VALUE, GROSS CASH BALANCE, AVAILABLE CASH, NET EQUITY")
 	}
 
 	// Verify summary spans full content width (justify-content: space-between)
@@ -246,7 +249,7 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	// Verify summary values are populated (not empty or just "-")
 	valuesPopulated, err := commontest.EvalBool(ctx, `
 		(() => {
-			const items = document.querySelectorAll('.portfolio-summary:not(.portfolio-summary-cash):not(.portfolio-summary-equity) .portfolio-summary-item .text-bold');
+			const items = document.querySelectorAll('.portfolio-summary:not(.portfolio-summary-performance) .portfolio-summary-item .text-bold');
 			if (items.length === 0) return false;
 			for (const item of items) {
 				const text = item.textContent.trim();
@@ -407,7 +410,7 @@ func TestDashboardGainColors(t *testing.T) {
 		var row1GainInfo string
 		err = chromedp.Run(ctx, chromedp.Evaluate(`
 			(() => {
-				const items = document.querySelectorAll('.portfolio-summary:not(.portfolio-summary-cash):not(.portfolio-summary-equity) .portfolio-summary-item .text-bold');
+				const items = document.querySelectorAll('.portfolio-summary:not(.portfolio-summary-performance) .portfolio-summary-item .text-bold');
 				if (items.length < 1) return 'items:0';
 				// If more than 1 item, items 1+ are capital return values
 				if (items.length > 1) {
@@ -483,108 +486,92 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
 
 	takeScreenshot(t, ctx, "dashboard", "capital-performance.png")
 
-	// ===== Row 2: Cash Summary =====
-	// Check if cash row exists (shown when filteredHoldings > 0)
-	cashVisible, err := isVisible(ctx, ".portfolio-summary-cash")
+	// ===== Row 1: Composition =====
+	compositionVisible, err := isVisible(ctx, ".portfolio-summary:not(.portfolio-summary-performance)")
 	if err != nil {
-		t.Fatalf("error checking cash row visibility: %v", err)
+		t.Fatalf("error checking composition row visibility: %v", err)
 	}
-	if !cashVisible {
-		t.Skip("cash row not visible (no holdings data available)")
+	if !compositionVisible {
+		t.Skip("composition row not visible (no holdings data available)")
 	}
 
-	// Verify 2 or 4 cash summary items
-	// (2 when !hasCapitalData: GROSS CASH BALANCE, AVAILABLE CASH)
-	// (4 when hasCapitalData: also GROSS CONTRIBUTIONS, DIVIDENDS)
-	cashCount, err := elementCount(ctx, ".portfolio-summary-cash .portfolio-summary-item")
+	compositionCount, err := elementCount(ctx, ".portfolio-summary:not(.portfolio-summary-performance) .portfolio-summary-item")
 	if err != nil {
-		t.Fatalf("error counting cash summary items: %v", err)
+		t.Fatalf("error counting composition summary items: %v", err)
 	}
-	if cashCount != 2 && cashCount != 4 {
-		t.Errorf("cash summary item count = %d, want 2 or 4", cashCount)
+	if compositionCount != 4 {
+		t.Errorf("composition summary item count = %d, want 4", compositionCount)
 	}
 
-	// Verify cash summary labels
-	cashLabelsCorrect, err := commontest.EvalBool(ctx, `
+	compositionLabelsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
-			const row = document.querySelector('.portfolio-summary-cash');
+			const row = document.querySelector('.portfolio-summary:not(.portfolio-summary-performance)');
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
-			if (labels.length === 0) return false;
-			// First two are always present (text may include tooltip "i")
-			if (!labels[0].textContent.includes('GROSS CASH BALANCE')) return false;
-			if (!labels[1].textContent.includes('AVAILABLE CASH')) return false;
-			// If 4 items, check the optional ones
-			if (labels.length === 4) {
-				const expected = ['GROSS CASH BALANCE', 'AVAILABLE CASH', 'GROSS CONTRIBUTIONS', 'DIVIDENDS'];
-				for (let i = 0; i < 4; i++) {
-					if (!labels[i].textContent.includes(expected[i])) return false;
-				}
-			}
-			return true;
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking cash labels: %v", err)
-	}
-	if !cashLabelsCorrect {
-		t.Error("cash summary labels do not match expected: GROSS CASH BALANCE, AVAILABLE CASH, and optionally GROSS CONTRIBUTIONS, DIVIDENDS")
-	}
-
-	// ===== Row 3: Equity Performance =====
-	// Check if equity row exists (shown when filteredHoldings > 0)
-	equityVisible, err := isVisible(ctx, ".portfolio-summary-equity")
-	if err != nil {
-		t.Fatalf("error checking equity row visibility: %v", err)
-	}
-	if !equityVisible {
-		t.Skip("equity row not visible (no holdings data available)")
-	}
-
-	// Verify 3 equity summary items
-	equityCount, err := elementCount(ctx, ".portfolio-summary-equity .portfolio-summary-item")
-	if err != nil {
-		t.Fatalf("error counting equity summary items: %v", err)
-	}
-	if equityCount != 3 {
-		t.Errorf("equity summary item count = %d, want 3", equityCount)
-	}
-
-	// Verify equity summary labels
-	equityLabelsCorrect, err := commontest.EvalBool(ctx, `
-		(() => {
-			const row = document.querySelector('.portfolio-summary-equity');
-			if (!row) return false;
-			const labels = row.querySelectorAll('.portfolio-summary-item .label');
-			if (labels.length !== 3) return false;
-			const expected = ['NET EQUITY', 'NET RETURN $', 'NET RETURN %'];
-			for (let i = 0; i < 3; i++) {
+			if (labels.length !== 4) return false;
+			const expected = ['PORTFOLIO VALUE', 'GROSS CASH BALANCE', 'AVAILABLE CASH', 'NET EQUITY'];
+			for (let i = 0; i < 4; i++) {
 				if (!labels[i].textContent.includes(expected[i])) return false;
 			}
 			return true;
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking equity labels: %v", err)
+		t.Fatalf("error checking composition labels: %v", err)
 	}
-	if !equityLabelsCorrect {
-		t.Error("equity summary labels do not match expected: NET EQUITY, NET RETURN $, NET RETURN %")
+	if !compositionLabelsCorrect {
+		t.Error("composition row labels do not match expected: PORTFOLIO VALUE, GROSS CASH BALANCE, AVAILABLE CASH, NET EQUITY")
 	}
 
-	// Verify equity return values have color classes applied
-	equityGainColored, err := commontest.EvalBool(ctx, `
+	// ===== Row 2: Performance =====
+	perfVisible, err := isVisible(ctx, ".portfolio-summary-performance")
+	if err != nil {
+		t.Fatalf("error checking performance row visibility: %v", err)
+	}
+	if !perfVisible {
+		t.Skip("performance row not visible (no holdings data available)")
+	}
+
+	perfCount, err := elementCount(ctx, ".portfolio-summary-performance .portfolio-summary-item")
+	if err != nil {
+		t.Fatalf("error counting performance summary items: %v", err)
+	}
+	if perfCount != 2 && perfCount != 3 {
+		t.Errorf("performance summary item count = %d, want 2 or 3", perfCount)
+	}
+
+	perfLabelsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
-			const row = document.querySelector('.portfolio-summary-equity');
+			const row = document.querySelector('.portfolio-summary-performance');
+			if (!row) return false;
+			const labels = row.querySelectorAll('.portfolio-summary-item .label');
+			if (labels.length < 2) return false;
+			if (!labels[0].textContent.includes('NET RETURN $')) return false;
+			if (!labels[1].textContent.includes('NET RETURN %')) return false;
+			if (labels.length === 3) {
+				if (!labels[2].textContent.includes('DIVIDENDS')) return false;
+			}
+			return true;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking performance labels: %v", err)
+	}
+	if !perfLabelsCorrect {
+		t.Error("performance row labels do not match expected: NET RETURN $, NET RETURN %, and optionally DIVIDENDS")
+	}
+
+	returnGainColored, err := commontest.EvalBool(ctx, `
+		(() => {
+			const row = document.querySelector('.portfolio-summary-performance');
 			if (!row) return false;
 			const items = row.querySelectorAll('.portfolio-summary-item .text-bold');
-			// Items 1-2 are NET RETURN $ and NET RETURN % — should have gain class if non-zero
 			let hasGainClass = false;
-			for (let i = 1; i < items.length; i++) {
+			for (let i = 0; i < Math.min(items.length, 2); i++) {
 				if (items[i].classList.contains('gain-positive') || items[i].classList.contains('gain-negative')) {
 					hasGainClass = true;
 				}
@@ -593,10 +580,10 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking equity gain colors: %v", err)
+		t.Fatalf("error checking return gain colors: %v", err)
 	}
-	if !equityGainColored {
-		t.Log("equity return values have no color class (gains may be zero)")
+	if !returnGainColored {
+		t.Log("return values have no color class (gains may be zero)")
 	}
 }
 
@@ -861,7 +848,7 @@ func TestDashboardChangesRow(t *testing.T) {
 	// Verify .portfolio-changes element exists within the first portfolio-summary-item
 	hasChanges, err := commontest.EvalBool(ctx, `
 		(() => {
-			const firstItem = document.querySelector('.portfolio-summary:not(.portfolio-summary-cash):not(.portfolio-summary-equity) .portfolio-summary-item');
+			const firstItem = document.querySelector('.portfolio-summary:not(.portfolio-summary-performance) .portfolio-summary-item');
 			if (!firstItem) return false;
 			const changes = firstItem.querySelector('.portfolio-changes');
 			return changes !== null;
@@ -922,7 +909,7 @@ func TestDashboardChangesRow(t *testing.T) {
 	}
 }
 
-func TestDashboardCashChangesRow(t *testing.T) {
+func TestDashboardReturnDollarChanges(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -933,53 +920,57 @@ func TestDashboardCashChangesRow(t *testing.T) {
 
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
 
-	takeScreenshot(t, ctx, "dashboard", "cash-changes-row.png")
+	takeScreenshot(t, ctx, "dashboard", "return-dollar-changes.png")
 
-	visible, err := isVisible(ctx, ".portfolio-summary-cash")
+	visible, err := isVisible(ctx, ".portfolio-summary-performance")
 	if err != nil {
-		t.Fatalf("error checking cash summary visibility: %v", err)
+		t.Fatalf("error checking performance row visibility: %v", err)
 	}
 	if !visible {
-		t.Skip("cash summary not visible (no holdings data available)")
+		t.Skip("performance row not visible (no holdings data available)")
 	}
 
 	hasChanges, err := commontest.EvalBool(ctx, `
 		(() => {
-			const firstItem = document.querySelector('.portfolio-summary-cash .portfolio-summary-item');
+			const firstItem = document.querySelector('.portfolio-summary-performance .portfolio-summary-item');
 			if (!firstItem) return false;
 			const changes = firstItem.querySelector('.portfolio-changes');
 			return changes !== null;
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking cash changes element: %v", err)
+		t.Fatalf("error checking return dollar changes element: %v", err)
 	}
 	if !hasChanges {
-		t.Skip("cash changes element not visible (no cash changes data available)")
+		t.Skip("return dollar changes element not visible (no return changes data available)")
 	}
 
 	badgesCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
-			const cashRow = document.querySelector('.portfolio-summary-cash');
-			if (!cashRow) return false;
-			const changes = cashRow.querySelector('.portfolio-changes');
+			const perfRow = document.querySelector('.portfolio-summary-performance');
+			if (!perfRow) return false;
+			const firstItem = perfRow.querySelector('.portfolio-summary-item');
+			if (!firstItem) return false;
+			const changes = firstItem.querySelector('.portfolio-changes');
 			if (!changes) return false;
 			const text = changes.textContent.trim();
 			return text.includes('D:') && text.includes('W:') && text.includes('M:');
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking cash change badges: %v", err)
+		t.Fatalf("error checking return dollar change badges: %v", err)
 	}
 	if !badgesCorrect {
-		t.Error("cash changes badges do not contain expected D:/W:/M: labels")
+		t.Error("return dollar changes badges do not contain expected D:/W:/M: labels")
 	}
 
 	classesApplied, err := commontest.EvalBool(ctx, `
 		(() => {
-			const cashRow = document.querySelector('.portfolio-summary-cash');
-			if (!cashRow) return false;
-			const badges = cashRow.querySelectorAll('.portfolio-changes span');
+			const perfRow = document.querySelector('.portfolio-summary-performance');
+			if (!perfRow) return false;
+			const firstItem = perfRow.querySelector('.portfolio-summary-item');
+			if (!firstItem) return false;
+			const badges = firstItem.querySelectorAll('.portfolio-changes span');
 			if (badges.length === 0) return false;
 			for (const badge of badges) {
 				const hasColorClass = badge.className.includes('change-up') || badge.className.includes('change-down') || badge.className.includes('change-neutral');
@@ -989,14 +980,14 @@ func TestDashboardCashChangesRow(t *testing.T) {
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking cash change classes: %v", err)
+		t.Fatalf("error checking return dollar change classes: %v", err)
 	}
 	if !classesApplied {
-		t.Error("cash change badges do not have color classes (change-up, change-down, or change-neutral)")
+		t.Error("return dollar change badges do not have color classes (change-up, change-down, or change-neutral)")
 	}
 }
 
-func TestDashboardEquityChangesRow(t *testing.T) {
+func TestDashboardReturnPctChanges(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -1007,53 +998,53 @@ func TestDashboardEquityChangesRow(t *testing.T) {
 
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
 
-	takeScreenshot(t, ctx, "dashboard", "equity-changes-row.png")
+	takeScreenshot(t, ctx, "dashboard", "return-pct-changes.png")
 
-	visible, err := isVisible(ctx, ".portfolio-summary-equity")
+	visible, err := isVisible(ctx, ".portfolio-summary-performance")
 	if err != nil {
-		t.Fatalf("error checking equity summary visibility: %v", err)
+		t.Fatalf("error checking performance row visibility: %v", err)
 	}
 	if !visible {
-		t.Skip("equity summary not visible (no holdings data available)")
+		t.Skip("performance row not visible (no holdings data available)")
 	}
 
 	hasChanges, err := commontest.EvalBool(ctx, `
 		(() => {
-			const firstItem = document.querySelector('.portfolio-summary-equity .portfolio-summary-item');
-			if (!firstItem) return false;
-			const changes = firstItem.querySelector('.portfolio-changes');
+			const items = document.querySelectorAll('.portfolio-summary-performance .portfolio-summary-item');
+			if (items.length < 2) return false;
+			const changes = items[1].querySelector('.portfolio-changes');
 			return changes !== null;
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking equity changes element: %v", err)
+		t.Fatalf("error checking return pct changes element: %v", err)
 	}
 	if !hasChanges {
-		t.Skip("equity changes element not visible (no equity changes data available)")
+		t.Skip("return pct changes element not visible (no return pct changes data available)")
 	}
 
 	badgesCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
-			const equityRow = document.querySelector('.portfolio-summary-equity');
-			if (!equityRow) return false;
-			const changes = equityRow.querySelector('.portfolio-changes');
+			const items = document.querySelectorAll('.portfolio-summary-performance .portfolio-summary-item');
+			if (items.length < 2) return false;
+			const changes = items[1].querySelector('.portfolio-changes');
 			if (!changes) return false;
 			const text = changes.textContent.trim();
 			return text.includes('D:') && text.includes('W:') && text.includes('M:');
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking equity change badges: %v", err)
+		t.Fatalf("error checking return pct change badges: %v", err)
 	}
 	if !badgesCorrect {
-		t.Error("equity changes badges do not contain expected D:/W:/M: labels")
+		t.Error("return pct changes badges do not contain expected D:/W:/M: labels")
 	}
 
 	classesApplied, err := commontest.EvalBool(ctx, `
 		(() => {
-			const equityRow = document.querySelector('.portfolio-summary-equity');
-			if (!equityRow) return false;
-			const badges = equityRow.querySelectorAll('.portfolio-changes span');
+			const items = document.querySelectorAll('.portfolio-summary-performance .portfolio-summary-item');
+			if (items.length < 2) return false;
+			const badges = items[1].querySelectorAll('.portfolio-changes span');
 			if (badges.length === 0) return false;
 			for (const badge of badges) {
 				const hasColorClass = badge.className.includes('change-up') || badge.className.includes('change-down') || badge.className.includes('change-neutral');
@@ -1063,10 +1054,10 @@ func TestDashboardEquityChangesRow(t *testing.T) {
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking equity change classes: %v", err)
+		t.Fatalf("error checking return pct change classes: %v", err)
 	}
 	if !classesApplied {
-		t.Error("equity change badges do not have color classes (change-up, change-down, or change-neutral)")
+		t.Error("return pct change badges do not have color classes (change-up, change-down, or change-neutral)")
 	}
 }
 

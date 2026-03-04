@@ -200,10 +200,14 @@ function portfolioDashboard() {
         changeCashWeekPct: null,
         changeCashMonthPct: null,
         hasCashChanges: false,
-        changeEquityDayPct: null,
-        changeEquityWeekPct: null,
-        changeEquityMonthPct: null,
-        hasEquityChanges: false,
+        changeReturnDayDollar: null,
+        changeReturnWeekDollar: null,
+        changeReturnMonthDollar: null,
+        hasReturnDollarChanges: false,
+        changeReturnDayPct: null,
+        changeReturnWeekPct: null,
+        changeReturnMonthPct: null,
+        hasReturnPctChanges: false,
         glossary: {},
         refreshing: false,
         growthData: [],
@@ -302,11 +306,16 @@ function portfolioDashboard() {
                         this.changeCashWeekPct = changes.week?.gross_cash?.has_previous ? changes.week.gross_cash.pct_change : null;
                         this.changeCashMonthPct = changes.month?.gross_cash?.has_previous ? changes.month.gross_cash.pct_change : null;
                         this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
-                        // Equity changes
-                        this.changeEquityDayPct = changes.yesterday?.equity_value?.has_previous ? changes.yesterday.equity_value.pct_change : null;
-                        this.changeEquityWeekPct = changes.week?.equity_value?.has_previous ? changes.week.equity_value.pct_change : null;
-                        this.changeEquityMonthPct = changes.month?.equity_value?.has_previous ? changes.month.equity_value.pct_change : null;
-                        this.hasEquityChanges = this.changeEquityDayPct !== null || this.changeEquityWeekPct !== null || this.changeEquityMonthPct !== null;
+                        // Net return $ changes (raw_change = dollar movement in return)
+                        this.changeReturnDayDollar = changes.yesterday?.net_equity_return?.has_previous ? changes.yesterday.net_equity_return.raw_change : null;
+                        this.changeReturnWeekDollar = changes.week?.net_equity_return?.has_previous ? changes.week.net_equity_return.raw_change : null;
+                        this.changeReturnMonthDollar = changes.month?.net_equity_return?.has_previous ? changes.month.net_equity_return.raw_change : null;
+                        this.hasReturnDollarChanges = this.changeReturnDayDollar !== null || this.changeReturnWeekDollar !== null || this.changeReturnMonthDollar !== null;
+                        // Net return % changes (raw_change = percentage point movement)
+                        this.changeReturnDayPct = changes.yesterday?.net_equity_return_pct?.has_previous ? changes.yesterday.net_equity_return_pct.raw_change : null;
+                        this.changeReturnWeekPct = changes.week?.net_equity_return_pct?.has_previous ? changes.week.net_equity_return_pct.raw_change : null;
+                        this.changeReturnMonthPct = changes.month?.net_equity_return_pct?.has_previous ? changes.month.net_equity_return_pct.raw_change : null;
+                        this.hasReturnPctChanges = this.changeReturnDayPct !== null || this.changeReturnWeekPct !== null || this.changeReturnMonthPct !== null;
                     } else {
                         this.changeDayPct = null;
                         this.changeWeekPct = null;
@@ -316,10 +325,14 @@ function portfolioDashboard() {
                         this.changeCashWeekPct = null;
                         this.changeCashMonthPct = null;
                         this.hasCashChanges = false;
-                        this.changeEquityDayPct = null;
-                        this.changeEquityWeekPct = null;
-                        this.changeEquityMonthPct = null;
-                        this.hasEquityChanges = false;
+                        this.changeReturnDayDollar = null;
+                        this.changeReturnWeekDollar = null;
+                        this.changeReturnMonthDollar = null;
+                        this.hasReturnDollarChanges = false;
+                        this.changeReturnDayPct = null;
+                        this.changeReturnWeekPct = null;
+                        this.changeReturnMonthPct = null;
+                        this.hasReturnPctChanges = false;
                     }
                     this.portfolioTotalValue = Number(holdingsData.portfolio_value) || 0;
                     this.portfolioGain = Number(holdingsData.net_equity_return) || 0;
@@ -358,10 +371,14 @@ function portfolioDashboard() {
                     this.changeCashWeekPct = null;
                     this.changeCashMonthPct = null;
                     this.hasCashChanges = false;
-                    this.changeEquityDayPct = null;
-                    this.changeEquityWeekPct = null;
-                    this.changeEquityMonthPct = null;
-                    this.hasEquityChanges = false;
+                    this.changeReturnDayDollar = null;
+                    this.changeReturnWeekDollar = null;
+                    this.changeReturnMonthDollar = null;
+                    this.hasReturnDollarChanges = false;
+                    this.changeReturnDayPct = null;
+                    this.changeReturnWeekPct = null;
+                    this.changeReturnMonthPct = null;
+                    this.hasReturnPctChanges = false;
                     this.capitalInvested = 0;
                     this.hasCapitalData = false;
                 }
@@ -580,11 +597,16 @@ function portfolioDashboard() {
                         this.changeCashWeekPct = changes.week?.gross_cash?.has_previous ? changes.week.gross_cash.pct_change : null;
                         this.changeCashMonthPct = changes.month?.gross_cash?.has_previous ? changes.month.gross_cash.pct_change : null;
                         this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
-                        // Equity changes
-                        this.changeEquityDayPct = changes.yesterday?.equity_value?.has_previous ? changes.yesterday.equity_value.pct_change : null;
-                        this.changeEquityWeekPct = changes.week?.equity_value?.has_previous ? changes.week.equity_value.pct_change : null;
-                        this.changeEquityMonthPct = changes.month?.equity_value?.has_previous ? changes.month.equity_value.pct_change : null;
-                        this.hasEquityChanges = this.changeEquityDayPct !== null || this.changeEquityWeekPct !== null || this.changeEquityMonthPct !== null;
+                        // Net return $ changes (raw_change = dollar movement in return)
+                        this.changeReturnDayDollar = changes.yesterday?.net_equity_return?.has_previous ? changes.yesterday.net_equity_return.raw_change : null;
+                        this.changeReturnWeekDollar = changes.week?.net_equity_return?.has_previous ? changes.week.net_equity_return.raw_change : null;
+                        this.changeReturnMonthDollar = changes.month?.net_equity_return?.has_previous ? changes.month.net_equity_return.raw_change : null;
+                        this.hasReturnDollarChanges = this.changeReturnDayDollar !== null || this.changeReturnWeekDollar !== null || this.changeReturnMonthDollar !== null;
+                        // Net return % changes (raw_change = percentage point movement)
+                        this.changeReturnDayPct = changes.yesterday?.net_equity_return_pct?.has_previous ? changes.yesterday.net_equity_return_pct.raw_change : null;
+                        this.changeReturnWeekPct = changes.week?.net_equity_return_pct?.has_previous ? changes.week.net_equity_return_pct.raw_change : null;
+                        this.changeReturnMonthPct = changes.month?.net_equity_return_pct?.has_previous ? changes.month.net_equity_return_pct.raw_change : null;
+                        this.hasReturnPctChanges = this.changeReturnDayPct !== null || this.changeReturnWeekPct !== null || this.changeReturnMonthPct !== null;
                     } else {
                         this.changeDayPct = null;
                         this.changeWeekPct = null;
@@ -594,10 +616,14 @@ function portfolioDashboard() {
                         this.changeCashWeekPct = null;
                         this.changeCashMonthPct = null;
                         this.hasCashChanges = false;
-                        this.changeEquityDayPct = null;
-                        this.changeEquityWeekPct = null;
-                        this.changeEquityMonthPct = null;
-                        this.hasEquityChanges = false;
+                        this.changeReturnDayDollar = null;
+                        this.changeReturnWeekDollar = null;
+                        this.changeReturnMonthDollar = null;
+                        this.hasReturnDollarChanges = false;
+                        this.changeReturnDayPct = null;
+                        this.changeReturnWeekPct = null;
+                        this.changeReturnMonthPct = null;
+                        this.hasReturnPctChanges = false;
                     }
                     // Re-parse capital performance
                     const cp = data.capital_performance;
@@ -641,6 +667,14 @@ function portfolioDashboard() {
         changePct(val) {
             if (val == null) return '-';
             return (val >= 0 ? '+' : '') + Number(val).toFixed(1) + '%';
+        },
+        changeDollar(val) {
+            if (val == null) return '-';
+            const sign = val >= 0 ? '+' : '';
+            const abs = Math.abs(val);
+            if (abs >= 1000000) return sign + (val / 1000000).toFixed(1) + 'M';
+            if (abs >= 1000) return sign + (val / 1000).toFixed(1) + 'K';
+            return sign + Number(val).toFixed(0);
         },
         changeClass(val) {
             if (val == null || val === 0) return 'change-neutral';
