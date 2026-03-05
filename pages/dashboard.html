@@ -140,14 +140,15 @@
                             <template x-for="h in filteredHoldings" :key="h.ticker">
                                 <tbody>
                                     <tr>
-                                        <td class="tool-name" rowspan="2" x-text="h.ticker"></td>
-                                        <td rowspan="2" x-text="h.name"></td>
+                                        <td class="tool-name" x-text="h.ticker"></td>
+                                        <td x-text="h.name"></td>
                                         <td class="text-right" x-text="fmt(h.market_value)"></td>
                                         <td class="text-right" x-text="pct(h.portfolio_weight_pct)"></td>
                                         <td class="text-right" :class="gainClass(h.net_return)" x-text="fmt(h.net_return)"></td>
                                         <td class="text-right" :class="gainClass(h.net_return_pct)" x-text="pct(h.net_return_pct)"></td>
                                     </tr>
                                     <tr class="holding-movement-row">
+                                        <td colspan="2"></td>
                                         <td colspan="4" class="holding-movement">
                                             <span :class="changeClass(h.yesterday_price_change_pct)" x-text="'D:' + changePct(h.yesterday_price_change_pct)"></span>
                                             <span :class="changeClass(h.last_week_price_change_pct)" x-text="'W:' + changePct(h.last_week_price_change_pct)"></span>
