@@ -135,6 +135,10 @@
                                     <th class="text-right">Weight%</th>
                                     <th class="text-right">Return $</th>
                                     <th class="text-right">Return %</th>
+                                    <th class="text-right">D%</th>
+                                    <th class="text-right">W%</th>
+                                    <th class="text-right">M%</th>
+                                    <th>Trend</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -146,6 +150,10 @@
                                         <td class="text-right" x-text="pct(h.portfolio_weight_pct)"></td>
                                         <td class="text-right" :class="gainClass(h.net_return)" x-text="fmt(h.net_return)"></td>
                                         <td class="text-right" :class="gainClass(h.net_return_pct)" x-text="pct(h.net_return_pct)"></td>
+                                        <td class="text-right" :class="changeClass(h.yesterday_price_change_pct)" x-text="changePct(h.yesterday_price_change_pct)"></td>
+                                        <td class="text-right" :class="changeClass(h.last_week_price_change_pct)" x-text="changePct(h.last_week_price_change_pct)"></td>
+                                        <td class="text-right" :class="changeClass(h.last_month_price_change_pct)" x-text="changePct(h.last_month_price_change_pct)"></td>
+                                        <td class="text-muted" x-text="h.trend_label || ''"></td>
                                     </tr>
                                 </template>
                             </tbody>

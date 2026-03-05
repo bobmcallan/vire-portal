@@ -22,6 +22,9 @@ body {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     background: #fff;
     color: #000;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
     line-height: 1.6;
     font-size: 0.875rem;
 }
@@ -51,7 +54,7 @@ a:hover {
    ============================================================ */
 
 .page {
-    min-height: 100vh;
+    flex: 1;
     display: flex;
     flex-direction: column;
 }
