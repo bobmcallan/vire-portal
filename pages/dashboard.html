@@ -113,6 +113,24 @@
                 <span class="text-muted">GROWTH CHART — NO DATA</span>
             </div>
 
+            <!-- Breadth bar -->
+            <div class="breadth-bar-section" x-show="hasBreadth" x-cloak>
+                <div class="breadth-summary-row">
+                    <span class="breadth-trend" :class="trendArrowClass(breadth?.trend_score)" x-text="breadth?.trend_label || ''"></span>
+                    <span class="text-muted" x-text="breadth?.today_change != null ? fmtTodayChange(breadth.today_change) : ''"></span>
+                </div>
+                <div class="breadth-bar">
+                    <div class="breadth-segment breadth-rising" :style="'width:' + (breadth?.rising_weight_pct || 0) + '%'"></div>
+                    <div class="breadth-segment breadth-flat" :style="'width:' + (breadth?.flat_weight_pct || 0) + '%'"></div>
+                    <div class="breadth-segment breadth-falling" :style="'width:' + (breadth?.falling_weight_pct || 0) + '%'"></div>
+                </div>
+                <div class="breadth-counts">
+                    <span x-text="(breadth?.rising_count || 0) + ' Rising'"></span>
+                    <span x-text="(breadth?.flat_count || 0) + ' Flat'"></span>
+                    <span x-text="(breadth?.falling_count || 0) + ' Falling'"></span>
+                </div>
+            </div>
+
             <!-- Holdings table -->
             <section class="panel-headed" x-show="holdings.length > 0" x-cloak>
                 <div class="panel-header">HOLDINGS</div>
@@ -145,12 +163,12 @@
                                         <td class="text-right" :class="gainClass(h.holding_return_net_pct)" x-text="pct(h.holding_return_net_pct)"></td>
                                     </tr>
                                     <tr class="holding-movement-row">
-                                        <td></td>
-                                        <td></td>
+                                        <td :class="trendArrowClass(h.trend_score)" x-text="trendArrow(h.trend_score)"></td>
+                                        <td class="text-muted" x-text="h.trend_label || ''"></td>
                                         <td :class="changeClass(h.yesterday_price_change_pct)" x-text="'D:' + changePct(h.yesterday_price_change_pct)"></td>
                                         <td :class="changeClass(h.last_week_price_change_pct)" x-text="'W:' + changePct(h.last_week_price_change_pct)"></td>
                                         <td :class="changeClass(h.last_month_price_change_pct)" x-text="'M:' + changePct(h.last_month_price_change_pct)"></td>
-                                        <td class="text-muted" x-text="h.trend_label || ''"></td>
+                                        <td class="text-right" :class="changeClass(holdingTodayChange(h))" x-text="fmtTodayChange(holdingTodayChange(h))"></td>
                                     </tr>
                                 </tbody>
                             </template>

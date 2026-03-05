@@ -1400,3 +1400,245 @@ func TestDashboardHandler_StressGlossaryTooltipBindings(t *testing.T) {
 		t.Error("expected :data-tooltip Alpine binding for glossary tooltips")
 	}
 }
+
+func TestDashboardHandler_StressBreadthBarBindings(t *testing.T) {
+	// Breadth bar section must use x-show/x-text/x-cloak (safe bindings, no x-html).
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Breadth bar section present and gated on hasBreadth
+	if !strings.Contains(body, `class="breadth-bar-section"`) {
+		t.Error("expected breadth-bar-section element in dashboard")
+	}
+	if !strings.Contains(body, `x-show="hasBreadth"`) {
+		t.Error("breadth bar must be conditional on hasBreadth")
+	}
+	// Trend label uses x-text (safe)
+	if !strings.Contains(body, `x-text="breadth?.trend_label || ''"`) {
+		t.Error("expected breadth trend_label rendered with x-text")
+	}
+	// Today change uses x-text (safe)
+	if !strings.Contains(body, `fmtTodayChange(breadth.today_change)`) {
+		t.Error("expected breadth today_change rendered via fmtTodayChange")
+	}
+	// Segment widths use :style (safe — sets style attribute)
+	if !strings.Contains(body, `breadth?.rising_weight_pct`) {
+		t.Error("expected rising_weight_pct in breadth bar segment style")
+	}
+	// Counts use x-text (safe)
+	if !strings.Contains(body, `Rising`) {
+		t.Error("expected Rising count label in breadth bar")
+	}
+	if !strings.Contains(body, `Falling`) {
+		t.Error("expected Falling count label in breadth bar")
+	}
+	// Must NOT use x-html
+	if strings.Contains(body, `x-html`) {
+		t.Error("SECURITY: breadth bar must not use x-html")
+	}
+}
+
+func TestDashboardHandler_StressTrendArrowBindings(t *testing.T) {
+	// Movement sub-row must use trendArrow/trendArrowClass and holdingTodayChange.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Trend arrow bindings in holding movement row
+	if !strings.Contains(body, `x-text="trendArrow(h.trend_score)"`) {
+		t.Error("expected trendArrow(h.trend_score) in movement sub-row")
+	}
+	if !strings.Contains(body, `:class="trendArrowClass(h.trend_score)"`) {
+		t.Error("expected trendArrowClass(h.trend_score) in movement sub-row")
+	}
+	// Today's dollar change in movement row
+	if !strings.Contains(body, `fmtTodayChange(holdingTodayChange(h))`) {
+		t.Error("expected fmtTodayChange(holdingTodayChange(h)) in movement sub-row")
+	}
+	if !strings.Contains(body, `:class="changeClass(holdingTodayChange(h))"`) {
+		t.Error("expected changeClass(holdingTodayChange(h)) color binding in movement sub-row")
+	}
+}
+
+func TestDashboardHandler_StressBreadthHelpersDefined(t *testing.T) {
+	// Verify common.js is referenced (which contains breadth helpers).
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, "common.js") {
+		t.Error("expected common.js reference — breadth helpers (trendArrow, computeBreadth, etc.) live there")
+	}
+	// Verify breadth bar CSS classes are defined
+	if !strings.Contains(body, "portal.css") {
+		t.Error("expected portal.css reference — breadth bar styles live there")
+	}
+}
+
+// --- Adversarial: Breadth bar :style binding must not allow CSS injection ---
+
+func TestDashboardHandler_StressBreadthStyleBindingsSafe(t *testing.T) {
+	// The breadth bar segment widths use :style bindings with percentage values.
+	// These MUST use the pattern 'width:' + (numeric || 0) + '%' to prevent
+	// injection of arbitrary CSS properties via malicious server data.
+	// Alpine.js :style sets the style attribute directly, so the value must
+	// be constrained to a simple width percentage.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Each segment must use the safe pattern: 'width:' + (value || 0) + '%'
+	segments := []string{"rising_weight_pct", "flat_weight_pct", "falling_weight_pct"}
+	for _, seg := range segments {
+		// Must use || 0 fallback to prevent undefined from leaking into style
+		expected := fmt.Sprintf(`'width:' + (breadth?.%s || 0) + '%%'`, seg)
+		if !strings.Contains(body, expected) {
+			t.Errorf("SECURITY: breadth segment %s must use safe :style pattern %q", seg, expected)
+		}
+	}
+
+	// Must NOT concatenate raw breadth values into style without || 0 guard
+	if strings.Contains(body, `:style="'width:' + breadth.rising_weight_pct"`) {
+		t.Error("SECURITY: raw breadth value in :style without fallback guard")
+	}
+}
+
+// --- Adversarial: Breadth bar section must have x-cloak to prevent FOUC ---
+
+func TestDashboardHandler_StressBreadthCloakPresent(t *testing.T) {
+	// The breadth bar section is conditionally shown (x-show="hasBreadth").
+	// Without x-cloak, the section briefly flashes before Alpine.js initializes.
+	// This is a usability bug, not security, but x-cloak is required.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Find the breadth-bar-section and verify it has x-cloak
+	if !strings.Contains(body, `class="breadth-bar-section" x-show="hasBreadth" x-cloak`) {
+		t.Error("breadth-bar-section must have both x-show and x-cloak to prevent FOUC")
+	}
+}
+
+// --- Adversarial: No x-html anywhere in breadth or trend bindings ---
+
+func TestDashboardHandler_StressBreadthNoXHTMLAnywhere(t *testing.T) {
+	// x-html is the primary XSS vector in Alpine.js. The breadth bar and trend
+	// arrow code must never use x-html. This is a broader check than the
+	// existing StressBreadthBarBindings test, which only checks the breadth section.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// x-html must not appear anywhere in the dashboard template
+	if strings.Contains(body, "x-html") {
+		t.Error("SECURITY: dashboard template must not use x-html (XSS risk)")
+	}
+}
+
+// --- Adversarial: Trend arrow uses safe Unicode, not raw HTML entities ---
+
+func TestDashboardHandler_StressTrendArrowNoHTMLEntities(t *testing.T) {
+	// The trendArrow() helper returns Unicode arrows (U+2191, U+2193, U+2192).
+	// If it returned HTML entities (e.g., &uarr;) instead, they would be
+	// rendered as literal text by x-text (safe) but look wrong visually.
+	// Verify the template uses x-text (not x-html) for the arrow, ensuring
+	// any future change to HTML entities would be caught visually.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Arrow must be rendered via x-text (which safely escapes HTML entities)
+	if !strings.Contains(body, `x-text="trendArrow(h.trend_score)"`) {
+		t.Error("trendArrow must use x-text binding (safe, escapes HTML entities)")
+	}
+	// Must NOT use x-html for the arrow (would enable script injection via arrow value)
+	if strings.Contains(body, `x-html="trendArrow`) {
+		t.Error("SECURITY: trendArrow must NOT use x-html")
+	}
+}
+
+// --- Adversarial: Concurrent dashboard loads must not race on breadth state ---
+
+func TestDashboardHandler_StressConcurrentDashboardServe(t *testing.T) {
+	// Multiple concurrent requests to the dashboard handler must not panic
+	// or produce corrupt HTML. This tests the Go handler, not the JS runtime.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	var wg sync.WaitGroup
+	const concurrency = 20
+	errors := make([]string, 0)
+	var mu sync.Mutex
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			req := httptest.NewRequest("GET", "/dashboard", nil)
+			addAuthCookie(req, fmt.Sprintf("user-%d", idx))
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				mu.Lock()
+				errors = append(errors, fmt.Sprintf("request %d: got %d", idx, w.Code))
+				mu.Unlock()
+				return
+			}
+			body := w.Body.String()
+			if !strings.Contains(body, "breadth-bar-section") {
+				mu.Lock()
+				errors = append(errors, fmt.Sprintf("request %d: missing breadth-bar-section", idx))
+				mu.Unlock()
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	for _, e := range errors {
+		t.Error(e)
+	}
+}

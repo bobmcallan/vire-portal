@@ -1125,6 +1125,51 @@ code {
     text-align: right;
 }
 
+.breadth-bar-section {
+    margin-bottom: 1.5rem;
+    border: 2px solid #000;
+    padding: 1rem;
+}
+
+.breadth-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-size: 0.8125rem;
+}
+
+.breadth-trend {
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.breadth-bar {
+    display: flex;
+    height: 1rem;
+    width: 100%;
+    margin-bottom: 0.5rem;
+    border: 1px solid #000;
+}
+
+.breadth-segment {
+    height: 100%;
+    min-width: 0;
+}
+
+.breadth-rising { background: #2d8a4e; }
+.breadth-flat { background: #888; }
+.breadth-falling { background: #b54747; }
+
+.breadth-counts {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #888;
+}
+
 .portfolio-summary-equity {
     border-bottom: 1px solid #888;
 }

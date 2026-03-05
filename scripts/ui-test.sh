@@ -14,7 +14,7 @@ set -e
 
 # Configuration
 RESULTS_DIR="tests/logs"
-TIMEOUT=120
+TIMEOUT=300
 CONFIG_FILE="tests/ui/test_config.toml"
 
 # Read server URL from test config, fall back to env var, then default

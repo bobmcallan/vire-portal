@@ -211,6 +211,8 @@ function portfolioDashboard() {
         changeReturnWeekPct: null,
         changeReturnMonthPct: null,
         hasReturnPctChanges: false,
+        breadth: null,
+        hasBreadth: false,
         watchlist: [],
         glossary: {},
         refreshing: false,
@@ -363,6 +365,9 @@ function portfolioDashboard() {
                         this.grossContributions = 0;
                         this.hasCapitalData = false;
                     }
+                    // Parse breadth (server or computed fallback)
+                    this.breadth = holdingsData.breadth || this.computeBreadth();
+                    this.hasBreadth = this.breadth !== null;
                 } else {
                     this.holdings = [];
                     this.portfolioTotalValue = 0;
@@ -394,6 +399,8 @@ function portfolioDashboard() {
                     this.hasReturnPctChanges = false;
                     this.capitalInvested = 0;
                     this.hasCapitalData = false;
+                    this.breadth = null;
+                    this.hasBreadth = false;
                 }
                 // Fetch growth history and watchlist (non-blocking, non-fatal)
                 this.fetchGrowthData();
@@ -687,6 +694,9 @@ function portfolioDashboard() {
                         this.grossContributions = 0;
                         this.hasCapitalData = false;
                     }
+                    // Re-parse breadth (server or computed fallback)
+                    this.breadth = data.breadth || this.computeBreadth();
+                    this.hasBreadth = this.breadth !== null;
                 }
                 // Re-fetch growth data and watchlist with force refresh
                 this.fetchGrowthData(true);
@@ -731,6 +741,69 @@ function portfolioDashboard() {
         changeClass(val) {
             if (val == null || val === 0) return 'change-neutral';
             return val > 0 ? 'change-up' : 'change-down';
+        },
+        trendArrow(score) {
+            if (score == null) return '\u2192';
+            if (score > 0.1) return '\u2191';
+            if (score < -0.1) return '\u2193';
+            return '\u2192';
+        },
+        trendArrowClass(score) {
+            if (score == null) return 'change-neutral';
+            if (score > 0.1) return 'change-up';
+            if (score < -0.1) return 'change-down';
+            return 'change-neutral';
+        },
+        holdingTodayChange(h) {
+            if (h.current_price == null || h.yesterday_close_price == null || h.units == null) return null;
+            return (h.current_price - h.yesterday_close_price) * h.units;
+        },
+        fmtTodayChange(val) {
+            if (val == null) return '';
+            const sign = val >= 0 ? '+' : '-';
+            const abs = Math.abs(val);
+            if (abs >= 1000000) return sign + '$' + (abs / 1000000).toFixed(1) + 'M';
+            if (abs >= 1000) return sign + '$' + (abs / 1000).toFixed(1) + 'K';
+            return sign + '$' + abs.toFixed(0);
+        },
+        computeBreadth() {
+            const active = this.holdings.filter(h => h.holding_value_market > 0);
+            if (active.length === 0) return null;
+            let rising = 0, flat = 0, falling = 0;
+            let risingWeight = 0, flatWeight = 0, fallingWeight = 0;
+            let totalWeight = 0;
+            let weightedScore = 0;
+            let todayChange = 0;
+            let todayValid = false;
+            for (const h of active) {
+                const w = h.holding_value_market || 0;
+                const score = h.trend_score || 0;
+                totalWeight += w;
+                weightedScore += score * w;
+                if (score > 0.1) { rising++; risingWeight += w; }
+                else if (score < -0.1) { falling++; fallingWeight += w; }
+                else { flat++; flatWeight += w; }
+                const tc = this.holdingTodayChange(h);
+                if (tc !== null) { todayChange += tc; todayValid = true; }
+            }
+            const avg = totalWeight > 0 ? weightedScore / totalWeight : 0;
+            let trend_label;
+            if (avg > 0.3) trend_label = 'Uptrend';
+            else if (avg > 0.1) trend_label = 'Mixed-Up';
+            else if (avg > -0.1) trend_label = 'Mixed';
+            else if (avg > -0.3) trend_label = 'Mixed-Down';
+            else trend_label = 'Downtrend';
+            return {
+                rising_count: rising,
+                flat_count: flat,
+                falling_count: falling,
+                rising_weight_pct: totalWeight > 0 ? (risingWeight / totalWeight) * 100 : 0,
+                flat_weight_pct: totalWeight > 0 ? (flatWeight / totalWeight) * 100 : 0,
+                falling_weight_pct: totalWeight > 0 ? (fallingWeight / totalWeight) * 100 : 0,
+                trend_label: trend_label,
+                trend_score: avg,
+                today_change: todayValid ? todayChange : null,
+            };
         },
         glossaryDef(term) {
             return this.glossary[term] || '';
