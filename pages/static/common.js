@@ -180,6 +180,7 @@ function portfolioDashboard() {
         defaultPortfolio: '',
         holdings: [],
         showClosed: false,
+        closedHoldings: null,
         portfolioTotalValue: 0,
         portfolioGain: 0,
         portfolioGainPct: 0,
@@ -221,8 +222,11 @@ function portfolioDashboard() {
         get isDefault() { return this.selected === this.defaultPortfolio; },
         get filteredHoldings() {
             let h = this.holdings.slice();
-            if (!this.showClosed) {
-                h = h.filter(x => x.holding_value_market !== 0);
+            if (this.showClosed && this.closedHoldings) {
+                const openTickers = new Set(h.map(x => x.ticker));
+                for (const ch of this.closedHoldings) {
+                    if (!openTickers.has(ch.ticker)) h.push(ch);
+                }
             }
             h.sort((a, b) => (a.ticker || '').localeCompare(b.ticker || ''));
             return h;
@@ -261,6 +265,9 @@ function portfolioDashboard() {
                     this.selected = this.portfolios[0].name;
                 }
                 if (this.selected) await this.loadPortfolio();
+                this.$watch('showClosed', (val) => {
+                    if (val) this.fetchClosedHoldings();
+                });
                 // Fetch glossary for tooltips (non-blocking)
                 vireStore.fetch('/api/glossary')
                     .then(async res => {
@@ -286,6 +293,7 @@ function portfolioDashboard() {
         async loadPortfolio() {
             if (!this.selected) return;
             this.portfolioLoading = true;
+            this.closedHoldings = null;
             try {
                 const holdingsRes = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected));
 
@@ -393,6 +401,23 @@ function portfolioDashboard() {
                 debugError('portfolioDashboard', 'loadPortfolio failed', e);
             } finally {
                 this.portfolioLoading = false;
+            }
+        },
+
+        async fetchClosedHoldings() {
+            if (!this.selected || this.closedHoldings !== null) return;
+            try {
+                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '?include_closed=true');
+                if (res.ok) {
+                    const data = await res.json();
+                    const all = vireStore.dedup(data.holdings || [], 'ticker');
+                    this.closedHoldings = all.filter(x => x.holding_value_market === 0);
+                } else {
+                    this.closedHoldings = [];
+                }
+            } catch (e) {
+                debugLog('portfolioDashboard', 'fetchClosedHoldings failed', e);
+                this.closedHoldings = [];
             }
         },
 
@@ -589,6 +614,7 @@ function portfolioDashboard() {
         async refreshPortfolio() {
             if (this.refreshing || !this.selected) return;
             this.refreshing = true;
+            this.closedHoldings = null;
             try {
                 vireStore.invalidate('/api/portfolios');
                 const res = await fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '?force_refresh=true');
