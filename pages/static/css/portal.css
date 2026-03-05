@@ -512,16 +512,11 @@ a:hover {
 .holding-movement-row td {
     border-bottom: 2px solid #000;
     padding-top: 0;
-}
-
-.holding-movement-row td[colspan="2"] {
-    border-bottom: none;
-}
-
-.holding-movement {
-    display: flex;
-    gap: 1.5rem;
     font-size: 0.75rem;
+}
+
+.holding-movement-row td:nth-child(-n+2) {
+    border-bottom: none;
 }
 
 .tool-name {
