@@ -1033,15 +1033,11 @@ code {
     flex-direction: column;
     gap: 0.25rem;
     flex: 1 1 0;
-    text-align: center;
+    text-align: left;
 }
 
 .portfolio-summary-item:last-child {
     text-align: right;
-}
-
-.portfolio-summary-item:first-child {
-    text-align: left;
 }
 
 .portfolio-summary-item .label {
