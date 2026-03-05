@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -454,6 +455,9 @@ func TestDashboardHandler_StressShowClosedCheckboxPresent(t *testing.T) {
 	if !strings.Contains(body, `portfolio-filter-label`) {
 		t.Error("expected portfolio-filter-label class on show closed checkbox label")
 	}
+	if !strings.Contains(body, `closedLoading`) {
+		t.Error("expected closedLoading indicator near show-closed checkbox")
+	}
 }
 
 func TestDashboardHandler_StressFilteredHoldingsLoop(t *testing.T) {
@@ -477,6 +481,29 @@ func TestDashboardHandler_StressFilteredHoldingsLoop(t *testing.T) {
 	rawCount := strings.Count(body, `x-for="h in holdings"`)
 	if rawCount > 0 {
 		t.Errorf("LOGIC: found %d x-for loops using raw 'holdings' — should use 'filteredHoldings'", rawCount)
+	}
+}
+
+func TestDashboardHandler_StressFetchClosedHoldingsAPI(t *testing.T) {
+	// Verify common.js has fetchClosedHoldings that calls include_closed=true
+	// and that closedHoldings/closedLoading properties are declared.
+	jsBytes, err := os.ReadFile("../../pages/static/common.js")
+	if err != nil {
+		t.Fatalf("failed to read common.js: %v", err)
+	}
+	js := string(jsBytes)
+
+	if !strings.Contains(js, "fetchClosedHoldings") {
+		t.Error("expected fetchClosedHoldings method in common.js")
+	}
+	if !strings.Contains(js, "include_closed=true") {
+		t.Error("expected include_closed=true API query in fetchClosedHoldings")
+	}
+	if !strings.Contains(js, "closedHoldings") {
+		t.Error("expected closedHoldings property in common.js")
+	}
+	if !strings.Contains(js, "closedLoading") {
+		t.Error("expected closedLoading property in common.js")
 	}
 }
 
@@ -563,9 +590,9 @@ func TestDashboardHandler_StressNewFieldBindingsSafe(t *testing.T) {
 	if strings.Contains(body, `gainClass(availableCash)`) {
 		t.Error("LOGIC: availableCash should not use gainClass — it is a neutral value, not a gain/loss")
 	}
-	// GROSS CASH BALANCE must use x-text (not x-html) and fmt() for formatting
-	if !strings.Contains(body, `x-text="fmt(grossCashBalance)"`) {
-		t.Error("expected grossCashBalance displayed with x-text fmt() binding")
+	// GROSS CONTRIBUTIONS must use x-text (not x-html) and fmt() for formatting
+	if !strings.Contains(body, `x-text="fmt(grossContributions)"`) {
+		t.Error("expected grossContributions displayed with x-text fmt() binding")
 	}
 	// DIVIDENDS must show actual (forecast) format
 	if !strings.Contains(body, `fmt(ledgerDividendReturn)`) || !strings.Contains(body, `fmt(totalDividends)`) {
@@ -586,7 +613,7 @@ func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
 	body := w.Body.String()
 
 	// Row 1: Composition labels
-	compositionLabels := []string{"PORTFOLIO VALUE", "GROSS CASH BALANCE", "AVAILABLE CASH", "NET EQUITY"}
+	compositionLabels := []string{"PORTFOLIO VALUE", "AVAILABLE CASH", "GROSS CONTRIBUTIONS"}
 	for _, label := range compositionLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected composition row label %q in dashboard", label)
@@ -1356,9 +1383,8 @@ func TestDashboardHandler_StressGlossaryTooltipBindings(t *testing.T) {
 	// Verify data-tooltip bindings use glossaryDef() (safe, no raw HTML)
 	expectedBindings := []string{
 		`glossaryDef('portfolio_value')`,
-		`glossaryDef('capital_gross')`,
 		`glossaryDef('capital_available')`,
-		`glossaryDef('equity_holdings_value')`,
+		`glossaryDef('capital_contributions_gross')`,
 		`glossaryDef('equity_holdings_return')`,
 		`glossaryDef('equity_holdings_return_pct')`,
 		`glossaryDef('income_dividends_forecast')`,

@@ -152,7 +152,7 @@ func TestDashboardShowClosedCheckbox(t *testing.T) {
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
 
-	takeScreenshot(t, ctx, "dashboard", "show-closed-checkbox.png")
+	takeScreenshot(t, ctx, "dashboard", "show-closed-before-click.png")
 
 	count, err := elementCount(ctx, ".portfolio-filter-label input[type='checkbox']")
 	if err != nil {
@@ -174,6 +174,84 @@ func TestDashboardShowClosedCheckbox(t *testing.T) {
 	}
 	if !labelOK {
 		t.Error("show-closed checkbox label does not contain expected text")
+	}
+
+	// Record row count before clicking
+	rowsBefore, err := elementCount(ctx, ".tool-table tbody tr")
+	if err != nil {
+		t.Fatalf("error counting rows before click: %v", err)
+	}
+	t.Logf("holdings rows before click: %d", rowsBefore)
+
+	// Install fetch observer to detect the include_closed API call
+	err = chromedp.Run(ctx, chromedp.Evaluate(`
+		window.__closedFetchCalled = false;
+		const _origFetch = window.fetch;
+		window.fetch = function(url, opts) {
+			if (typeof url === 'string' && url.includes('include_closed=true')) {
+				window.__closedFetchCalled = true;
+			}
+			return _origFetch.apply(this, arguments);
+		};
+	`, nil))
+	if err != nil {
+		t.Fatalf("error installing fetch observer: %v", err)
+	}
+
+	// Click the "Show closed positions" checkbox
+	err = chromedp.Run(ctx,
+		chromedp.Click(".portfolio-filter-label input[type='checkbox']", chromedp.ByQuery),
+	)
+	if err != nil {
+		t.Fatalf("error clicking show-closed checkbox: %v", err)
+	}
+
+	// Wait for the fetch to complete
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "show-closed-after-click.png")
+
+	// Verify the fetch with include_closed=true was called
+	fetchCalled, err := commontest.EvalBool(ctx, `window.__closedFetchCalled === true`)
+	if err != nil {
+		t.Fatalf("error checking fetch observer: %v", err)
+	}
+	if !fetchCalled {
+		t.Error("clicking 'Show closed positions' did not trigger fetch with include_closed=true")
+	}
+
+	// Verify checkbox is now checked
+	checked, err := commontest.EvalBool(ctx, `
+		document.querySelector('.portfolio-filter-label input[type="checkbox"]').checked
+	`)
+	if err != nil {
+		t.Fatalf("error checking checkbox state: %v", err)
+	}
+	if !checked {
+		t.Error("checkbox should be checked after click")
+	}
+
+	// Verify closedLoading is false (fetch completed)
+	loadingDone, err := commontest.EvalBool(ctx, `
+		(() => {
+			const comp = document.querySelector('[x-data]').__x.$data;
+			return comp.closedLoading === false;
+		})()
+	`)
+	if err != nil {
+		t.Logf("could not check closedLoading state: %v", err)
+	} else if !loadingDone {
+		t.Error("closedLoading should be false after fetch completes")
+	}
+
+	// Log row count after clicking (may include closed positions now)
+	rowsAfter, err := elementCount(ctx, ".tool-table tbody tr")
+	if err != nil {
+		t.Fatalf("error counting rows after click: %v", err)
+	}
+	t.Logf("holdings rows after click: %d (before: %d)", rowsAfter, rowsBefore)
+	if rowsAfter > rowsBefore {
+		t.Logf("closed positions added: %d new rows", rowsAfter-rowsBefore)
 	}
 }
 
@@ -200,13 +278,13 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Skip("portfolio summary not visible (no holdings data available)")
 	}
 
-	// Verify the first .portfolio-summary row has exactly 4 items (PORTFOLIO VALUE, GROSS CASH BALANCE, AVAILABLE CASH, NET EQUITY)
+	// Verify the first .portfolio-summary row has exactly 3 items (PORTFOLIO VALUE, AVAILABLE CASH, GROSS CONTRIBUTIONS)
 	count, err := elementCount(ctx, ".portfolio-summary:not(.portfolio-summary-performance) .portfolio-summary-item")
 	if err != nil {
 		t.Fatalf("error counting summary items: %v", err)
 	}
-	if count != 4 {
-		t.Errorf("portfolio summary item count = %d, want 4", count)
+	if count != 3 {
+		t.Errorf("portfolio summary item count = %d, want 3", count)
 	}
 
 	// Verify the composition row labels
@@ -215,9 +293,9 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 			const row = document.querySelector('.portfolio-summary:not(.portfolio-summary-performance)');
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
-			if (labels.length !== 4) return false;
-			const expected = ['PORTFOLIO VALUE', 'GROSS CASH BALANCE', 'AVAILABLE CASH', 'NET EQUITY'];
-			for (let i = 0; i < 4; i++) {
+			if (labels.length !== 3) return false;
+			const expected = ['PORTFOLIO VALUE', 'AVAILABLE CASH', 'GROSS CONTRIBUTIONS'];
+			for (let i = 0; i < 3; i++) {
 				if (!labels[i].textContent.includes(expected[i])) return false;
 			}
 			return true;
@@ -227,7 +305,7 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Fatalf("error checking summary labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("composition row labels should be PORTFOLIO VALUE, GROSS CASH BALANCE, AVAILABLE CASH, NET EQUITY")
+		t.Error("composition row labels should be PORTFOLIO VALUE, AVAILABLE CASH, GROSS CONTRIBUTIONS")
 	}
 
 	// Verify summary spans full content width (justify-content: space-between)
@@ -503,8 +581,8 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error counting composition summary items: %v", err)
 	}
-	if compositionCount != 4 {
-		t.Errorf("composition summary item count = %d, want 4", compositionCount)
+	if compositionCount != 3 {
+		t.Errorf("composition summary item count = %d, want 3", compositionCount)
 	}
 
 	compositionLabelsCorrect, err := commontest.EvalBool(ctx, `
@@ -512,9 +590,9 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 			const row = document.querySelector('.portfolio-summary:not(.portfolio-summary-performance)');
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
-			if (labels.length !== 4) return false;
-			const expected = ['PORTFOLIO VALUE', 'GROSS CASH BALANCE', 'AVAILABLE CASH', 'NET EQUITY'];
-			for (let i = 0; i < 4; i++) {
+			if (labels.length !== 3) return false;
+			const expected = ['PORTFOLIO VALUE', 'AVAILABLE CASH', 'GROSS CONTRIBUTIONS'];
+			for (let i = 0; i < 3; i++) {
 				if (!labels[i].textContent.includes(expected[i])) return false;
 			}
 			return true;
@@ -524,7 +602,7 @@ func TestDashboardCapitalPerformance(t *testing.T) {
 		t.Fatalf("error checking composition labels: %v", err)
 	}
 	if !compositionLabelsCorrect {
-		t.Error("composition row labels do not match expected: PORTFOLIO VALUE, GROSS CASH BALANCE, AVAILABLE CASH, NET EQUITY")
+		t.Error("composition row labels do not match expected: PORTFOLIO VALUE, AVAILABLE CASH, GROSS CONTRIBUTIONS")
 	}
 
 	// ===== Row 2: Performance =====

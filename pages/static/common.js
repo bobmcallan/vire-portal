@@ -181,6 +181,7 @@ function portfolioDashboard() {
         holdings: [],
         showClosed: false,
         closedHoldings: null,
+        closedLoading: false,
         portfolioTotalValue: 0,
         portfolioGain: 0,
         portfolioGainPct: 0,
@@ -406,8 +407,9 @@ function portfolioDashboard() {
 
         async fetchClosedHoldings() {
             if (!this.selected || this.closedHoldings !== null) return;
+            this.closedLoading = true;
             try {
-                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '?include_closed=true');
+                const res = await fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '?include_closed=true');
                 if (res.ok) {
                     const data = await res.json();
                     const all = vireStore.dedup(data.holdings || [], 'ticker');
@@ -418,6 +420,8 @@ function portfolioDashboard() {
             } catch (e) {
                 debugLog('portfolioDashboard', 'fetchClosedHoldings failed', e);
                 this.closedHoldings = [];
+            } finally {
+                this.closedLoading = false;
             }
         },
 

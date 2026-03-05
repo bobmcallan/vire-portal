@@ -70,16 +70,12 @@
                     </span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">GROSS CASH BALANCE <span class="label-info" :data-tooltip="glossaryDef('capital_gross')">i</span></span>
-                    <span class="text-bold" x-text="fmt(grossCashBalance)"></span>
-                </div>
-                <div class="portfolio-summary-item">
                     <span class="label">AVAILABLE CASH <span class="label-info" :data-tooltip="glossaryDef('capital_available')">i</span></span>
                     <span class="text-bold" x-text="fmt(availableCash)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">NET EQUITY <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_value')">i</span></span>
-                    <span class="text-bold" x-text="fmt(equityValue)"></span>
+                    <span class="label">GROSS CONTRIBUTIONS <span class="label-info" :data-tooltip="glossaryDef('capital_contributions_gross')">i</span></span>
+                    <span class="text-bold" x-text="fmt(grossContributions)"></span>
                 </div>
             </div>
 
@@ -124,6 +120,7 @@
                     <label class="portfolio-filter-label">
                         <input type="checkbox" x-model="showClosed">
                         <span>Show closed positions</span>
+                        <span class="text-muted" x-show="closedLoading" x-cloak> Loading...</span>
                     </label>
                     <div class="table-wrap">
                         <table class="tool-table">
