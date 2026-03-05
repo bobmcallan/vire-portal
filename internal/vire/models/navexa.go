@@ -20,26 +20,26 @@ type NavexaPortfolio struct {
 
 // NavexaHolding represents a Navexa holding response
 type NavexaHolding struct {
-	ID                 string    `json:"id"`
-	PortfolioID        string    `json:"portfolio_id"`
-	Ticker             string    `json:"ticker"`
-	Exchange           string    `json:"exchange"`
-	Name               string    `json:"name"`
-	Units              float64   `json:"units"`
-	AvgCost            float64   `json:"avg_cost"`
-	TotalCost          float64   `json:"total_cost"`
-	CurrentPrice       float64   `json:"current_price"`
-	MarketValue        float64   `json:"market_value"`
-	GainLoss           float64   `json:"gain_loss"`
-	GainLossPct        float64   `json:"gain_loss_pct"` // IRR p.a. from Navexa
-	DividendYield      float64   `json:"dividend_yield"`
-	DividendReturn     float64   `json:"dividend_return"`
-	CapitalGainPct     float64   `json:"capital_gain_pct"` // IRR p.a. from Navexa
-	TotalReturnValue   float64   `json:"total_return_value"`
-	TotalReturnPct     float64   `json:"total_return_pct"`      // IRR p.a. from Navexa
-	TotalReturnPctTWRR float64   `json:"total_return_pct_twrr"` // Time-weighted return (computed locally)
-	Currency           string    `json:"currency"`              // Holding currency code (e.g. "AUD", "USD")
-	LastUpdated        time.Time `json:"last_updated"`
+	ID                    string    `json:"id"`
+	PortfolioID           string    `json:"portfolio_id"`
+	Ticker                string    `json:"ticker"`
+	Exchange              string    `json:"exchange"`
+	Name                  string    `json:"name"`
+	Units                 float64   `json:"units"`
+	HoldingCostAvg        float64   `json:"holding_cost_avg"`
+	TotalCost             float64   `json:"total_cost"`
+	CurrentPrice          float64   `json:"current_price"`
+	HoldingValueMarket    float64   `json:"holding_value_market"`
+	GainLoss              float64   `json:"gain_loss"`
+	GainLossPct           float64   `json:"gain_loss_pct"` // IRR p.a. from Navexa
+	DividendYield         float64   `json:"dividend_yield"`
+	IncomeDividendsNavexa float64   `json:"income_dividends_navexa"`
+	CapitalGainPct        float64   `json:"capital_gain_pct"` // IRR p.a. from Navexa
+	TotalReturnValue      float64   `json:"total_return_value"`
+	TotalReturnPct        float64   `json:"total_return_pct"`      // IRR p.a. from Navexa
+	TotalReturnPctTWRR    float64   `json:"total_return_pct_twrr"` // Time-weighted return (computed locally)
+	Currency              string    `json:"currency"`              // Holding currency code (e.g. "AUD", "USD")
+	LastUpdated           time.Time `json:"last_updated"`
 }
 
 // EODHDTicker returns the full EODHD-format ticker (e.g. "BHP.AU", "CBOE.US").

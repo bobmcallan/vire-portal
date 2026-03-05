@@ -41,46 +41,46 @@ type ComplianceResult struct {
 
 // Portfolio represents a stock portfolio
 type Portfolio struct {
-	ID                  string    `json:"id"`
-	Name                string    `json:"name"`
-	NavexaID            string    `json:"navexa_id,omitempty"`
-	Holdings            []Holding `json:"holdings"`
-	PortfolioValue      float64   `json:"portfolio_value"`
-	NetEquityCost       float64   `json:"net_equity_cost"`
-	NetEquityReturn     float64   `json:"net_equity_return"`
-	NetEquityReturnPct  float64   `json:"net_equity_return_pct"`
-	GrossCashBalance    float64   `json:"gross_cash_balance,omitempty"`
-	NetCashBalance      float64   `json:"net_cash_balance,omitempty"`
-	NetCapitalReturn    float64   `json:"net_capital_return,omitempty"`
-	NetCapitalReturnPct float64   `json:"net_capital_return_pct,omitempty"`
-	Currency            string    `json:"currency"`
-	FXRate              float64   `json:"fx_rate,omitempty"` // AUDUSD rate used for currency conversion at sync time
-	LastSynced          time.Time `json:"last_synced"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ID                      string    `json:"id"`
+	Name                    string    `json:"name"`
+	NavexaID                string    `json:"navexa_id,omitempty"`
+	Holdings                []Holding `json:"holdings"`
+	PortfolioValue          float64   `json:"portfolio_value"`
+	EquityHoldingsCost      float64   `json:"equity_holdings_cost"`
+	EquityHoldingsReturn    float64   `json:"equity_holdings_return"`
+	EquityHoldingsReturnPct float64   `json:"equity_holdings_return_pct"`
+	CapitalGross            float64   `json:"capital_gross,omitempty"`
+	CapitalAvailable        float64   `json:"capital_available,omitempty"`
+	PortfolioReturn         float64   `json:"portfolio_return,omitempty"`
+	PortfolioReturnPct      float64   `json:"portfolio_return_pct,omitempty"`
+	Currency                string    `json:"currency"`
+	FXRate                  float64   `json:"fx_rate,omitempty"` // AUDUSD rate used for currency conversion at sync time
+	LastSynced              time.Time `json:"last_synced"`
+	CreatedAt               time.Time `json:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at"`
 }
 
 // Holding represents a portfolio position
 type Holding struct {
-	Ticker                     string         `json:"ticker"`
-	Exchange                   string         `json:"exchange"`
-	Name                       string         `json:"name"`
-	Units                      float64        `json:"units"`
-	AvgCost                    float64        `json:"avg_cost"`
-	CurrentPrice               float64        `json:"current_price"`
-	MarketValue                float64        `json:"market_value"`
-	PortfolioWeightPct         float64        `json:"portfolio_weight_pct"` // Portfolio weight percentage
-	CostBasis                  float64        `json:"cost_basis"`
-	GrossProceeds              float64        `json:"gross_proceeds,omitempty"`
-	DividendReturn             float64        `json:"dividend_return"`
-	AnnualizedCapitalReturnPct float64        `json:"annualized_capital_return_pct"`
-	TimeWeightedReturnPct      float64        `json:"time_weighted_return_pct"`
-	NetReturn                  float64        `json:"net_return"`
-	NetReturnPct               float64        `json:"net_return_pct"`
-	Currency                   string         `json:"currency"`          // Holding currency (AUD, USD)
-	Country                    string         `json:"country,omitempty"` // Domicile country ISO code (e.g. "AU", "US")
-	Trades                     []*NavexaTrade `json:"trades,omitempty"`
-	LastUpdated                time.Time      `json:"last_updated"`
+	Ticker                string         `json:"ticker"`
+	Exchange              string         `json:"exchange"`
+	Name                  string         `json:"name"`
+	Units                 float64        `json:"units"`
+	HoldingCostAvg        float64        `json:"holding_cost_avg"`
+	CurrentPrice          float64        `json:"current_price"`
+	HoldingValueMarket    float64        `json:"holding_value_market"`
+	HoldingWeightPct      float64        `json:"holding_weight_pct"` // Portfolio weight percentage
+	CostBasis             float64        `json:"cost_basis"`
+	GrossProceeds         float64        `json:"gross_proceeds,omitempty"`
+	IncomeDividendsNavexa float64        `json:"income_dividends_navexa"`
+	CapitalReturnXirrPct  float64        `json:"capital_return_xirr_pct"`
+	TimeWeightedReturnPct float64        `json:"time_weighted_return_pct"`
+	HoldingReturnNet      float64        `json:"holding_return_net"`
+	HoldingReturnNetPct   float64        `json:"holding_return_net_pct"`
+	Currency              string         `json:"currency"`          // Holding currency (AUD, USD)
+	Country               string         `json:"country,omitempty"` // Domicile country ISO code (e.g. "AU", "US")
+	Trades                []*NavexaTrade `json:"trades,omitempty"`
+	LastUpdated           time.Time      `json:"last_updated"`
 }
 
 // EODHDTicker returns the full EODHD-format ticker (e.g. "BHP.AU", "CBOE.US").
@@ -94,7 +94,7 @@ type PortfolioReview struct {
 	PortfolioName         string            `json:"portfolio_name"`
 	ReviewDate            time.Time         `json:"review_date"`
 	PortfolioValue        float64           `json:"portfolio_value"`
-	NetEquityCost         float64           `json:"net_equity_cost"`
+	EquityHoldingsCost    float64           `json:"equity_holdings_cost"`
 	PortfolioDayChange    float64           `json:"portfolio_day_change"`
 	PortfolioDayChangePct float64           `json:"portfolio_day_change_pct"`
 	FXRate                float64           `json:"fx_rate,omitempty"` // AUDUSD rate used for currency conversion
@@ -150,29 +150,29 @@ type Alert struct {
 // PortfolioSnapshot represents the reconstructed state of a portfolio at a historical date.
 // Computed on demand from trade history and EOD prices — not stored.
 type PortfolioSnapshot struct {
-	PortfolioName string
-	AsOfDate      time.Time
-	PriceDate     time.Time // actual trading day used for prices (may differ on weekends/holidays)
-	Holdings      []SnapshotHolding
-	EquityValue   float64
-	NetEquityCost float64
+	PortfolioName       string
+	AsOfDate            time.Time
+	PriceDate           time.Time // actual trading day used for prices (may differ on weekends/holidays)
+	Holdings            []SnapshotHolding
+	EquityHoldingsValue float64
+	EquityHoldingsCost  float64
 }
 
 // SnapshotHolding represents a single position within a historical portfolio snapshot.
 type SnapshotHolding struct {
-	Ticker, Name              string
-	Units, AvgCost, CostBasis float64
-	ClosePrice, MarketValue   float64
-	PortfolioWeightPct        float64
+	Ticker, Name                     string
+	Units, HoldingCostAvg, CostBasis float64
+	ClosePrice, HoldingValueMarket   float64
+	HoldingWeightPct                 float64
 }
 
 // GrowthDataPoint represents a single point in the portfolio growth time series.
 // Computed on demand from monthly snapshots — not stored.
 type GrowthDataPoint struct {
-	Date          time.Time
-	EquityValue   float64
-	NetEquityCost float64
-	HoldingCount  int
+	Date                time.Time
+	EquityHoldingsValue float64
+	EquityHoldingsCost  float64
+	HoldingCount        int
 }
 
 // AlertType categorizes alerts

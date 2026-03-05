@@ -502,11 +502,11 @@ func TestDashboardHandler_StressSummaryGainColorBindings(t *testing.T) {
 		t.Error("expected :class gainClass binding on totalGainPct summary")
 	}
 	// Per-row gain $ must have :class for color
-	if !strings.Contains(body, `:class="gainClass(h.net_return)"`) {
+	if !strings.Contains(body, `:class="gainClass(h.holding_return_net)"`) {
 		t.Error("expected :class gainClass binding on per-holding gain $ column")
 	}
 	// Per-row gain % must have :class for color
-	if !strings.Contains(body, `:class="gainClass(h.net_return_pct)"`) {
+	if !strings.Contains(body, `:class="gainClass(h.holding_return_net_pct)"`) {
 		t.Error("expected :class gainClass binding on per-holding gain % column")
 	}
 }
@@ -1356,12 +1356,12 @@ func TestDashboardHandler_StressGlossaryTooltipBindings(t *testing.T) {
 	// Verify data-tooltip bindings use glossaryDef() (safe, no raw HTML)
 	expectedBindings := []string{
 		`glossaryDef('portfolio_value')`,
-		`glossaryDef('gross_cash_balance')`,
-		`glossaryDef('net_cash_balance')`,
-		`glossaryDef('equity_value')`,
-		`glossaryDef('net_equity_return')`,
-		`glossaryDef('net_equity_return_pct')`,
-		`glossaryDef('dividend_forecast')`,
+		`glossaryDef('capital_gross')`,
+		`glossaryDef('capital_available')`,
+		`glossaryDef('equity_holdings_value')`,
+		`glossaryDef('equity_holdings_return')`,
+		`glossaryDef('equity_holdings_return_pct')`,
+		`glossaryDef('income_dividends_forecast')`,
 	}
 	for _, binding := range expectedBindings {
 		if !strings.Contains(body, binding) {
