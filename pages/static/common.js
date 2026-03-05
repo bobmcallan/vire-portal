@@ -209,6 +209,7 @@ function portfolioDashboard() {
         changeReturnWeekPct: null,
         changeReturnMonthPct: null,
         hasReturnPctChanges: false,
+        watchlist: [],
         glossary: {},
         refreshing: false,
         growthData: [],
@@ -307,15 +308,15 @@ function portfolioDashboard() {
                         this.changeCashWeekPct = changes.week?.gross_cash?.has_previous ? changes.week.gross_cash.pct_change : null;
                         this.changeCashMonthPct = changes.month?.gross_cash?.has_previous ? changes.month.gross_cash.pct_change : null;
                         this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
-                        // Net return $ changes (raw_change = dollar movement in return)
-                        this.changeReturnDayDollar = changes.yesterday?.net_equity_return?.has_previous ? changes.yesterday.net_equity_return.raw_change : null;
-                        this.changeReturnWeekDollar = changes.week?.net_equity_return?.has_previous ? changes.week.net_equity_return.raw_change : null;
-                        this.changeReturnMonthDollar = changes.month?.net_equity_return?.has_previous ? changes.month.net_equity_return.raw_change : null;
+                        // Equity value $ changes (raw_change = dollar movement)
+                        this.changeReturnDayDollar = changes.yesterday?.equity_value?.has_previous ? changes.yesterday.equity_value.raw_change : null;
+                        this.changeReturnWeekDollar = changes.week?.equity_value?.has_previous ? changes.week.equity_value.raw_change : null;
+                        this.changeReturnMonthDollar = changes.month?.equity_value?.has_previous ? changes.month.equity_value.raw_change : null;
                         this.hasReturnDollarChanges = this.changeReturnDayDollar !== null || this.changeReturnWeekDollar !== null || this.changeReturnMonthDollar !== null;
-                        // Net return % changes (raw_change = percentage point movement)
-                        this.changeReturnDayPct = changes.yesterday?.net_equity_return_pct?.has_previous ? changes.yesterday.net_equity_return_pct.raw_change : null;
-                        this.changeReturnWeekPct = changes.week?.net_equity_return_pct?.has_previous ? changes.week.net_equity_return_pct.raw_change : null;
-                        this.changeReturnMonthPct = changes.month?.net_equity_return_pct?.has_previous ? changes.month.net_equity_return_pct.raw_change : null;
+                        // Equity value % changes (pct_change = percentage movement)
+                        this.changeReturnDayPct = changes.yesterday?.equity_value?.has_previous ? changes.yesterday.equity_value.pct_change : null;
+                        this.changeReturnWeekPct = changes.week?.equity_value?.has_previous ? changes.week.equity_value.pct_change : null;
+                        this.changeReturnMonthPct = changes.month?.equity_value?.has_previous ? changes.month.equity_value.pct_change : null;
                         this.hasReturnPctChanges = this.changeReturnDayPct !== null || this.changeReturnWeekPct !== null || this.changeReturnMonthPct !== null;
                     } else {
                         this.changeDayPct = null;
@@ -385,8 +386,9 @@ function portfolioDashboard() {
                     this.capitalInvested = 0;
                     this.hasCapitalData = false;
                 }
-                // Fetch growth history (non-blocking, non-fatal)
+                // Fetch growth history and watchlist (non-blocking, non-fatal)
                 this.fetchGrowthData();
+                this.fetchWatchlist();
             } catch (e) {
                 debugError('portfolioDashboard', 'loadPortfolio failed', e);
             } finally {
@@ -414,6 +416,21 @@ function portfolioDashboard() {
                 debugLog('portfolioDashboard', 'growth data fetch failed', e);
                 this.growthData = [];
                 this.hasGrowthData = false;
+            }
+        },
+
+        async fetchWatchlist() {
+            try {
+                const res = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/watchlist');
+                if (res.ok) {
+                    const data = await res.json();
+                    this.watchlist = data.items || [];
+                } else {
+                    this.watchlist = [];
+                }
+            } catch (e) {
+                debugLog('portfolioDashboard', 'watchlist fetch failed', e);
+                this.watchlist = [];
             }
         },
 
@@ -601,15 +618,15 @@ function portfolioDashboard() {
                         this.changeCashWeekPct = changes.week?.gross_cash?.has_previous ? changes.week.gross_cash.pct_change : null;
                         this.changeCashMonthPct = changes.month?.gross_cash?.has_previous ? changes.month.gross_cash.pct_change : null;
                         this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
-                        // Net return $ changes (raw_change = dollar movement in return)
-                        this.changeReturnDayDollar = changes.yesterday?.net_equity_return?.has_previous ? changes.yesterday.net_equity_return.raw_change : null;
-                        this.changeReturnWeekDollar = changes.week?.net_equity_return?.has_previous ? changes.week.net_equity_return.raw_change : null;
-                        this.changeReturnMonthDollar = changes.month?.net_equity_return?.has_previous ? changes.month.net_equity_return.raw_change : null;
+                        // Equity value $ changes (raw_change = dollar movement)
+                        this.changeReturnDayDollar = changes.yesterday?.equity_value?.has_previous ? changes.yesterday.equity_value.raw_change : null;
+                        this.changeReturnWeekDollar = changes.week?.equity_value?.has_previous ? changes.week.equity_value.raw_change : null;
+                        this.changeReturnMonthDollar = changes.month?.equity_value?.has_previous ? changes.month.equity_value.raw_change : null;
                         this.hasReturnDollarChanges = this.changeReturnDayDollar !== null || this.changeReturnWeekDollar !== null || this.changeReturnMonthDollar !== null;
-                        // Net return % changes (raw_change = percentage point movement)
-                        this.changeReturnDayPct = changes.yesterday?.net_equity_return_pct?.has_previous ? changes.yesterday.net_equity_return_pct.raw_change : null;
-                        this.changeReturnWeekPct = changes.week?.net_equity_return_pct?.has_previous ? changes.week.net_equity_return_pct.raw_change : null;
-                        this.changeReturnMonthPct = changes.month?.net_equity_return_pct?.has_previous ? changes.month.net_equity_return_pct.raw_change : null;
+                        // Equity value % changes (pct_change = percentage movement)
+                        this.changeReturnDayPct = changes.yesterday?.equity_value?.has_previous ? changes.yesterday.equity_value.pct_change : null;
+                        this.changeReturnWeekPct = changes.week?.equity_value?.has_previous ? changes.week.equity_value.pct_change : null;
+                        this.changeReturnMonthPct = changes.month?.equity_value?.has_previous ? changes.month.equity_value.pct_change : null;
                         this.hasReturnPctChanges = this.changeReturnDayPct !== null || this.changeReturnWeekPct !== null || this.changeReturnMonthPct !== null;
                     } else {
                         this.changeDayPct = null;
@@ -641,8 +658,9 @@ function portfolioDashboard() {
                         this.hasCapitalData = false;
                     }
                 }
-                // Re-fetch growth data with force refresh
+                // Re-fetch growth data and watchlist with force refresh
                 this.fetchGrowthData(true);
+                this.fetchWatchlist();
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Portfolio refreshed' } }));
             } catch (e) {
                 debugError('portfolioDashboard', 'refreshPortfolio failed', e);

@@ -1002,6 +1002,11 @@ code {
 .gain-positive { color: #2d8a4e; }
 .gain-negative { color: #a33; }
 
+.watchlist-verdict { font-weight: 600; text-transform: uppercase; font-size: 0.85em; }
+.verdict-pass { color: #2d8a4e; }
+.verdict-watch { color: #b58a1b; }
+.verdict-fail { color: #a33; }
+
 .portfolio-loading-overlay {
     position: absolute;
     top: 0;
@@ -1032,11 +1037,6 @@ code {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    flex: 1 1 0;
-    text-align: center;
-}
-
-.portfolio-summary-item:first-child {
     text-align: left;
 }
 

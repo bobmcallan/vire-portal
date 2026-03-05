@@ -154,6 +154,39 @@
                 </div>
             </section>
 
+            <!-- Watchlist table -->
+            <section class="panel-headed" x-show="watchlist.length > 0" x-cloak>
+                <div class="panel-header">WATCHLIST</div>
+                <div class="panel-content">
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead>
+                                <tr>
+                                    <th>Ticker</th>
+                                    <th>Name</th>
+                                    <th>Verdict</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="w in watchlist" :key="w.ticker">
+                                    <tr>
+                                        <td class="tool-name" x-text="w.ticker"></td>
+                                        <td x-text="w.name || ''"></td>
+                                        <td>
+                                            <span class="watchlist-verdict"
+                                                :class="{'verdict-pass': w.verdict === 'PASS', 'verdict-watch': w.verdict === 'WATCH', 'verdict-fail': w.verdict === 'FAIL'}"
+                                                x-text="w.verdict"></span>
+                                        </td>
+                                        <td class="text-muted" x-text="w.reason || ''"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
         </div>
     </main>
 
