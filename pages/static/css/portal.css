@@ -515,9 +515,6 @@ a:hover {
     font-size: 0.75rem;
 }
 
-.holding-movement-row td:nth-child(-n+2) {
-    border-bottom: none;
-}
 
 .tool-name {
     font-weight: 700;
