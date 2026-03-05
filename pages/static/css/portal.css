@@ -505,6 +505,21 @@ a:hover {
     background: #e5e5e5;
 }
 
+.tool-table tbody:has(.holding-movement-row) > tr:first-child td {
+    border-bottom: none;
+}
+
+.holding-movement-row td {
+    border-bottom: 2px solid #000;
+    padding-top: 0;
+}
+
+.holding-movement {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.75rem;
+}
+
 .tool-name {
     font-weight: 700;
     white-space: nowrap;
