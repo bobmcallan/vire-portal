@@ -347,6 +347,9 @@ function portfolioDashboard() {
 
                     if (ssrData.portfolio) {
                         this._applyPortfolioData(ssrData.portfolio);
+                        console.log('[dashboard] SSR portfolio: holdings=' + this.holdings.length + ' breadth=' + this.hasBreadth + ' value=' + this.portfolioTotalValue);
+                    } else {
+                        console.warn('[dashboard] SSR portfolio data is null — server fetch may have failed');
                     }
                     if (ssrData.timeline) {
                         this._applyTimelineData(ssrData.timeline);
@@ -592,39 +595,35 @@ function portfolioDashboard() {
             const sizerEl = document.getElementById('growthChartSizer');
             if (!canvas || !scrollEl || !sizerEl || typeof Chart === 'undefined') return;
 
-            const totalPoints = this.growthData.length;
+            if (this.growthData.length === 0) return;
+
+            // Filter to last 6 months from today
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            const chartData = this.growthData.filter(p => new Date(p.date) >= sixMonthsAgo);
+            const totalPoints = chartData.length;
             if (totalPoints === 0) return;
 
-            // Calculate canvas width: ~4px per data point, min = container width
+            // Size canvas to fill container (no horizontal scrolling for 6-month view)
             const containerWidth = scrollEl.clientWidth;
-            const pxPerPoint = 4;
-            const canvasWidth = Math.max(containerWidth, totalPoints * pxPerPoint);
-            sizerEl.style.width = canvasWidth + 'px';
+            sizerEl.style.width = containerWidth + 'px';
 
-            // Build labels with year markers
-            const labels = this.growthData.map((p, i) => {
+            // Build labels: month boundaries only, year at year change
+            const labels = chartData.map((p, i) => {
                 const d = new Date(p.date);
-                const prev = i > 0 ? new Date(this.growthData[i - 1].date) : null;
-                // Show year on Jan 1 or first data point of a new year
+                const prev = i > 0 ? new Date(chartData[i - 1].date) : null;
                 if (prev && d.getFullYear() !== prev.getFullYear()) {
-                    return d.getFullYear().toString();
+                    return d.toLocaleDateString('en-US', { month: 'short' }) + ' ' + d.getFullYear();
                 }
-                // Show month on 1st of month or first data point of a new month
-                if (prev && (d.getMonth() !== prev.getMonth())) {
-                    const mo = d.toLocaleDateString('en-US', { month: 'short' });
-                    return mo + ' \'' + (d.getFullYear() % 100).toString().padStart(2, '0');
-                }
-                // First point
-                if (i === 0) {
-                    const mo = d.toLocaleDateString('en-US', { month: 'short' });
-                    return mo + ' \'' + (d.getFullYear() % 100).toString().padStart(2, '0');
+                if (i === 0 || (prev && d.getMonth() !== prev.getMonth())) {
+                    return d.toLocaleDateString('en-US', { month: 'short' });
                 }
                 return '';
             });
 
-            const totalValues = this.growthData.map(p => p.portfolio_value || p.value || 0);
-            const equityValues = this.growthData.map(p => p.equity_holdings_value || 0);
-            const capitalLine = this.growthData.map(p => p.capital_contributions_net || this.capitalInvested || 0);
+            const totalValues = chartData.map(p => p.portfolio_value || p.value || 0);
+            const equityValues = chartData.map(p => p.equity_holdings_value || 0);
+            const capitalLine = chartData.map(p => p.capital_contributions_net || this.capitalInvested || 0);
             const grossLine = this.grossContributions > 0
                 ? labels.map(() => this.grossContributions)
                 : null;
@@ -781,30 +780,12 @@ function portfolioDashboard() {
                     },
                     scales: {
                         x: {
-                            grid: {
-                                display: true,
-                                color: function(ctx) {
-                                    // Draw vertical grid lines at year boundaries
-                                    const label = ctx.tick?.label || '';
-                                    if (/^\d{4}$/.test(label)) return '#ccc';
-                                    return 'transparent';
-                                },
-                            },
+                            grid: { display: false },
                             ticks: {
-                                font: function(ctx) {
-                                    const label = ctx.tick?.label || '';
-                                    const isYear = /^\d{4}$/.test(label);
-                                    return {
-                                        family: "'IBM Plex Mono', monospace",
-                                        size: isYear ? 11 : 10,
-                                        weight: isYear ? 'bold' : 'normal',
-                                    };
-                                },
-                                color: function(ctx) {
-                                    const label = ctx.tick?.label || '';
-                                    return /^\d{4}$/.test(label) ? '#000' : '#888';
-                                },
-                                autoSkip: false,
+                                font: { family: "'IBM Plex Mono', monospace", size: 10 },
+                                color: '#888',
+                                autoSkip: true,
+                                maxTicksLimit: 8,
                                 maxRotation: 0,
                                 callback: function(val, idx) {
                                     const label = this.getLabelForValue(val);
@@ -829,10 +810,7 @@ function portfolioDashboard() {
             });
 
             // Store raw dates for tooltip
-            this.chartInstance.config._config.rawDates = this.growthData.map(p => p.date);
-
-            // Scroll to right (today) after render
-            scrollEl.scrollLeft = scrollEl.scrollWidth;
+            this.chartInstance.config._config.rawDates = chartData.map(p => p.date);
         },
 
         async toggleDefault() {

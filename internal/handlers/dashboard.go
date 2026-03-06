@@ -141,27 +141,33 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					t2 := time.Now()
 					if pBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected), claims.Sub); err == nil {
 						portfolioJSON = template.JS(pBody)
-					}
-					if h.logger != nil {
-						h.logger.Info().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: portfolio data")
+						if h.logger != nil {
+							h.logger.Info().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: portfolio data")
+						}
+					} else if h.logger != nil {
+						h.logger.Warn().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("dashboard SSR: portfolio data failed")
 					}
 
 					// 3. Fetch timeline (growth chart data)
 					t3 := time.Now()
 					if tBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/timeline", claims.Sub); err == nil {
 						timelineJSON = template.JS(tBody)
-					}
-					if h.logger != nil {
-						h.logger.Info().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: timeline")
+						if h.logger != nil {
+							h.logger.Info().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: timeline")
+						}
+					} else if h.logger != nil {
+						h.logger.Warn().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("dashboard SSR: timeline failed")
 					}
 
 					// 4. Fetch watchlist
 					t4 := time.Now()
 					if wBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/watchlist", claims.Sub); err == nil {
 						watchlistJSON = template.JS(wBody)
-					}
-					if h.logger != nil {
-						h.logger.Info().Int64("duration_ms", time.Since(t4).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: watchlist")
+						if h.logger != nil {
+							h.logger.Info().Int64("duration_ms", time.Since(t4).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: watchlist")
+						}
+					} else if h.logger != nil {
+						h.logger.Warn().Int64("duration_ms", time.Since(t4).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("dashboard SSR: watchlist failed")
 					}
 				}
 			}
