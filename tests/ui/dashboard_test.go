@@ -834,36 +834,38 @@ func TestDashboardGrowthChart(t *testing.T) {
 		t.Error("Chart.js instance not created on growthChart canvas")
 	}
 
-	// Verify the chart has 3 datasets (Portfolio Value, Cost Basis, Net Deposited)
+	// Verify the chart has 3 or 4 datasets (3 base + optional Gross Contributions)
 	datasetCount, err := commontest.EvalBool(ctx, `
 		(() => {
 			const canvas = document.getElementById('growthChart');
 			const chart = Chart.getChart(canvas);
-			return chart && chart.data.datasets.length === 3;
+			return chart && (chart.data.datasets.length === 3 || chart.data.datasets.length === 4);
 		})()
 	`)
 	if err != nil {
 		t.Fatalf("error checking chart datasets: %v", err)
 	}
 	if !datasetCount {
-		t.Error("growth chart does not have exactly 3 datasets")
+		t.Error("growth chart does not have 3 or 4 datasets")
 	}
 
-	// Verify dataset labels
+	// Verify dataset labels (first 3 required, 4th optional Gross Contributions)
 	labelsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
 			const canvas = document.getElementById('growthChart');
 			const chart = Chart.getChart(canvas);
 			if (!chart) return false;
 			const labels = chart.data.datasets.map(d => d.label);
-			return labels[0] === 'Portfolio Value' && labels[1] === 'Cost Basis' && labels[2] === 'Net Deposited';
+			const base = labels[0] === 'Portfolio Value' && labels[1] === 'Equity Value' && labels[2] === 'Net Deposited';
+			if (labels.length === 4) return base && labels[3] === 'Gross Contributions';
+			return base;
 		})()
 	`)
 	if err != nil {
 		t.Fatalf("error checking dataset labels: %v", err)
 	}
 	if !labelsCorrect {
-		t.Error("growth chart dataset labels do not match expected: Portfolio Value, Cost Basis, Net Deposited")
+		t.Error("growth chart dataset labels do not match expected: Portfolio Value, Equity Value, Net Deposited [, Gross Contributions]")
 	}
 
 	// Verify .growth-chart-section wrapper exists and has expected styling (border, padding)
@@ -1345,30 +1347,47 @@ func TestDashboardBreadthBar(t *testing.T) {
 		t.Error("breadth trend label does not have a color class (change-up, change-down, or change-neutral)")
 	}
 
-	// Verify the gradient bar has 3 segments
+	// Verify the bar has at least 1 per-ticker segment
 	segmentCount, err := elementCount(ctx, ".breadth-bar .breadth-segment")
 	if err != nil {
 		t.Fatalf("error counting breadth segments: %v", err)
 	}
-	if segmentCount != 3 {
-		t.Errorf("breadth bar segment count = %d, want 3", segmentCount)
+	if segmentCount < 1 {
+		t.Errorf("breadth bar segment count = %d, want >= 1", segmentCount)
 	}
 
-	// Verify segment classes (rising, flat, falling)
+	// Verify all segments have one of the expected status classes
 	segmentsCorrect, err := commontest.EvalBool(ctx, `
 		(() => {
-			const bar = document.querySelector('.breadth-bar');
-			if (!bar) return false;
-			return bar.querySelector('.breadth-rising') !== null &&
-			       bar.querySelector('.breadth-flat') !== null &&
-			       bar.querySelector('.breadth-falling') !== null;
+			const segs = document.querySelectorAll('.breadth-bar .breadth-segment');
+			if (segs.length === 0) return false;
+			return Array.from(segs).every(s =>
+				s.classList.contains('breadth-falling') ||
+				s.classList.contains('breadth-flat') ||
+				s.classList.contains('breadth-rising')
+			);
 		})()
 	`)
 	if err != nil {
 		t.Fatalf("error checking breadth segment classes: %v", err)
 	}
 	if !segmentsCorrect {
-		t.Error("breadth bar missing one or more segment classes (breadth-rising, breadth-flat, breadth-falling)")
+		t.Error("breadth bar segments must each have one of: breadth-falling, breadth-flat, breadth-rising")
+	}
+
+	// Verify segments have title attributes containing ticker names
+	segmentTitles, err := commontest.EvalBool(ctx, `
+		(() => {
+			const segs = document.querySelectorAll('.breadth-bar .breadth-segment');
+			if (segs.length === 0) return false;
+			return Array.from(segs).every(s => s.title && s.title.length > 0);
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking breadth segment titles: %v", err)
+	}
+	if !segmentTitles {
+		t.Error("breadth bar segments must have title attributes with ticker info")
 	}
 
 	// Verify counts row has Rising/Flat/Falling labels
@@ -1403,20 +1422,29 @@ func TestDashboardBreadthBar(t *testing.T) {
 		t.Error("breadth bar section missing expected border/padding styling")
 	}
 
-	// Verify segment order: falling first (left), rising last (right)
+	// Verify segment order: falling before flat before rising (per-ticker sort)
 	segmentOrder, err := commontest.EvalBool(ctx, `
 		(() => {
 			const segments = document.querySelectorAll('.breadth-bar .breadth-segment');
-			if (segments.length < 3) return false;
-			return segments[0].classList.contains('breadth-falling') &&
-			       segments[segments.length - 1].classList.contains('breadth-rising');
+			if (segments.length < 1) return false;
+			const order = { 'breadth-falling': 0, 'breadth-flat': 1, 'breadth-rising': 2 };
+			let lastOrder = -1;
+			for (const s of segments) {
+				let o = -1;
+				if (s.classList.contains('breadth-falling')) o = 0;
+				else if (s.classList.contains('breadth-flat')) o = 1;
+				else if (s.classList.contains('breadth-rising')) o = 2;
+				if (o < lastOrder) return false;
+				lastOrder = o;
+			}
+			return true;
 		})()
 	`)
 	if err != nil {
 		t.Fatalf("error checking segment order: %v", err)
 	}
 	if !segmentOrder {
-		t.Error("breadth bar segment order should be falling (first/left) to rising (last/right)")
+		t.Error("breadth bar segments should be ordered: falling, then flat, then rising")
 	}
 
 	// Verify per-holding rows exist inside .breadth-holdings
@@ -1557,15 +1585,19 @@ func TestDashboardHoldingTrendArrows(t *testing.T) {
 		t.Error("breadth holding change element does not have expected styling")
 	}
 
-	// Verify .holding-movement-row no longer exists in the DOM (removed from holdings table)
-	movementRowGone, err := commontest.EvalBool(ctx, `
-		document.querySelector('.holding-movement-row') === null
+	// Verify .holding-movement-row exists with .holding-movement-content td
+	movementRowExists, err := commontest.EvalBool(ctx, `
+		(() => {
+			const row = document.querySelector('.holding-movement-row');
+			if (!row) return false;
+			return row.querySelector('.holding-movement-content') !== null;
+		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking absence of movement rows: %v", err)
+		t.Fatalf("error checking holding movement rows: %v", err)
 	}
-	if !movementRowGone {
-		t.Error(".holding-movement-row should not exist in the DOM (movement data moved to breadth section)")
+	if !movementRowExists {
+		t.Error(".holding-movement-row should exist with .holding-movement-content td")
 	}
 }
 

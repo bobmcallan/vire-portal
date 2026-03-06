@@ -1414,9 +1414,9 @@ func TestDashboardHandler_StressBreadthBarBindings(t *testing.T) {
 	if !strings.Contains(body, `fmtTodayChange(breadth.today_change)`) {
 		t.Error("expected breadth today_change rendered via fmtTodayChange")
 	}
-	// Segment widths use :style (safe — sets style attribute)
-	if !strings.Contains(body, `breadth?.rising_weight_pct`) {
-		t.Error("expected rising_weight_pct in breadth bar segment style")
+	// Per-ticker segments use x-for with :style (safe — sets style attribute)
+	if !strings.Contains(body, `seg.weight_pct`) {
+		t.Error("expected seg.weight_pct in breadth bar segment style")
 	}
 	// Counts use x-text (safe)
 	if !strings.Contains(body, `Rising`) {
@@ -1492,11 +1492,9 @@ func TestDashboardHandler_StressBreadthHelpersDefined(t *testing.T) {
 // --- Adversarial: Breadth bar :style binding must not allow CSS injection ---
 
 func TestDashboardHandler_StressBreadthStyleBindingsSafe(t *testing.T) {
-	// The breadth bar segment widths use :style bindings with percentage values.
-	// These MUST use the pattern 'width:' + (numeric || 0) + '%' to prevent
+	// The breadth bar per-ticker segments use :style bindings with percentage values.
+	// These MUST use the pattern 'width:' + (seg.weight_pct || 0) + '%' to prevent
 	// injection of arbitrary CSS properties via malicious server data.
-	// Alpine.js :style sets the style attribute directly, so the value must
-	// be constrained to a simple width percentage.
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1507,19 +1505,15 @@ func TestDashboardHandler_StressBreadthStyleBindingsSafe(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Each segment must use the safe pattern: 'width:' + (value || 0) + '%'
-	segments := []string{"rising_weight_pct", "flat_weight_pct", "falling_weight_pct"}
-	for _, seg := range segments {
-		// Must use || 0 fallback to prevent undefined from leaking into style
-		expected := fmt.Sprintf(`'width:' + (breadth?.%s || 0) + '%%'`, seg)
-		if !strings.Contains(body, expected) {
-			t.Errorf("SECURITY: breadth segment %s must use safe :style pattern %q", seg, expected)
-		}
+	// Per-ticker segment must use the safe pattern with || 0 fallback
+	expected := `'width:' + (seg.weight_pct || 0) + '%'`
+	if !strings.Contains(body, expected) {
+		t.Errorf("SECURITY: breadth segment must use safe :style pattern %q", expected)
 	}
 
-	// Must NOT concatenate raw breadth values into style without || 0 guard
-	if strings.Contains(body, `:style="'width:' + breadth.rising_weight_pct"`) {
-		t.Error("SECURITY: raw breadth value in :style without fallback guard")
+	// Must NOT concatenate raw values into style without || 0 guard
+	if strings.Contains(body, `:style="'width:' + seg.weight_pct + '%'"`) {
+		t.Error("SECURITY: raw segment value in :style without fallback guard")
 	}
 }
 
@@ -1598,33 +1592,44 @@ func TestDashboardHandler_StressTrendArrowNoHTMLEntities(t *testing.T) {
 // --- Adversarial: Concurrent dashboard loads must not race on breadth state ---
 
 func TestDashboardHandler_StressBreadthSegmentOrder(t *testing.T) {
-	// The breadth bar segments must be in order: falling (left), flat (centre), rising (right).
-	// If the order is wrong, the gradient transitions between segments will visually break.
-	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
-
-	req := httptest.NewRequest("GET", "/dashboard", nil)
-	addAuthCookie(req, "test-user")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	body := w.Body.String()
-
-	// Find positions of each segment class
-	fallingPos := strings.Index(body, `breadth-falling`)
-	flatPos := strings.Index(body, `breadth-flat`)
-	risingPos := strings.Index(body, `breadth-rising`)
-
-	if fallingPos < 0 || flatPos < 0 || risingPos < 0 {
-		t.Fatal("expected all three breadth segment classes in dashboard")
+	// The breadthSegments getter must sort: falling first, then flat, then rising.
+	// With per-ticker x-for rendering, order is determined by the getter sort logic.
+	jsBytes, err := os.ReadFile("../../pages/static/common.js")
+	if err != nil {
+		t.Fatalf("failed to read common.js: %v", err)
 	}
+	js := string(jsBytes)
 
-	// Falling must come before flat, flat before rising
-	if fallingPos >= flatPos {
-		t.Error("breadth-falling segment must appear before breadth-flat (left to right: falling, flat, rising)")
+	// breadthSegments getter must exist
+	if !strings.Contains(js, "get breadthSegments()") {
+		t.Fatal("expected breadthSegments getter in common.js")
 	}
-	if flatPos >= risingPos {
-		t.Error("breadth-flat segment must appear before breadth-rising (left to right: falling, flat, rising)")
+	// Must sort by status order: falling=0, flat=1, rising=2
+	if !strings.Contains(js, `falling: 0, flat: 1, rising: 2`) {
+		t.Error("breadthSegments must sort by status order { falling: 0, flat: 1, rising: 2 }")
+	}
+	// Must reference trend_score for classification
+	if !strings.Contains(js, "trend_score") {
+		t.Error("breadthSegments must reference trend_score for status classification")
+	}
+}
+
+func TestDashboardHandler_StressBreadthSegmentsPropertyDeclared(t *testing.T) {
+	// Verify breadthSegments getter exists in common.js with correct structure.
+	jsBytes, err := os.ReadFile("../../pages/static/common.js")
+	if err != nil {
+		t.Fatalf("failed to read common.js: %v", err)
+	}
+	js := string(jsBytes)
+
+	if !strings.Contains(js, "get breadthSegments()") {
+		t.Error("expected breadthSegments getter in common.js")
+	}
+	if !strings.Contains(js, "trend_score") {
+		t.Error("breadthSegments must reference trend_score for classification")
+	}
+	if !strings.Contains(js, "segments.sort") {
+		t.Error("breadthSegments must sort segments by status order")
 	}
 }
 
@@ -1691,6 +1696,13 @@ func TestDashboardHandler_StressChartBreakdownPropertyDeclared(t *testing.T) {
 	if !strings.Contains(js, "computeMA") {
 		t.Error("expected computeMA helper in common.js")
 	}
+	// Gross Contributions chart line
+	if !strings.Contains(js, "Gross Contributions") {
+		t.Error("expected 'Gross Contributions' label string in common.js")
+	}
+	if !strings.Contains(js, "grossLine") {
+		t.Error("expected grossLine variable in common.js")
+	}
 }
 
 func TestDashboardHandler_StressBreadthBarStructure(t *testing.T) {
@@ -1722,6 +1734,13 @@ func TestDashboardHandler_StressBreadthBarStructure(t *testing.T) {
 	}
 	if strings.Contains(body, `class="breadth-holdings"`) {
 		t.Error("breadth-holdings should have been removed")
+	}
+	// Per-ticker x-for template must exist
+	if !strings.Contains(body, `x-for="seg in breadthSegments"`) {
+		t.Error("expected x-for=\"seg in breadthSegments\" in breadth bar template")
+	}
+	if !strings.Contains(body, `:class="'breadth-' + seg.status"`) {
+		t.Error("expected :class=\"'breadth-' + seg.status\" on breadth segments")
 	}
 }
 

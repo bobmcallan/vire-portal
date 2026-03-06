@@ -523,6 +523,9 @@ function portfolioDashboard() {
             const totalValues = this.growthData.map(p => p.portfolio_value || p.value || 0);
             const equityValues = this.growthData.map(p => p.equity_holdings_value || 0);
             const capitalLine = this.growthData.map(p => p.capital_contributions_net || this.capitalInvested || 0);
+            const grossLine = this.grossContributions > 0
+                ? labels.map(() => this.grossContributions)
+                : null;
 
             // Background fill: green above cost basis, red below
             const costBase = capitalLine.length > 0 ? capitalLine[capitalLine.length - 1] : 0;
@@ -573,6 +576,21 @@ function portfolioDashboard() {
                     hidden: !this.showChartBreakdown,
                 },
             ];
+
+            if (grossLine) {
+                datasets.push({
+                    label: 'Gross Contributions',
+                    data: grossLine,
+                    borderColor: '#888',
+                    borderWidth: 1,
+                    borderDash: [2, 2],
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    fill: false,
+                    tension: 0,
+                    hidden: !this.showChartBreakdown,
+                });
+            }
 
             // Add MA datasets (hidden by default, toggled via controls)
             if (totalValues.length >= 20) {
@@ -889,6 +907,31 @@ function portfolioDashboard() {
                 trend_score: avg,
                 today_change: todayValid ? todayChange : null,
             };
+        },
+        get breadthSegments() {
+            const active = this.holdings.filter(h => h.holding_value_market > 0);
+            if (active.length === 0) return [];
+            const totalWeight = active.reduce((sum, h) => sum + (h.holding_value_market || 0), 0);
+            if (totalWeight === 0) return [];
+
+            const segments = active.map(h => {
+                const score = h.trend_score || 0;
+                let status;
+                if (score > 0.1) status = 'rising';
+                else if (score < -0.1) status = 'falling';
+                else status = 'flat';
+                return {
+                    ticker: h.ticker,
+                    status: status,
+                    weight_pct: (h.holding_value_market / totalWeight) * 100,
+                };
+            });
+
+            // Sort: falling first, then flat, then rising (secondary: ticker alpha)
+            const order = { falling: 0, flat: 1, rising: 2 };
+            segments.sort((a, b) => order[a.status] - order[b.status] || a.ticker.localeCompare(b.ticker));
+
+            return segments;
         },
         glossaryDef(term) {
             return this.glossary[term] || '';

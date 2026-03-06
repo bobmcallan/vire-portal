@@ -140,9 +140,13 @@
                     </span>
                 </div>
                 <div class="breadth-bar">
-                    <div class="breadth-segment breadth-falling" :style="'width:' + (breadth?.falling_weight_pct || 0) + '%'"></div>
-                    <div class="breadth-segment breadth-flat" :style="'width:' + (breadth?.flat_weight_pct || 0) + '%'"></div>
-                    <div class="breadth-segment breadth-rising" :style="'width:' + (breadth?.rising_weight_pct || 0) + '%'"></div>
+                    <template x-for="seg in breadthSegments" :key="seg.ticker">
+                        <div class="breadth-segment"
+                             :class="'breadth-' + seg.status"
+                             :style="'width:' + (seg.weight_pct || 0) + '%'"
+                             :title="seg.ticker + ' ' + seg.status + ' (' + (seg.weight_pct || 0).toFixed(1) + '%)'">
+                        </div>
+                    </template>
                 </div>
                 <div class="breadth-counts">
                     <span x-text="(breadth?.falling_count || 0) + ' Falling'"></span>
@@ -183,7 +187,7 @@
                                         <td class="text-right" :class="gainClass(h.holding_return_net_pct)" x-text="pct(h.holding_return_net_pct)"></td>
                                     </tr>
                                     <tr class="holding-movement-row" x-show="h.holding_value_market > 0">
-                                        <td colspan="6">
+                                        <td class="holding-movement-content" colspan="6">
                                             <span class="holding-detail-label">Trend:</span>
                                             <span :class="trendArrowClass(h.trend_score)" x-text="trendArrow(h.trend_score)"></span>
                                             <span class="text-muted" x-text="h.trend_label || ''"></span>

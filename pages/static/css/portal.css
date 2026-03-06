@@ -1158,27 +1158,6 @@ code {
 .breadth-flat { background: #aaa; }
 .breadth-falling { background: #c06060; }
 
-/* Gradient: falling->flat transition (on flat segment left edge) */
-.breadth-flat::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 8px;
-    height: 100%;
-    background: linear-gradient(to right, #c06060, #aaa);
-}
-
-/* Gradient: flat->rising transition (on rising segment left edge) */
-.breadth-rising::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 8px;
-    height: 100%;
-    background: linear-gradient(to right, #aaa, #5a9e6f);
-}
 
 .breadth-counts {
     display: flex;
@@ -1201,7 +1180,7 @@ code {
 }
 
 .holding-movement-row td {
-    padding-top: 0;
+    padding-top: 0.25rem;
     padding-bottom: 0.5rem;
     font-size: 0.75rem;
     letter-spacing: 0.05em;
