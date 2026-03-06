@@ -159,9 +159,9 @@ func TestProxyGet_StressLargeResponseBounded(t *testing.T) {
 // --- Slow server: timeout behavior ---
 
 func TestProxyGet_StressSlowServerTimeout(t *testing.T) {
-	// VireClient has a 10s timeout. A server that hangs should be timed out.
+	// VireClient has a 30s timeout. A server that hangs should be timed out.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(15 * time.Second) // Longer than the 10s timeout
+		time.Sleep(35 * time.Second) // Longer than the 30s timeout
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
@@ -174,9 +174,9 @@ func TestProxyGet_StressSlowServerTimeout(t *testing.T) {
 	if err == nil {
 		t.Error("expected timeout error for slow server")
 	}
-	// Should timeout around 10s, not wait 15s
-	if elapsed > 12*time.Second {
-		t.Errorf("ProxyGet took %v, expected timeout around 10s", elapsed)
+	// Should timeout around 30s, not wait 35s
+	if elapsed > 32*time.Second {
+		t.Errorf("ProxyGet took %v, expected timeout around 30s", elapsed)
 	}
 }
 
