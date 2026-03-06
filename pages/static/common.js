@@ -219,6 +219,7 @@ function portfolioDashboard() {
         growthData: [],
         hasGrowthData: false,
         chartInstance: null,
+        showChartBreakdown: false,
         loading: true,
         portfolioLoading: false,
         error: '',
@@ -270,6 +271,13 @@ function portfolioDashboard() {
                 if (this.selected) await this.loadPortfolio();
                 this.$watch('showClosed', (val) => {
                     if (val) this.fetchClosedHoldings();
+                });
+                this.$watch('showChartBreakdown', (val) => {
+                    if (this.chartInstance) {
+                        this.chartInstance.data.datasets[1].hidden = !val;
+                        this.chartInstance.data.datasets[2].hidden = !val;
+                        this.chartInstance.update();
+                    }
                 });
                 // Fetch glossary for tooltips (non-blocking)
                 vireStore.fetch('/api/glossary')
@@ -505,6 +513,34 @@ function portfolioDashboard() {
             const equityValues = this.growthData.map(p => p.equity_holdings_value || 0);
             const capitalLine = this.growthData.map(p => p.capital_contributions_net || this.capitalInvested || 0);
 
+            // Compute rebalance markers (holding_count changes by 3+)
+            const rebalanceAnnotations = {};
+            for (let i = 1; i < this.growthData.length; i++) {
+                const curr = this.growthData[i];
+                const prev = this.growthData[i - 1];
+                if (curr.holding_count != null && prev.holding_count != null) {
+                    const delta = Math.abs(curr.holding_count - prev.holding_count);
+                    if (delta >= 3) {
+                        rebalanceAnnotations['rebal' + i] = {
+                            type: 'line',
+                            xMin: labels[i],
+                            xMax: labels[i],
+                            borderColor: '#ccc',
+                            borderWidth: 1,
+                            borderDash: [4, 4],
+                            label: {
+                                display: true,
+                                content: 'Rebalance',
+                                position: 'start',
+                                font: { size: 9, family: "'IBM Plex Mono', monospace" },
+                                color: '#888',
+                                backgroundColor: 'transparent',
+                            },
+                        };
+                    }
+                }
+            }
+
             this.chartInstance = new Chart(canvas, {
                 type: 'line',
                 data: {
@@ -531,6 +567,7 @@ function portfolioDashboard() {
                             pointHoverRadius: 4,
                             fill: false,
                             tension: 0,
+                            hidden: !this.showChartBreakdown,
                         },
                         {
                             label: 'Net Deposited',
@@ -542,6 +579,7 @@ function portfolioDashboard() {
                             pointHoverRadius: 4,
                             fill: false,
                             tension: 0,
+                            hidden: !this.showChartBreakdown,
                         },
                     ],
                 },
@@ -556,6 +594,9 @@ function portfolioDashboard() {
                         legend: {
                             display: false,
                         },
+                        annotation: Object.keys(rebalanceAnnotations).length > 0 ? {
+                            annotations: rebalanceAnnotations,
+                        } : undefined,
                         tooltip: {
                             backgroundColor: '#fff',
                             titleColor: '#000',
@@ -596,6 +637,7 @@ function portfolioDashboard() {
                     },
                 },
             });
+
         },
 
         async toggleDefault() {
@@ -724,6 +766,14 @@ function portfolioDashboard() {
                     day: 'numeric', month: 'short', year: 'numeric',
                     hour: '2-digit', minute: '2-digit', hour12: false
                 });
+            } catch { return ''; }
+        },
+        fmtSyncedTime(utcStr) {
+            if (!utcStr) return '';
+            try {
+                const d = new Date(utcStr);
+                if (isNaN(d.getTime())) return '';
+                return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false });
             } catch { return ''; }
         },
         changePct(val) {

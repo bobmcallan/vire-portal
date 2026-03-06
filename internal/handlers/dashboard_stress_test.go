@@ -1149,21 +1149,21 @@ func TestDashboardHandler_StressChangesRowConditionalDisplay(t *testing.T) {
 	if !strings.Contains(body, `x-show="hasChanges"`) {
 		t.Error("portfolio-changes row must be conditional on hasChanges")
 	}
-	// Net return $ changes gated on hasReturnDollarChanges
-	if !strings.Contains(body, `x-show="hasReturnDollarChanges"`) {
-		t.Error("net return $ changes row must be conditional on hasReturnDollarChanges")
+	// Net return $ daily change gated on changeReturnDayDollar
+	if !strings.Contains(body, `x-show="changeReturnDayDollar != null"`) {
+		t.Error("net return $ daily badge must be conditional on changeReturnDayDollar != null")
 	}
-	// Net return % changes gated on hasReturnPctChanges
-	if !strings.Contains(body, `x-show="hasReturnPctChanges"`) {
-		t.Error("net return % changes row must be conditional on hasReturnPctChanges")
+	// Net return % daily change gated on changeReturnDayPct
+	if !strings.Contains(body, `x-show="changeReturnDayPct != null"`) {
+		t.Error("net return % daily badge must be conditional on changeReturnDayPct != null")
 	}
 	// Last synced gated on lastSynced
 	if !strings.Contains(body, `x-show="lastSynced"`) {
 		t.Error("portfolio-synced row must be conditional on lastSynced")
 	}
-	// Both must use x-cloak to prevent flash of unstyled content
-	if !strings.Contains(body, `class="portfolio-changes"`) {
-		t.Error("expected portfolio-changes element in dashboard")
+	// portfolio-change-today class must exist for daily badges
+	if !strings.Contains(body, `class="portfolio-change-today"`) {
+		t.Error("expected portfolio-change-today element in dashboard")
 	}
 	if !strings.Contains(body, `class="portfolio-synced"`) {
 		t.Error("expected portfolio-synced element in dashboard")
@@ -1317,7 +1317,7 @@ func TestDashboardHandler_StressChangeClassBindingsPresent(t *testing.T) {
 }
 
 func TestDashboardHandler_StressReturnChangeBindings(t *testing.T) {
-	// Verify net return D/W/M change bindings are present in template
+	// Verify net return daily change bindings are present in template
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1328,38 +1328,24 @@ func TestDashboardHandler_StressReturnChangeBindings(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Net return $ change bindings
-	returnDollarBindings := []string{
-		`:class="changeClass(changeReturnDayDollar)"`,
-		`:class="changeClass(changeReturnWeekDollar)"`,
-		`:class="changeClass(changeReturnMonthDollar)"`,
-	}
-	for _, binding := range returnDollarBindings {
-		if !strings.Contains(body, binding) {
-			t.Errorf("expected %s in dashboard template", binding)
-		}
+	// Net return $ daily change binding
+	if !strings.Contains(body, `:class="changeClass(changeReturnDayDollar)"`) {
+		t.Error("expected changeClass(changeReturnDayDollar) in dashboard template")
 	}
 
-	// Net return % change bindings
-	returnPctBindings := []string{
-		`:class="changeClass(changeReturnDayPct)"`,
-		`:class="changeClass(changeReturnWeekPct)"`,
-		`:class="changeClass(changeReturnMonthPct)"`,
-	}
-	for _, binding := range returnPctBindings {
-		if !strings.Contains(body, binding) {
-			t.Errorf("expected %s in dashboard template", binding)
-		}
+	// Net return % daily change binding
+	if !strings.Contains(body, `:class="changeClass(changeReturnDayPct)"`) {
+		t.Error("expected changeClass(changeReturnDayPct) in dashboard template")
 	}
 
-	// Net return $ changes visibility
-	if !strings.Contains(body, `x-show="hasReturnDollarChanges"`) {
-		t.Error("expected hasReturnDollarChanges visibility binding")
+	// Daily badges use portfolio-change-today class
+	if !strings.Contains(body, `class="portfolio-change-today"`) {
+		t.Error("expected portfolio-change-today class for daily return badges")
 	}
 
-	// Net return % changes visibility
-	if !strings.Contains(body, `x-show="hasReturnPctChanges"`) {
-		t.Error("expected hasReturnPctChanges visibility binding")
+	// Daily badges show "today" suffix
+	if !strings.Contains(body, `+ ' today'`) {
+		t.Error("expected 'today' suffix in daily return badges")
 	}
 }
 
@@ -1446,7 +1432,7 @@ func TestDashboardHandler_StressBreadthBarBindings(t *testing.T) {
 }
 
 func TestDashboardHandler_StressTrendArrowBindings(t *testing.T) {
-	// Movement sub-row must use trendArrow/trendArrowClass and holdingTodayChange.
+	// Trend arrows now live in breadth-holding-row, not movement sub-rows.
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1457,19 +1443,34 @@ func TestDashboardHandler_StressTrendArrowBindings(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Trend arrow bindings in holding movement row
+	// Trend arrow bindings in breadth holding rows
 	if !strings.Contains(body, `x-text="trendArrow(h.trend_score)"`) {
-		t.Error("expected trendArrow(h.trend_score) in movement sub-row")
+		t.Error("expected trendArrow(h.trend_score) in breadth holding row")
 	}
 	if !strings.Contains(body, `:class="trendArrowClass(h.trend_score)"`) {
-		t.Error("expected trendArrowClass(h.trend_score) in movement sub-row")
+		t.Error("expected trendArrowClass(h.trend_score) in breadth holding row")
 	}
-	// Today's dollar change in movement row
+	// Today's dollar change in breadth holding row
 	if !strings.Contains(body, `fmtTodayChange(holdingTodayChange(h))`) {
-		t.Error("expected fmtTodayChange(holdingTodayChange(h)) in movement sub-row")
+		t.Error("expected fmtTodayChange(holdingTodayChange(h)) in breadth holding row")
 	}
 	if !strings.Contains(body, `:class="changeClass(holdingTodayChange(h))"`) {
-		t.Error("expected changeClass(holdingTodayChange(h)) color binding in movement sub-row")
+		t.Error("expected changeClass(holdingTodayChange(h)) color binding in breadth holding row")
+	}
+	// breadth-holding-row and breadth-portfolio-row must exist
+	if !strings.Contains(body, `class="breadth-holding-row"`) {
+		t.Error("expected breadth-holding-row class in dashboard")
+	}
+	if !strings.Contains(body, `class="breadth-portfolio-row"`) {
+		t.Error("expected breadth-portfolio-row class in dashboard")
+	}
+	// chart-toggle-label must exist
+	if !strings.Contains(body, `class="chart-toggle-label"`) {
+		t.Error("expected chart-toggle-label class in dashboard")
+	}
+	// holding-movement-row must NOT exist (removed)
+	if strings.Contains(body, `holding-movement-row`) {
+		t.Error("holding-movement-row should have been removed from dashboard")
 	}
 }
 
@@ -1601,6 +1602,176 @@ func TestDashboardHandler_StressTrendArrowNoHTMLEntities(t *testing.T) {
 }
 
 // --- Adversarial: Concurrent dashboard loads must not race on breadth state ---
+
+func TestDashboardHandler_StressBreadthSegmentOrder(t *testing.T) {
+	// The breadth bar segments must be in order: falling (left), flat (centre), rising (right).
+	// If the order is wrong, the gradient transitions between segments will visually break.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Find positions of each segment class
+	fallingPos := strings.Index(body, `breadth-falling`)
+	flatPos := strings.Index(body, `breadth-flat`)
+	risingPos := strings.Index(body, `breadth-rising`)
+
+	if fallingPos < 0 || flatPos < 0 || risingPos < 0 {
+		t.Fatal("expected all three breadth segment classes in dashboard")
+	}
+
+	// Falling must come before flat, flat before rising
+	if fallingPos >= flatPos {
+		t.Error("breadth-falling segment must appear before breadth-flat (left to right: falling, flat, rising)")
+	}
+	if flatPos >= risingPos {
+		t.Error("breadth-flat segment must appear before breadth-rising (left to right: falling, flat, rising)")
+	}
+}
+
+func TestDashboardHandler_StressChartToggleXModel(t *testing.T) {
+	// The chart breakdown toggle must use x-model (safe two-way binding), not
+	// a raw @click handler that could be an injection vector.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, `x-model="showChartBreakdown"`) {
+		t.Error("chart breakdown toggle must use x-model for safe two-way binding")
+	}
+	// Must be inside a label with the correct class
+	if !strings.Contains(body, `chart-toggle-label`) {
+		t.Error("expected chart-toggle-label wrapping the breakdown checkbox")
+	}
+	// Must show "Show breakdown" text
+	if !strings.Contains(body, `Show breakdown`) {
+		t.Error("expected 'Show breakdown' label text for chart toggle")
+	}
+}
+
+func TestDashboardHandler_StressAnnotationPluginLoaded(t *testing.T) {
+	// The Chart.js annotation plugin CDN must be loaded AFTER chart.js and BEFORE Alpine.
+	// Without it, rebalance annotations silently fail (by design), but the script
+	// tag must still be present for annotations to work when the CDN is available.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, `chartjs-plugin-annotation`) {
+		t.Error("expected chartjs-plugin-annotation CDN script in dashboard head")
+	}
+
+	// Verify load order: chart.js before annotation plugin before alpine
+	chartPos := strings.Index(body, "chart.js@4")
+	annotationPos := strings.Index(body, "chartjs-plugin-annotation")
+	alpinePos := strings.Index(body, "alpinejs@3")
+
+	if chartPos < 0 || annotationPos < 0 || alpinePos < 0 {
+		t.Fatal("expected chart.js, annotation plugin, and alpine.js script tags")
+	}
+	if chartPos >= annotationPos {
+		t.Error("chart.js must load before chartjs-plugin-annotation")
+	}
+	if annotationPos >= alpinePos {
+		t.Error("chartjs-plugin-annotation must load before alpine.js")
+	}
+}
+
+func TestDashboardHandler_StressChartBreakdownPropertyDeclared(t *testing.T) {
+	// Verify showChartBreakdown property is declared in common.js.
+	// Without it, the x-model binding would create an undefined reference.
+	jsBytes, err := os.ReadFile("../../pages/static/common.js")
+	if err != nil {
+		t.Fatalf("failed to read common.js: %v", err)
+	}
+	js := string(jsBytes)
+
+	if !strings.Contains(js, "showChartBreakdown") {
+		t.Error("expected showChartBreakdown property in common.js")
+	}
+	// fmtSyncedTime must be defined
+	if !strings.Contains(js, "fmtSyncedTime") {
+		t.Error("expected fmtSyncedTime helper in common.js")
+	}
+	// Rebalance annotation logic must exist
+	if !strings.Contains(js, "rebalanceAnnotations") {
+		t.Error("expected rebalanceAnnotations computation in common.js")
+	}
+	// $watch for breakdown toggle must exist
+	if !strings.Contains(js, `$watch('showChartBreakdown'`) {
+		t.Error("expected $watch on showChartBreakdown in common.js")
+	}
+}
+
+func TestDashboardHandler_StressBreadthPortfolioRowPresent(t *testing.T) {
+	// The breadth section must have a PORTFOLIO summary row with the correct text.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// PORTFOLIO label must exist in breadth portfolio row
+	if !strings.Contains(body, `>PORTFOLIO<`) {
+		t.Error("expected 'PORTFOLIO' text in breadth-portfolio-row")
+	}
+	// breadth-separator must exist between holdings and portfolio row
+	if !strings.Contains(body, `class="breadth-separator"`) {
+		t.Error("expected breadth-separator between holding rows and portfolio row")
+	}
+	// breadth-holdings container must exist
+	if !strings.Contains(body, `class="breadth-holdings"`) {
+		t.Error("expected breadth-holdings container for per-holding trend rows")
+	}
+}
+
+func TestDashboardHandler_StressBreadthYesterdayChangeGuarded(t *testing.T) {
+	// The yesterday_change display must be gated with x-show to hide
+	// when the field is absent. Without this guard, "undefined yesterday"
+	// would be displayed to the user.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, `x-show="breadth?.yesterday_change != null"`) {
+		t.Error("yesterday_change must be guarded with x-show null check")
+	}
+	// Sync timestamp must be guarded on lastSynced
+	if !strings.Contains(body, `x-show="lastSynced"`) {
+		t.Error("breadth sync timestamp must be guarded on lastSynced")
+	}
+	// breadth-summary-right container must exist
+	if !strings.Contains(body, `class="breadth-summary-right"`) {
+		t.Error("expected breadth-summary-right container for right-aligned breadth info")
+	}
+}
 
 func TestDashboardHandler_StressConcurrentDashboardServe(t *testing.T) {
 	// Multiple concurrent requests to the dashboard handler must not panic

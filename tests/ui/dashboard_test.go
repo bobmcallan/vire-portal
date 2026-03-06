@@ -350,6 +350,54 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 	if !valuesPopulated {
 		t.Error("portfolio summary values are empty")
 	}
+
+	// Verify Row 2 NET RETURN uses daily-only badges with "today" suffix (not D/W/M)
+	perfRow, err := isVisible(ctx, ".portfolio-summary-performance")
+	if err != nil {
+		t.Fatalf("error checking performance row visibility: %v", err)
+	}
+	if perfRow {
+		// Check .portfolio-change-today class exists (replaces .portfolio-changes in Row 2)
+		todayBadgeExists, err := commontest.EvalBool(ctx, `
+			document.querySelector('.portfolio-summary-performance .portfolio-change-today') !== null
+		`)
+		if err != nil {
+			t.Fatalf("error checking portfolio-change-today class: %v", err)
+		}
+		if !todayBadgeExists {
+			t.Error("Row 2 should use .portfolio-change-today class instead of .portfolio-changes for daily-only badges")
+		}
+
+		// Check that daily badges contain "today" suffix text
+		todaySuffix, err := commontest.EvalBool(ctx, `
+			(() => {
+				const badges = document.querySelectorAll('.portfolio-summary-performance .portfolio-change-today span');
+				if (badges.length === 0) return true; // no data, skip
+				for (const b of badges) {
+					const text = b.textContent.trim();
+					if (text && !text.includes('today')) return false;
+				}
+				return true;
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking today suffix: %v", err)
+		}
+		if !todaySuffix {
+			t.Error("Row 2 daily badges should contain 'today' suffix")
+		}
+
+		// Verify Row 2 does NOT have D/W/M multi-badge .portfolio-changes
+		noMultiBadge, err := commontest.EvalBool(ctx, `
+			document.querySelector('.portfolio-summary-performance .portfolio-changes') === null
+		`)
+		if err != nil {
+			t.Fatalf("error checking absence of multi-badge: %v", err)
+		}
+		if !noMultiBadge {
+			t.Error("Row 2 should not have .portfolio-changes (D/W/M) — should use .portfolio-change-today instead")
+		}
+	}
 }
 
 func TestDashboardColumnAlignment(t *testing.T) {
@@ -763,13 +811,13 @@ func TestDashboardGrowthChart(t *testing.T) {
 		t.Fatal("growth chart canvas element not found in DOM")
 	}
 
-	// Check if growth chart container is visible (depends on growth data being available)
-	containerVisible, err := isVisible(ctx, ".growth-chart-container")
+	// Check if growth chart section is visible (depends on growth data being available)
+	sectionVisible, err := isVisible(ctx, ".growth-chart-section")
 	if err != nil {
-		t.Fatalf("error checking growth chart container visibility: %v", err)
+		t.Fatalf("error checking growth chart section visibility: %v", err)
 	}
-	if !containerVisible {
-		t.Skip("growth chart container not visible (no growth data available from API)")
+	if !sectionVisible {
+		t.Skip("growth chart section not visible (no growth data available from API)")
 	}
 
 	// Verify Chart.js instance was created on the canvas
@@ -818,20 +866,52 @@ func TestDashboardGrowthChart(t *testing.T) {
 		t.Error("growth chart dataset labels do not match expected: Portfolio Value, Cost Basis, Net Deposited")
 	}
 
-	// Verify chart container has the correct styling (border, no border-radius)
-	containerStyled, err := commontest.EvalBool(ctx, `
+	// Verify .growth-chart-section wrapper exists and has expected styling (border, padding)
+	sectionStyled, err := commontest.EvalBool(ctx, `
 		(() => {
-			const el = document.querySelector('.growth-chart-container');
+			const el = document.querySelector('.growth-chart-section');
 			if (!el) return false;
 			const style = getComputedStyle(el);
 			return style.borderStyle !== 'none' && style.borderRadius === '0px';
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking chart container styles: %v", err)
+		t.Fatalf("error checking chart section styles: %v", err)
 	}
-	if !containerStyled {
-		t.Error("growth chart container does not have expected monochrome styling")
+	if !sectionStyled {
+		t.Error("growth-chart-section wrapper does not have expected styling")
+	}
+
+	// Verify .chart-toggle-label exists with "Show breakdown" text
+	toggleExists, err := commontest.EvalBool(ctx, `
+		(() => {
+			const label = document.querySelector('.chart-toggle-label');
+			if (!label) return false;
+			return label.textContent.includes('Show breakdown');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking chart toggle label: %v", err)
+	}
+	if !toggleExists {
+		t.Error("chart-toggle-label not found or does not contain 'Show breakdown' text")
+	}
+
+	// Verify chart initially has only 1 visible dataset (breakdown datasets hidden)
+	initialDatasets, err := commontest.EvalBool(ctx, `
+		(() => {
+			const canvas = document.getElementById('growthChart');
+			const chart = Chart.getChart(canvas);
+			if (!chart) return false;
+			const visible = chart.data.datasets.filter((d, i) => !chart.getDatasetMeta(i).hidden);
+			return visible.length === 1;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking initial dataset visibility: %v", err)
+	}
+	if !initialDatasets {
+		t.Error("chart should initially show only 1 visible dataset (Portfolio Value); breakdown should be hidden")
 	}
 }
 
@@ -1322,6 +1402,63 @@ func TestDashboardBreadthBar(t *testing.T) {
 	if !styled {
 		t.Error("breadth bar section missing expected border/padding styling")
 	}
+
+	// Verify segment order: falling first (left), rising last (right)
+	segmentOrder, err := commontest.EvalBool(ctx, `
+		(() => {
+			const segments = document.querySelectorAll('.breadth-bar .breadth-segment');
+			if (segments.length < 3) return false;
+			return segments[0].classList.contains('breadth-falling') &&
+			       segments[segments.length - 1].classList.contains('breadth-rising');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking segment order: %v", err)
+	}
+	if !segmentOrder {
+		t.Error("breadth bar segment order should be falling (first/left) to rising (last/right)")
+	}
+
+	// Verify per-holding rows exist inside .breadth-holdings
+	holdingsContainer, err := isVisible(ctx, ".breadth-holdings")
+	if err != nil {
+		t.Fatalf("error checking breadth holdings container: %v", err)
+	}
+	if !holdingsContainer {
+		t.Error("breadth-holdings container not visible")
+	}
+
+	holdingRowCount, err := elementCount(ctx, ".breadth-holdings .breadth-holding-row")
+	if err != nil {
+		t.Fatalf("error counting breadth holding rows: %v", err)
+	}
+	if holdingRowCount < 1 {
+		t.Error("expected at least 1 per-holding row inside .breadth-holdings")
+	}
+
+	// Verify .breadth-portfolio-row exists with "PORTFOLIO" text
+	portfolioRow, err := commontest.EvalBool(ctx, `
+		(() => {
+			const row = document.querySelector('.breadth-portfolio-row');
+			if (!row) return false;
+			return row.textContent.includes('PORTFOLIO');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking breadth portfolio row: %v", err)
+	}
+	if !portfolioRow {
+		t.Error("breadth-portfolio-row not found or does not contain 'PORTFOLIO' text")
+	}
+
+	// Verify .breadth-separator exists
+	separatorVisible, err := isVisible(ctx, ".breadth-separator")
+	if err != nil {
+		t.Fatalf("error checking breadth separator: %v", err)
+	}
+	if !separatorVisible {
+		t.Error("breadth-separator not visible between holdings and portfolio row")
+	}
 }
 
 func TestDashboardHoldingTrendArrows(t *testing.T) {
@@ -1333,123 +1470,102 @@ func TestDashboardHoldingTrendArrows(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	// Wait for Alpine to render holdings
-	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+	// Wait for Alpine to render holdings and breadth
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
 
 	takeScreenshot(t, ctx, "dashboard", "holding-trend-arrows.png")
 
-	// Check if holdings table is visible
-	visible, err := isVisible(ctx, ".tool-table")
+	// Check if breadth holdings container is visible
+	visible, err := isVisible(ctx, ".breadth-holdings")
 	if err != nil {
-		t.Fatalf("error checking holdings table visibility: %v", err)
+		t.Fatalf("error checking breadth holdings visibility: %v", err)
 	}
 	if !visible {
-		t.Skip("holdings table not visible (no portfolio data available)")
+		t.Skip("breadth holdings not visible (no portfolio data or breadth not computed)")
 	}
 
-	// Verify movement sub-rows exist
-	movementCount, err := elementCount(ctx, ".holding-movement-row")
+	// Verify per-holding rows exist inside breadth section
+	rowCount, err := elementCount(ctx, ".breadth-holding-row")
 	if err != nil {
-		t.Fatalf("error counting movement rows: %v", err)
+		t.Fatalf("error counting breadth holding rows: %v", err)
 	}
-	if movementCount < 1 {
-		t.Skip("no holding movement rows visible (no holdings data)")
+	if rowCount < 1 {
+		t.Skip("no breadth holding rows visible (no holdings data)")
 	}
 
-	// Verify first column of movement row contains a trend arrow (unicode arrow character)
-	hasArrow, err := commontest.EvalBool(ctx, `
+	// Verify each holding row has: ticker, trend arrow, trend label, today change
+	rowStructure, err := commontest.EvalBool(ctx, `
 		(() => {
-			const row = document.querySelector('.holding-movement-row');
-			if (!row) return false;
-			const firstCell = row.querySelector('td');
-			if (!firstCell) return false;
-			const text = firstCell.textContent.trim();
-			return text === '\u2191' || text === '\u2193' || text === '\u2192';
+			const rows = document.querySelectorAll('.breadth-holding-row');
+			if (rows.length === 0) return false;
+			for (const row of rows) {
+				// Must have a ticker span
+				const ticker = row.querySelector('.breadth-holding-ticker');
+				if (!ticker || !ticker.textContent.trim()) return false;
+				// Must have a trend label span
+				const label = row.querySelector('.breadth-holding-label');
+				if (!label) return false;
+				// Must have a today change span
+				const change = row.querySelector('.breadth-holding-change');
+				if (!change) return false;
+			}
+			return true;
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking trend arrow: %v", err)
+		t.Fatalf("error checking holding row structure: %v", err)
 	}
-	if !hasArrow {
-		t.Error("first cell of movement sub-row does not contain a trend arrow character")
+	if !rowStructure {
+		t.Error("breadth holding rows missing expected elements (ticker, label, or change)")
 	}
 
-	// Verify trend arrow cell has a color class
+	// Verify trend arrow has a color class (change-up, change-down, or change-neutral)
 	arrowColored, err := commontest.EvalBool(ctx, `
 		(() => {
-			const row = document.querySelector('.holding-movement-row');
+			const row = document.querySelector('.breadth-holding-row');
 			if (!row) return false;
-			const firstCell = row.querySelector('td');
-			if (!firstCell) return false;
-			const cls = firstCell.className;
-			return cls.includes('change-up') || cls.includes('change-down') || cls.includes('change-neutral');
+			const spans = row.querySelectorAll('span');
+			for (const s of spans) {
+				const cls = s.className;
+				if (cls.includes('change-up') || cls.includes('change-down') || cls.includes('change-neutral')) return true;
+			}
+			return false;
 		})()
 	`)
 	if err != nil {
 		t.Fatalf("error checking arrow color class: %v", err)
 	}
 	if !arrowColored {
-		t.Error("trend arrow cell does not have a color class (change-up, change-down, or change-neutral)")
+		t.Error("breadth holding row trend arrow does not have a color class (change-up, change-down, or change-neutral)")
 	}
 
-	// Verify second column contains trend label with text-muted class
-	hasTrendLabel, err := commontest.EvalBool(ctx, `
+	// Verify today change span has a color class
+	changeColored, err := commontest.EvalBool(ctx, `
 		(() => {
-			const row = document.querySelector('.holding-movement-row');
+			const row = document.querySelector('.breadth-holding-row');
 			if (!row) return false;
-			const cells = row.querySelectorAll('td');
-			if (cells.length < 2) return false;
-			return cells[1].classList.contains('text-muted');
+			const change = row.querySelector('.breadth-holding-change');
+			if (!change) return false;
+			const cls = change.className;
+			return cls.includes('change-up') || cls.includes('change-down') || cls.includes('change-neutral') || cls.includes('breadth-holding-change');
 		})()
 	`)
 	if err != nil {
-		t.Fatalf("error checking trend label: %v", err)
+		t.Fatalf("error checking today change color: %v", err)
 	}
-	if !hasTrendLabel {
-		t.Error("second cell of movement sub-row does not have text-muted class for trend label")
+	if !changeColored {
+		t.Error("breadth holding change element does not have expected styling")
 	}
 
-	// Verify last column has today's dollar change formatting
-	hasTodayChange, err := commontest.EvalBool(ctx, `
-		(() => {
-			const rows = document.querySelectorAll('.holding-movement-row');
-			if (rows.length === 0) return false;
-			for (const row of rows) {
-				const cells = row.querySelectorAll('td');
-				if (cells.length < 6) return false;
-				const lastCell = cells[cells.length - 1];
-				const text = lastCell.textContent.trim();
-				// Should be empty (null price) or formatted like +$1.2K, -$500, +$0
-				if (text && !text.includes('$')) continue;
-				return true;
-			}
-			return true;
-		})()
+	// Verify .holding-movement-row no longer exists in the DOM (removed from holdings table)
+	movementRowGone, err := commontest.EvalBool(ctx, `
+		document.querySelector('.holding-movement-row') === null
 	`)
 	if err != nil {
-		t.Fatalf("error checking today change column: %v", err)
+		t.Fatalf("error checking absence of movement rows: %v", err)
 	}
-	if !hasTodayChange {
-		t.Error("last cell of movement sub-row does not contain dollar-formatted today change")
-	}
-
-	// Verify today change cell has expected styling
-	todayChangeStyled, err := commontest.EvalBool(ctx, `
-		(() => {
-			const row = document.querySelector('.holding-movement-row');
-			if (!row) return false;
-			const cells = row.querySelectorAll('td');
-			if (cells.length < 6) return false;
-			const lastCell = cells[cells.length - 1];
-			const cls = lastCell.className;
-			return cls.includes('change-up') || cls.includes('change-down') || cls.includes('change-neutral') || cls.includes('text-right');
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking today change styling: %v", err)
-	}
-	if !todayChangeStyled {
-		t.Error("today change cell does not have expected styling class")
+	if !movementRowGone {
+		t.Error(".holding-movement-row should not exist in the DOM (movement data moved to breadth section)")
 	}
 }
 

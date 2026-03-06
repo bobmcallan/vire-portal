@@ -84,19 +84,15 @@
                 <div class="portfolio-summary-item">
                     <span class="label">NET RETURN $ <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_return')">i</span></span>
                     <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>
-                    <span class="portfolio-changes" x-show="hasReturnDollarChanges" x-cloak>
-                        <span :class="changeClass(changeReturnDayDollar)" x-text="'D:' + changeDollar(changeReturnDayDollar)"></span>
-                        <span :class="changeClass(changeReturnWeekDollar)" x-text="'W:' + changeDollar(changeReturnWeekDollar)"></span>
-                        <span :class="changeClass(changeReturnMonthDollar)" x-text="'M:' + changeDollar(changeReturnMonthDollar)"></span>
+                    <span class="portfolio-change-today" x-show="changeReturnDayDollar != null" x-cloak>
+                        <span :class="changeClass(changeReturnDayDollar)" x-text="changeDollar(changeReturnDayDollar) + ' today'"></span>
                     </span>
                 </div>
                 <div class="portfolio-summary-item">
                     <span class="label">NET RETURN % <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_return_pct')">i</span></span>
                     <span class="text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></span>
-                    <span class="portfolio-changes" x-show="hasReturnPctChanges" x-cloak>
-                        <span :class="changeClass(changeReturnDayPct)" x-text="'D:' + changePct(changeReturnDayPct)"></span>
-                        <span :class="changeClass(changeReturnWeekPct)" x-text="'W:' + changePct(changeReturnWeekPct)"></span>
-                        <span :class="changeClass(changeReturnMonthPct)" x-text="'M:' + changePct(changeReturnMonthPct)"></span>
+                    <span class="portfolio-change-today" x-show="changeReturnDayPct != null" x-cloak>
+                        <span :class="changeClass(changeReturnDayPct)" x-text="changePct(changeReturnDayPct) + ' today'"></span>
                     </span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
@@ -106,8 +102,16 @@
             </div>
 
             <!-- Growth chart -->
-            <div class="growth-chart-container" x-show="hasGrowthData" x-cloak>
-                <canvas id="growthChart"></canvas>
+            <div class="growth-chart-section" x-show="hasGrowthData" x-cloak>
+                <div class="growth-chart-controls">
+                    <label class="chart-toggle-label">
+                        <input type="checkbox" x-model="showChartBreakdown">
+                        <span>Show breakdown</span>
+                    </label>
+                </div>
+                <div class="growth-chart-container">
+                    <canvas id="growthChart"></canvas>
+                </div>
             </div>
             <div class="growth-chart-ghost" x-show="!portfolioLoading && filteredHoldings.length > 0 && !hasGrowthData" x-cloak>
                 <span class="text-muted">GROWTH CHART — NO DATA</span>
@@ -117,17 +121,44 @@
             <div class="breadth-bar-section" x-show="hasBreadth" x-cloak>
                 <div class="breadth-summary-row">
                     <span class="breadth-trend" :class="trendArrowClass(breadth?.trend_score)" x-text="breadth?.trend_label || ''"></span>
-                    <span class="text-muted" x-text="breadth?.today_change != null ? fmtTodayChange(breadth.today_change) : ''"></span>
+                    <span class="breadth-summary-right">
+                        <span :class="changeClass(breadth?.today_change)" x-text="breadth?.today_change != null ? fmtTodayChange(breadth.today_change) : ''"></span>
+                        <span class="text-muted" x-show="breadth?.yesterday_change != null" x-text="'(' + fmtTodayChange(breadth?.yesterday_change) + ' yesterday)'"></span>
+                        <span class="text-muted breadth-sync" x-show="lastSynced" x-text="'as at ' + fmtSyncedTime(lastSynced)"></span>
+                    </span>
                 </div>
+
+                <!-- Per-holding trend rows -->
+                <div class="breadth-holdings">
+                    <template x-for="h in filteredHoldings.filter(x => x.holding_value_market > 0)" :key="h.ticker">
+                        <div class="breadth-holding-row">
+                            <span class="breadth-holding-ticker" x-text="h.ticker"></span>
+                            <span :class="trendArrowClass(h.trend_score)" x-text="trendArrow(h.trend_score)"></span>
+                            <span class="text-muted breadth-holding-label" x-text="h.trend_label || ''"></span>
+                            <span class="breadth-holding-change" :class="changeClass(holdingTodayChange(h))" x-text="fmtTodayChange(holdingTodayChange(h))"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="breadth-separator"></div>
+
+                <!-- Portfolio summary line -->
+                <div class="breadth-portfolio-row">
+                    <span class="breadth-holding-ticker">PORTFOLIO</span>
+                    <span :class="trendArrowClass(breadth?.trend_score)" x-text="trendArrow(breadth?.trend_score)"></span>
+                    <span class="text-muted breadth-holding-label" x-text="breadth?.trend_label || ''"></span>
+                    <span class="breadth-holding-change" :class="changeClass(breadth?.today_change)" x-text="breadth?.today_change != null ? fmtTodayChange(breadth.today_change) : ''"></span>
+                </div>
+
                 <div class="breadth-bar">
-                    <div class="breadth-segment breadth-rising" :style="'width:' + (breadth?.rising_weight_pct || 0) + '%'"></div>
-                    <div class="breadth-segment breadth-flat" :style="'width:' + (breadth?.flat_weight_pct || 0) + '%'"></div>
                     <div class="breadth-segment breadth-falling" :style="'width:' + (breadth?.falling_weight_pct || 0) + '%'"></div>
+                    <div class="breadth-segment breadth-flat" :style="'width:' + (breadth?.flat_weight_pct || 0) + '%'"></div>
+                    <div class="breadth-segment breadth-rising" :style="'width:' + (breadth?.rising_weight_pct || 0) + '%'"></div>
                 </div>
                 <div class="breadth-counts">
-                    <span x-text="(breadth?.rising_count || 0) + ' Rising'"></span>
-                    <span x-text="(breadth?.flat_count || 0) + ' Flat'"></span>
                     <span x-text="(breadth?.falling_count || 0) + ' Falling'"></span>
+                    <span x-text="(breadth?.flat_count || 0) + ' Flat'"></span>
+                    <span x-text="(breadth?.rising_count || 0) + ' Rising'"></span>
                 </div>
             </div>
 
@@ -161,14 +192,6 @@
                                         <td class="text-right" x-text="pct(h.holding_weight_pct)"></td>
                                         <td class="text-right" :class="gainClass(h.holding_return_net)" x-text="fmt(h.holding_return_net)"></td>
                                         <td class="text-right" :class="gainClass(h.holding_return_net_pct)" x-text="pct(h.holding_return_net_pct)"></td>
-                                    </tr>
-                                    <tr class="holding-movement-row">
-                                        <td :class="trendArrowClass(h.trend_score)" x-text="trendArrow(h.trend_score)"></td>
-                                        <td class="text-muted" x-text="h.trend_label || ''"></td>
-                                        <td :class="changeClass(h.yesterday_price_change_pct)" x-text="'D:' + changePct(h.yesterday_price_change_pct)"></td>
-                                        <td :class="changeClass(h.last_week_price_change_pct)" x-text="'W:' + changePct(h.last_week_price_change_pct)"></td>
-                                        <td :class="changeClass(h.last_month_price_change_pct)" x-text="'M:' + changePct(h.last_month_price_change_pct)"></td>
-                                        <td class="text-right" :class="changeClass(holdingTodayChange(h))" x-text="fmtTodayChange(holdingTodayChange(h))"></td>
                                     </tr>
                                 </tbody>
                             </template>
