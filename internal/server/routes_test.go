@@ -636,8 +636,12 @@ func TestRoutes_DashboardXSSEscape(t *testing.T) {
 	body := w.Body.String()
 
 	// html/template auto-escapes, so <script> should never appear unescaped
-	if containsString(body, "<script>") {
-		t.Error("dashboard contains unescaped <script> tag — potential XSS")
+	// except for the SSR hydration block (window.__VIRE_DATA__), same as strategy/cash
+	scriptCount := strings.Count(body, "<script>")
+	ssrScripts := strings.Count(body, "window.__VIRE_DATA__")
+	if scriptCount > ssrScripts {
+		t.Errorf("dashboard contains %d unescaped <script> tags beyond %d SSR hydration — potential XSS",
+			scriptCount-ssrScripts, ssrScripts)
 	}
 }
 

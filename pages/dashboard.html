@@ -252,6 +252,16 @@
 
     {{template "footer.html" .}}
 
+    <script>
+    window.__VIRE_DATA__ = {
+        portfolios: {{.PortfoliosJSON}},
+        portfolio: {{.PortfolioJSON}},
+        timeline: {{.TimelineJSON}},
+        watchlist: {{.WatchlistJSON}},
+        glossary: {{.GlossaryJSON}}
+    };
+    </script>
+
 </body>
 
 </html>

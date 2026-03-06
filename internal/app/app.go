@@ -170,6 +170,9 @@ func (a *App) initHandlers() {
 	a.CashHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
 		return vireClient.ProxyGet(path, userID)
 	})
+	a.DashboardHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		return vireClient.ProxyGet(path, userID)
+	})
 
 	a.MCPPageHandler = handlers.NewMCPPageHandler(
 		a.Logger,

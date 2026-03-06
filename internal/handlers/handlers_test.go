@@ -3050,3 +3050,150 @@ func TestCashHandler_SSR_NilProxyGet(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 }
+
+func TestDashboardHandler_SSR_EmbedJSON(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return []byte(`{"portfolios":[{"name":"Test"}],"default":"Test"}`), nil
+		}
+		if strings.Contains(path, "/api/portfolios/Test") && !strings.Contains(path, "/timeline") && !strings.Contains(path, "/watchlist") {
+			return []byte(`{"holdings":[{"ticker":"AAPL"}],"portfolio_value":1000}`), nil
+		}
+		if strings.Contains(path, "/timeline") {
+			return []byte(`{"data_points":[{"date":"2026-01-01","portfolio_value":900}]}`), nil
+		}
+		if strings.Contains(path, "/watchlist") {
+			return []byte(`{"items":[{"ticker":"MSFT","verdict":"PASS"}]}`), nil
+		}
+		if path == "/api/glossary" {
+			return []byte(`{"categories":[{"name":"Returns","terms":[{"term":"roi","definition":"Return on investment"}]}]}`), nil
+		}
+		return []byte(`{}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "window.__VIRE_DATA__") {
+		t.Error("expected window.__VIRE_DATA__ in dashboard page body")
+	}
+	if !strings.Contains(body, `"portfolios"`) {
+		t.Error("expected portfolios JSON embedded in page")
+	}
+	if !strings.Contains(body, `"AAPL"`) {
+		t.Error("expected portfolio holdings data embedded in page")
+	}
+	if !strings.Contains(body, `"data_points"`) {
+		t.Error("expected timeline data embedded in page")
+	}
+	if !strings.Contains(body, `"MSFT"`) {
+		t.Error("expected watchlist data embedded in page")
+	}
+	if !strings.Contains(body, `"roi"`) {
+		t.Error("expected glossary data embedded in page")
+	}
+}
+
+func TestDashboardHandler_SSR_NilProxyGet(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	// No SetProxyGetFn call — proxyGetFn is nil
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "window.__VIRE_DATA__") {
+		t.Error("expected window.__VIRE_DATA__ even with nil proxyGetFn")
+	}
+}
+
+func TestDashboardHandler_SSR_ProxyGetPartialFailure(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return []byte(`{"portfolios":[{"name":"Test"}],"default":"Test"}`), nil
+		}
+		if strings.Contains(path, "/api/portfolios/Test") && !strings.Contains(path, "/timeline") && !strings.Contains(path, "/watchlist") {
+			return []byte(`{"holdings":[{"ticker":"AAPL"}]}`), nil
+		}
+		return nil, fmt.Errorf("simulated failure")
+	})
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"AAPL"`) {
+		t.Error("expected portfolio data present despite partial failure")
+	}
+	if !strings.Contains(body, "window.__VIRE_DATA__") {
+		t.Error("expected window.__VIRE_DATA__ in body")
+	}
+}
+
+func TestDashboardHandler_SSR_ProxyGetPortfoliosFailure(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		return nil, fmt.Errorf("portfolios fetch failed")
+	})
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestDashboardHandler_SSR_NoDefaultPortfolio(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return []byte(`{"portfolios":[{"name":"First"}],"default":""}`), nil
+		}
+		if strings.Contains(path, "/api/portfolios/First") {
+			return []byte(`{"holdings":[{"ticker":"GOOG"}]}`), nil
+		}
+		if path == "/api/glossary" {
+			return []byte(`{"categories":[]}`), nil
+		}
+		return []byte(`{}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"GOOG"`) {
+		t.Error("expected handler to select first portfolio when no default")
+	}
+}

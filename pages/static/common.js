@@ -255,8 +255,113 @@ function portfolioDashboard() {
             return val > 0 ? 'gain-positive' : 'gain-negative';
         },
 
+        _applyPortfolioData(holdingsData) {
+            this.holdings = vireStore.dedup(holdingsData.holdings || [], 'ticker');
+            this.totalDividends = Number(holdingsData.income_dividends_forecast) || 0;
+            this.ledgerDividendReturn = Number(holdingsData.income_dividends_received) || 0;
+            this.lastSynced = holdingsData.last_synced || '';
+            // Parse changes
+            const changes = holdingsData.changes;
+            if (changes) {
+                this.changeDayPct = changes.yesterday?.portfolio_value?.has_previous ? changes.yesterday.portfolio_value.pct_change : null;
+                this.changeWeekPct = changes.week?.portfolio_value?.has_previous ? changes.week.portfolio_value.pct_change : null;
+                this.changeMonthPct = changes.month?.portfolio_value?.has_previous ? changes.month.portfolio_value.pct_change : null;
+                this.hasChanges = this.changeDayPct !== null || this.changeWeekPct !== null || this.changeMonthPct !== null;
+                this.changeCashDayPct = changes.yesterday?.capital_gross?.has_previous ? changes.yesterday.capital_gross.pct_change : null;
+                this.changeCashWeekPct = changes.week?.capital_gross?.has_previous ? changes.week.capital_gross.pct_change : null;
+                this.changeCashMonthPct = changes.month?.capital_gross?.has_previous ? changes.month.capital_gross.pct_change : null;
+                this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
+                this.changeReturnDayDollar = changes.yesterday?.equity_holdings_value?.has_previous ? changes.yesterday.equity_holdings_value.raw_change : null;
+                this.changeReturnWeekDollar = changes.week?.equity_holdings_value?.has_previous ? changes.week.equity_holdings_value.raw_change : null;
+                this.changeReturnMonthDollar = changes.month?.equity_holdings_value?.has_previous ? changes.month.equity_holdings_value.raw_change : null;
+                this.hasReturnDollarChanges = this.changeReturnDayDollar !== null || this.changeReturnWeekDollar !== null || this.changeReturnMonthDollar !== null;
+                this.changeReturnDayPct = changes.yesterday?.equity_holdings_value?.has_previous ? changes.yesterday.equity_holdings_value.pct_change : null;
+                this.changeReturnWeekPct = changes.week?.equity_holdings_value?.has_previous ? changes.week.equity_holdings_value.pct_change : null;
+                this.changeReturnMonthPct = changes.month?.equity_holdings_value?.has_previous ? changes.month.equity_holdings_value.pct_change : null;
+                this.hasReturnPctChanges = this.changeReturnDayPct !== null || this.changeReturnWeekPct !== null || this.changeReturnMonthPct !== null;
+            } else {
+                this.changeDayPct = null; this.changeWeekPct = null; this.changeMonthPct = null; this.hasChanges = false;
+                this.changeCashDayPct = null; this.changeCashWeekPct = null; this.changeCashMonthPct = null; this.hasCashChanges = false;
+                this.changeReturnDayDollar = null; this.changeReturnWeekDollar = null; this.changeReturnMonthDollar = null; this.hasReturnDollarChanges = false;
+                this.changeReturnDayPct = null; this.changeReturnWeekPct = null; this.changeReturnMonthPct = null; this.hasReturnPctChanges = false;
+            }
+            this.portfolioTotalValue = Number(holdingsData.portfolio_value) || 0;
+            this.portfolioGain = Number(holdingsData.equity_holdings_return) || 0;
+            this.portfolioGainPct = Number(holdingsData.equity_holdings_return_pct) || 0;
+            this.portfolioCost = Number(holdingsData.equity_holdings_cost) || 0;
+            this.equityValue = Number(holdingsData.equity_holdings_value) || 0;
+            this.grossCashBalance = Number(holdingsData.capital_gross) || 0;
+            this.availableCash = Number(holdingsData.capital_available) || 0;
+            const cp = holdingsData.capital_performance;
+            if (cp && cp.transaction_count > 0) {
+                this.capitalInvested = Number(cp.capital_contributions_net) || 0;
+                this.grossContributions = Number(cp.capital_contributions_gross) || 0;
+                this.hasCapitalData = true;
+            } else {
+                this.capitalInvested = 0; this.grossContributions = 0; this.hasCapitalData = false;
+            }
+            this.breadth = holdingsData.breadth || this.computeBreadth();
+            this.hasBreadth = this.breadth !== null;
+        },
+
+        _applyTimelineData(timelineData) {
+            const points = timelineData.data_points || [];
+            this.growthData = this.filterAnomalies(points);
+            this.hasGrowthData = this.growthData.length > 0;
+        },
+
         async init() {
             try {
+                const ssrData = window.__VIRE_DATA__;
+                if (ssrData && ssrData.portfolios) {
+                    // --- SSR path: hydrate from server-embedded data ---
+                    const data = ssrData.portfolios;
+                    this.portfolios = vireStore.dedup(data.portfolios || [], 'name');
+                    this.defaultPortfolio = data.default || '';
+                    if (this.defaultPortfolio) {
+                        this.selected = this.defaultPortfolio;
+                    } else if (this.portfolios.length > 0) {
+                        this.selected = this.portfolios[0].name;
+                    }
+
+                    if (ssrData.portfolio) {
+                        this._applyPortfolioData(ssrData.portfolio);
+                    }
+                    if (ssrData.timeline) {
+                        this._applyTimelineData(ssrData.timeline);
+                    }
+                    if (ssrData.watchlist) {
+                        this.watchlist = ssrData.watchlist.items || [];
+                    }
+                    if (ssrData.glossary) {
+                        const map = {};
+                        for (const cat of (ssrData.glossary.categories || [])) {
+                            for (const t of (cat.terms || [])) {
+                                map[t.term] = t.definition;
+                            }
+                        }
+                        this.glossary = map;
+                    }
+
+                    window.__VIRE_DATA__ = null;
+                    this.loading = false;
+
+                    // Set up watchers (same as client-side path)
+                    this.$watch('showClosed', (val) => {
+                        if (val) this.fetchClosedHoldings();
+                    });
+                    this.$watch('showChartBreakdown', () => this.renderChart());
+                    this.$watch('showMA20', () => this.renderChart());
+                    this.$watch('showMA50', () => this.renderChart());
+                    this.$watch('showMA200', () => this.renderChart());
+
+                    if (this.hasGrowthData) {
+                        this.$nextTick(() => this.renderChart());
+                    }
+                    return;
+                }
+
+                // --- Client-side fallback path ---
                 const res = await vireStore.fetch('/api/portfolios');
                 if (!res.ok) {
                     this.error = 'Failed to load portfolios';
@@ -310,72 +415,7 @@ function portfolioDashboard() {
 
                 if (holdingsRes.ok) {
                     const holdingsData = await holdingsRes.json();
-                    this.holdings = vireStore.dedup(holdingsData.holdings || [], 'ticker');
-                    this.totalDividends = Number(holdingsData.income_dividends_forecast) || 0;
-                    this.ledgerDividendReturn = Number(holdingsData.income_dividends_received) || 0;
-                    // Parse last_synced (UTC → local time)
-                    this.lastSynced = holdingsData.last_synced || '';
-                    // Parse changes
-                    const changes = holdingsData.changes;
-                    if (changes) {
-                        this.changeDayPct = changes.yesterday?.portfolio_value?.has_previous ? changes.yesterday.portfolio_value.pct_change : null;
-                        this.changeWeekPct = changes.week?.portfolio_value?.has_previous ? changes.week.portfolio_value.pct_change : null;
-                        this.changeMonthPct = changes.month?.portfolio_value?.has_previous ? changes.month.portfolio_value.pct_change : null;
-                        this.hasChanges = this.changeDayPct !== null || this.changeWeekPct !== null || this.changeMonthPct !== null;
-                        // Cash changes
-                        this.changeCashDayPct = changes.yesterday?.capital_gross?.has_previous ? changes.yesterday.capital_gross.pct_change : null;
-                        this.changeCashWeekPct = changes.week?.capital_gross?.has_previous ? changes.week.capital_gross.pct_change : null;
-                        this.changeCashMonthPct = changes.month?.capital_gross?.has_previous ? changes.month.capital_gross.pct_change : null;
-                        this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
-                        // Equity value $ changes (raw_change = dollar movement)
-                        this.changeReturnDayDollar = changes.yesterday?.equity_holdings_value?.has_previous ? changes.yesterday.equity_holdings_value.raw_change : null;
-                        this.changeReturnWeekDollar = changes.week?.equity_holdings_value?.has_previous ? changes.week.equity_holdings_value.raw_change : null;
-                        this.changeReturnMonthDollar = changes.month?.equity_holdings_value?.has_previous ? changes.month.equity_holdings_value.raw_change : null;
-                        this.hasReturnDollarChanges = this.changeReturnDayDollar !== null || this.changeReturnWeekDollar !== null || this.changeReturnMonthDollar !== null;
-                        // Equity value % changes (pct_change = percentage movement)
-                        this.changeReturnDayPct = changes.yesterday?.equity_holdings_value?.has_previous ? changes.yesterday.equity_holdings_value.pct_change : null;
-                        this.changeReturnWeekPct = changes.week?.equity_holdings_value?.has_previous ? changes.week.equity_holdings_value.pct_change : null;
-                        this.changeReturnMonthPct = changes.month?.equity_holdings_value?.has_previous ? changes.month.equity_holdings_value.pct_change : null;
-                        this.hasReturnPctChanges = this.changeReturnDayPct !== null || this.changeReturnWeekPct !== null || this.changeReturnMonthPct !== null;
-                    } else {
-                        this.changeDayPct = null;
-                        this.changeWeekPct = null;
-                        this.changeMonthPct = null;
-                        this.hasChanges = false;
-                        this.changeCashDayPct = null;
-                        this.changeCashWeekPct = null;
-                        this.changeCashMonthPct = null;
-                        this.hasCashChanges = false;
-                        this.changeReturnDayDollar = null;
-                        this.changeReturnWeekDollar = null;
-                        this.changeReturnMonthDollar = null;
-                        this.hasReturnDollarChanges = false;
-                        this.changeReturnDayPct = null;
-                        this.changeReturnWeekPct = null;
-                        this.changeReturnMonthPct = null;
-                        this.hasReturnPctChanges = false;
-                    }
-                    this.portfolioTotalValue = Number(holdingsData.portfolio_value) || 0;
-                    this.portfolioGain = Number(holdingsData.equity_holdings_return) || 0;
-                    this.portfolioGainPct = Number(holdingsData.equity_holdings_return_pct) || 0;
-                    this.portfolioCost = Number(holdingsData.equity_holdings_cost) || 0;
-                    this.equityValue = Number(holdingsData.equity_holdings_value) || 0;
-                    this.grossCashBalance = Number(holdingsData.capital_gross) || 0;
-                    this.availableCash = Number(holdingsData.capital_available) || 0;
-                    // Parse capital performance
-                    const cp = holdingsData.capital_performance;
-                    if (cp && cp.transaction_count > 0) {
-                        this.capitalInvested = Number(cp.capital_contributions_net) || 0;
-                        this.grossContributions = Number(cp.capital_contributions_gross) || 0;
-                        this.hasCapitalData = true;
-                    } else {
-                        this.capitalInvested = 0;
-                        this.grossContributions = 0;
-                        this.hasCapitalData = false;
-                    }
-                    // Parse breadth (server or computed fallback)
-                    this.breadth = holdingsData.breadth || this.computeBreadth();
-                    this.hasBreadth = this.breadth !== null;
+                    this._applyPortfolioData(holdingsData);
                 } else {
                     this.holdings = [];
                     this.portfolioTotalValue = 0;
@@ -726,72 +766,7 @@ function portfolioDashboard() {
                 const res = await fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '?force_refresh=true');
                 if (res.ok) {
                     const data = await res.json();
-                    this.holdings = vireStore.dedup(data.holdings || [], 'ticker');
-                    this.totalDividends = Number(data.income_dividends_forecast) || 0;
-                    this.ledgerDividendReturn = Number(data.income_dividends_received) || 0;
-                    this.portfolioTotalValue = Number(data.portfolio_value) || 0;
-                    this.portfolioGain = Number(data.equity_holdings_return) || 0;
-                    this.portfolioGainPct = Number(data.equity_holdings_return_pct) || 0;
-                    this.portfolioCost = Number(data.equity_holdings_cost) || 0;
-                    this.equityValue = Number(data.equity_holdings_value) || 0;
-                    this.grossCashBalance = Number(data.capital_gross) || 0;
-                    this.availableCash = Number(data.capital_available) || 0;
-                    // Parse last_synced (UTC → local time)
-                    this.lastSynced = data.last_synced || '';
-                    // Parse changes
-                    const changes = data.changes;
-                    if (changes) {
-                        this.changeDayPct = changes.yesterday?.portfolio_value?.has_previous ? changes.yesterday.portfolio_value.pct_change : null;
-                        this.changeWeekPct = changes.week?.portfolio_value?.has_previous ? changes.week.portfolio_value.pct_change : null;
-                        this.changeMonthPct = changes.month?.portfolio_value?.has_previous ? changes.month.portfolio_value.pct_change : null;
-                        this.hasChanges = this.changeDayPct !== null || this.changeWeekPct !== null || this.changeMonthPct !== null;
-                        // Cash changes
-                        this.changeCashDayPct = changes.yesterday?.capital_gross?.has_previous ? changes.yesterday.capital_gross.pct_change : null;
-                        this.changeCashWeekPct = changes.week?.capital_gross?.has_previous ? changes.week.capital_gross.pct_change : null;
-                        this.changeCashMonthPct = changes.month?.capital_gross?.has_previous ? changes.month.capital_gross.pct_change : null;
-                        this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
-                        // Equity value $ changes (raw_change = dollar movement)
-                        this.changeReturnDayDollar = changes.yesterday?.equity_holdings_value?.has_previous ? changes.yesterday.equity_holdings_value.raw_change : null;
-                        this.changeReturnWeekDollar = changes.week?.equity_holdings_value?.has_previous ? changes.week.equity_holdings_value.raw_change : null;
-                        this.changeReturnMonthDollar = changes.month?.equity_holdings_value?.has_previous ? changes.month.equity_holdings_value.raw_change : null;
-                        this.hasReturnDollarChanges = this.changeReturnDayDollar !== null || this.changeReturnWeekDollar !== null || this.changeReturnMonthDollar !== null;
-                        // Equity value % changes (pct_change = percentage movement)
-                        this.changeReturnDayPct = changes.yesterday?.equity_holdings_value?.has_previous ? changes.yesterday.equity_holdings_value.pct_change : null;
-                        this.changeReturnWeekPct = changes.week?.equity_holdings_value?.has_previous ? changes.week.equity_holdings_value.pct_change : null;
-                        this.changeReturnMonthPct = changes.month?.equity_holdings_value?.has_previous ? changes.month.equity_holdings_value.pct_change : null;
-                        this.hasReturnPctChanges = this.changeReturnDayPct !== null || this.changeReturnWeekPct !== null || this.changeReturnMonthPct !== null;
-                    } else {
-                        this.changeDayPct = null;
-                        this.changeWeekPct = null;
-                        this.changeMonthPct = null;
-                        this.hasChanges = false;
-                        this.changeCashDayPct = null;
-                        this.changeCashWeekPct = null;
-                        this.changeCashMonthPct = null;
-                        this.hasCashChanges = false;
-                        this.changeReturnDayDollar = null;
-                        this.changeReturnWeekDollar = null;
-                        this.changeReturnMonthDollar = null;
-                        this.hasReturnDollarChanges = false;
-                        this.changeReturnDayPct = null;
-                        this.changeReturnWeekPct = null;
-                        this.changeReturnMonthPct = null;
-                        this.hasReturnPctChanges = false;
-                    }
-                    // Re-parse capital performance
-                    const cp = data.capital_performance;
-                    if (cp && cp.transaction_count > 0) {
-                        this.capitalInvested = Number(cp.capital_contributions_net) || 0;
-                        this.grossContributions = Number(cp.capital_contributions_gross) || 0;
-                        this.hasCapitalData = true;
-                    } else {
-                        this.capitalInvested = 0;
-                        this.grossContributions = 0;
-                        this.hasCapitalData = false;
-                    }
-                    // Re-parse breadth (server or computed fallback)
-                    this.breadth = data.breadth || this.computeBreadth();
-                    this.hasBreadth = this.breadth !== null;
+                    this._applyPortfolioData(data);
                 }
                 // Re-fetch growth data and watchlist with force refresh
                 this.fetchGrowthData(true);

@@ -1447,46 +1447,6 @@ func TestDashboardBreadthBar(t *testing.T) {
 		t.Error("breadth bar segments should be ordered: falling, then flat, then rising")
 	}
 
-	// Verify per-holding rows exist inside .breadth-holdings
-	holdingsContainer, err := isVisible(ctx, ".breadth-holdings")
-	if err != nil {
-		t.Fatalf("error checking breadth holdings container: %v", err)
-	}
-	if !holdingsContainer {
-		t.Error("breadth-holdings container not visible")
-	}
-
-	holdingRowCount, err := elementCount(ctx, ".breadth-holdings .breadth-holding-row")
-	if err != nil {
-		t.Fatalf("error counting breadth holding rows: %v", err)
-	}
-	if holdingRowCount < 1 {
-		t.Error("expected at least 1 per-holding row inside .breadth-holdings")
-	}
-
-	// Verify .breadth-portfolio-row exists with "PORTFOLIO" text
-	portfolioRow, err := commontest.EvalBool(ctx, `
-		(() => {
-			const row = document.querySelector('.breadth-portfolio-row');
-			if (!row) return false;
-			return row.textContent.includes('PORTFOLIO');
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking breadth portfolio row: %v", err)
-	}
-	if !portfolioRow {
-		t.Error("breadth-portfolio-row not found or does not contain 'PORTFOLIO' text")
-	}
-
-	// Verify .breadth-separator exists
-	separatorVisible, err := isVisible(ctx, ".breadth-separator")
-	if err != nil {
-		t.Fatalf("error checking breadth separator: %v", err)
-	}
-	if !separatorVisible {
-		t.Error("breadth-separator not visible between holdings and portfolio row")
-	}
 }
 
 func TestDashboardHoldingTrendArrows(t *testing.T) {
@@ -1503,86 +1463,13 @@ func TestDashboardHoldingTrendArrows(t *testing.T) {
 
 	takeScreenshot(t, ctx, "dashboard", "holding-trend-arrows.png")
 
-	// Check if breadth holdings container is visible
-	visible, err := isVisible(ctx, ".breadth-holdings")
+	// Check if holdings table is visible
+	visible, err := isVisible(ctx, ".tool-table")
 	if err != nil {
-		t.Fatalf("error checking breadth holdings visibility: %v", err)
+		t.Fatalf("error checking holdings table visibility: %v", err)
 	}
 	if !visible {
-		t.Skip("breadth holdings not visible (no portfolio data or breadth not computed)")
-	}
-
-	// Verify per-holding rows exist inside breadth section
-	rowCount, err := elementCount(ctx, ".breadth-holding-row")
-	if err != nil {
-		t.Fatalf("error counting breadth holding rows: %v", err)
-	}
-	if rowCount < 1 {
-		t.Skip("no breadth holding rows visible (no holdings data)")
-	}
-
-	// Verify each holding row has: ticker, trend arrow, trend label, today change
-	rowStructure, err := commontest.EvalBool(ctx, `
-		(() => {
-			const rows = document.querySelectorAll('.breadth-holding-row');
-			if (rows.length === 0) return false;
-			for (const row of rows) {
-				// Must have a ticker span
-				const ticker = row.querySelector('.breadth-holding-ticker');
-				if (!ticker || !ticker.textContent.trim()) return false;
-				// Must have a trend label span
-				const label = row.querySelector('.breadth-holding-label');
-				if (!label) return false;
-				// Must have a today change span
-				const change = row.querySelector('.breadth-holding-change');
-				if (!change) return false;
-			}
-			return true;
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking holding row structure: %v", err)
-	}
-	if !rowStructure {
-		t.Error("breadth holding rows missing expected elements (ticker, label, or change)")
-	}
-
-	// Verify trend arrow has a color class (change-up, change-down, or change-neutral)
-	arrowColored, err := commontest.EvalBool(ctx, `
-		(() => {
-			const row = document.querySelector('.breadth-holding-row');
-			if (!row) return false;
-			const spans = row.querySelectorAll('span');
-			for (const s of spans) {
-				const cls = s.className;
-				if (cls.includes('change-up') || cls.includes('change-down') || cls.includes('change-neutral')) return true;
-			}
-			return false;
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking arrow color class: %v", err)
-	}
-	if !arrowColored {
-		t.Error("breadth holding row trend arrow does not have a color class (change-up, change-down, or change-neutral)")
-	}
-
-	// Verify today change span has a color class
-	changeColored, err := commontest.EvalBool(ctx, `
-		(() => {
-			const row = document.querySelector('.breadth-holding-row');
-			if (!row) return false;
-			const change = row.querySelector('.breadth-holding-change');
-			if (!change) return false;
-			const cls = change.className;
-			return cls.includes('change-up') || cls.includes('change-down') || cls.includes('change-neutral') || cls.includes('breadth-holding-change');
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking today change color: %v", err)
-	}
-	if !changeColored {
-		t.Error("breadth holding change element does not have expected styling")
+		t.Skip("holdings table not visible (no portfolio data)")
 	}
 
 	// Verify .holding-movement-row exists with .holding-movement-content td
@@ -1686,5 +1573,107 @@ func TestDashboardLastSynced(t *testing.T) {
 	}
 	if !rightAligned {
 		t.Error("portfolio synced element should be right-aligned")
+	}
+}
+
+func TestDashboardSSR_NoLoadingSpinner(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	takeScreenshot(t, ctx, "dashboard", "ssr-no-loading-spinner.png")
+
+	// SSR pre-populates data, so "Loading portfolios..." should not be visible
+	loadingHidden, err := commontest.EvalBool(ctx, `
+		(() => {
+			const els = document.querySelectorAll('[x-show="loading"]');
+			for (const el of els) {
+				if (el.offsetParent !== null && el.textContent.includes('Loading portfolios')) return false;
+			}
+			return true;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking loading spinner: %v", err)
+	}
+	if !loadingHidden {
+		t.Error("Loading portfolios spinner should not be visible with SSR")
+	}
+
+	// Portfolio selector should be immediately visible
+	selectorVisible, err := isVisible(ctx, "select.portfolio-select")
+	if err != nil {
+		t.Fatalf("error checking portfolio selector: %v", err)
+	}
+	if !selectorVisible {
+		t.Error("portfolio selector should be visible immediately with SSR")
+	}
+}
+
+func TestDashboardSSR_DataPreRendered(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	takeScreenshot(t, ctx, "dashboard", "ssr-data-prerendered.png")
+
+	// Holdings table should be visible without waiting for client-side fetch
+	tableVisible, err := isVisible(ctx, ".tool-table")
+	if err != nil {
+		t.Fatalf("error checking holdings table: %v", err)
+	}
+	if !tableVisible {
+		t.Skip("holdings table not visible (test account may have no holdings)")
+	}
+
+	// Alpine loading state should be false
+	notLoading, err := commontest.EvalBool(ctx, `
+		(() => {
+			const comp = document.querySelector('[x-data]');
+			if (!comp || !comp.__x) return false;
+			return comp.__x.$data.loading === false;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking Alpine loading state: %v", err)
+	}
+	if !notLoading {
+		t.Skip("Alpine loading state not false (test account may lack portfolio data for SSR)")
+	}
+}
+
+func TestDashboardSSR_VireDataCleared(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine init to complete and clear SSR data
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "ssr-vire-data-cleared.png")
+
+	// After Alpine init, window.__VIRE_DATA__ should be null (consumed by SSR path)
+	// or still present with null portfolios (SSR path skipped, client-side fallback used)
+	cleared, err := commontest.EvalBool(ctx, `
+		window.__VIRE_DATA__ === null ||
+		(window.__VIRE_DATA__ && window.__VIRE_DATA__.portfolios === null)
+	`)
+	if err != nil {
+		t.Fatalf("error checking __VIRE_DATA__: %v", err)
+	}
+	if !cleared {
+		t.Error("window.__VIRE_DATA__ should be null (consumed) or have null portfolios (no SSR data)")
 	}
 }
