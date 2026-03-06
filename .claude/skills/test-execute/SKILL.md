@@ -107,8 +107,8 @@ If tests fail:
 
 ## Notes
 
-- Docker mode (default): container starts automatically via `TestMain`
-- Manual mode: set `VIRE_TEST_URL` to skip container startup
+- Tests always start Docker containers via `TestMain` (no manual/local mode)
+- Latest `vire-server:latest` image is always pulled from GHCR
 - First run builds `vire-portal:test` Docker image (may be slow)
 - Container logs saved to `tests/logs/{timestamp}/container.log`
 - Results always saved to `tests/logs/{timestamp}/`

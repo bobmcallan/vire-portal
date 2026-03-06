@@ -27,6 +27,7 @@ services:
 
   server:
     image: ghcr.io/bobmcallan/vire-server:latest
+    pull_policy: always
     container_name: vire-server-test
     depends_on:
       surrealdb:

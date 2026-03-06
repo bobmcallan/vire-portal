@@ -1432,7 +1432,7 @@ func TestDashboardHandler_StressBreadthBarBindings(t *testing.T) {
 }
 
 func TestDashboardHandler_StressTrendArrowBindings(t *testing.T) {
-	// Trend arrows now live in breadth-holding-row, not movement sub-rows.
+	// Trend arrows live in holding-movement-row sub-rows of the holdings table.
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1443,34 +1443,28 @@ func TestDashboardHandler_StressTrendArrowBindings(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Trend arrow bindings in breadth holding rows
+	// Trend arrow bindings in holding movement rows
 	if !strings.Contains(body, `x-text="trendArrow(h.trend_score)"`) {
-		t.Error("expected trendArrow(h.trend_score) in breadth holding row")
+		t.Error("expected trendArrow(h.trend_score) in holding movement row")
 	}
 	if !strings.Contains(body, `:class="trendArrowClass(h.trend_score)"`) {
-		t.Error("expected trendArrowClass(h.trend_score) in breadth holding row")
+		t.Error("expected trendArrowClass(h.trend_score) in holding movement row")
 	}
-	// Today's dollar change in breadth holding row
+	// Today's dollar change in movement row
 	if !strings.Contains(body, `fmtTodayChange(holdingTodayChange(h))`) {
-		t.Error("expected fmtTodayChange(holdingTodayChange(h)) in breadth holding row")
+		t.Error("expected fmtTodayChange(holdingTodayChange(h)) in holding movement row")
 	}
-	if !strings.Contains(body, `:class="changeClass(holdingTodayChange(h))"`) {
-		t.Error("expected changeClass(holdingTodayChange(h)) color binding in breadth holding row")
-	}
-	// breadth-holding-row and breadth-portfolio-row must exist
-	if !strings.Contains(body, `class="breadth-holding-row"`) {
-		t.Error("expected breadth-holding-row class in dashboard")
-	}
-	if !strings.Contains(body, `class="breadth-portfolio-row"`) {
-		t.Error("expected breadth-portfolio-row class in dashboard")
+	// holding-movement-row must exist
+	if !strings.Contains(body, `holding-movement-row`) {
+		t.Error("expected holding-movement-row class in dashboard")
 	}
 	// chart-toggle-label must exist
 	if !strings.Contains(body, `class="chart-toggle-label"`) {
 		t.Error("expected chart-toggle-label class in dashboard")
 	}
-	// holding-movement-row must NOT exist (removed)
-	if strings.Contains(body, `holding-movement-row`) {
-		t.Error("holding-movement-row should have been removed from dashboard")
+	// holdings-total-row must exist
+	if !strings.Contains(body, `holdings-total-row`) {
+		t.Error("expected holdings-total-row class in dashboard")
 	}
 }
 
@@ -1654,43 +1648,16 @@ func TestDashboardHandler_StressChartToggleXModel(t *testing.T) {
 	if !strings.Contains(body, `chart-toggle-label`) {
 		t.Error("expected chart-toggle-label wrapping the breakdown checkbox")
 	}
-	// Must show "Show breakdown" text
-	if !strings.Contains(body, `Show breakdown`) {
-		t.Error("expected 'Show breakdown' label text for chart toggle")
+	// Must show "Breakdown" text
+	if !strings.Contains(body, `Breakdown`) {
+		t.Error("expected 'Breakdown' label text for chart toggle")
 	}
-}
-
-func TestDashboardHandler_StressAnnotationPluginLoaded(t *testing.T) {
-	// The Chart.js annotation plugin CDN must be loaded AFTER chart.js and BEFORE Alpine.
-	// Without it, rebalance annotations silently fail (by design), but the script
-	// tag must still be present for annotations to work when the CDN is available.
-	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
-
-	req := httptest.NewRequest("GET", "/dashboard", nil)
-	addAuthCookie(req, "test-user")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	body := w.Body.String()
-
-	if !strings.Contains(body, `chartjs-plugin-annotation`) {
-		t.Error("expected chartjs-plugin-annotation CDN script in dashboard head")
+	// Must have MA toggle labels
+	if !strings.Contains(body, `x-model="showMA20"`) {
+		t.Error("expected showMA20 toggle in chart controls")
 	}
-
-	// Verify load order: chart.js before annotation plugin before alpine
-	chartPos := strings.Index(body, "chart.js@4")
-	annotationPos := strings.Index(body, "chartjs-plugin-annotation")
-	alpinePos := strings.Index(body, "alpinejs@3")
-
-	if chartPos < 0 || annotationPos < 0 || alpinePos < 0 {
-		t.Fatal("expected chart.js, annotation plugin, and alpine.js script tags")
-	}
-	if chartPos >= annotationPos {
-		t.Error("chart.js must load before chartjs-plugin-annotation")
-	}
-	if annotationPos >= alpinePos {
-		t.Error("chartjs-plugin-annotation must load before alpine.js")
+	if !strings.Contains(body, `x-model="showMA50"`) {
+		t.Error("expected showMA50 toggle in chart controls")
 	}
 }
 
@@ -1710,18 +1677,25 @@ func TestDashboardHandler_StressChartBreakdownPropertyDeclared(t *testing.T) {
 	if !strings.Contains(js, "fmtSyncedTime") {
 		t.Error("expected fmtSyncedTime helper in common.js")
 	}
-	// Rebalance annotation logic must exist
-	if !strings.Contains(js, "rebalanceAnnotations") {
-		t.Error("expected rebalanceAnnotations computation in common.js")
-	}
 	// $watch for breakdown toggle must exist
 	if !strings.Contains(js, `$watch('showChartBreakdown'`) {
 		t.Error("expected $watch on showChartBreakdown in common.js")
 	}
+	// Moving average properties must be declared
+	for _, prop := range []string{"showMA20", "showMA50", "showMA200"} {
+		if !strings.Contains(js, prop) {
+			t.Errorf("expected %s property in common.js", prop)
+		}
+	}
+	// computeMA helper must exist
+	if !strings.Contains(js, "computeMA") {
+		t.Error("expected computeMA helper in common.js")
+	}
 }
 
-func TestDashboardHandler_StressBreadthPortfolioRowPresent(t *testing.T) {
-	// The breadth section must have a PORTFOLIO summary row with the correct text.
+func TestDashboardHandler_StressBreadthBarStructure(t *testing.T) {
+	// The breadth section must have the bar with falling/flat/rising segments
+	// but must NOT contain per-holding rows or portfolio summary row.
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1732,17 +1706,22 @@ func TestDashboardHandler_StressBreadthPortfolioRowPresent(t *testing.T) {
 
 	body := w.Body.String()
 
-	// PORTFOLIO label must exist in breadth portfolio row
-	if !strings.Contains(body, `>PORTFOLIO<`) {
-		t.Error("expected 'PORTFOLIO' text in breadth-portfolio-row")
+	// Breadth bar segments must exist
+	if !strings.Contains(body, `class="breadth-bar"`) {
+		t.Error("expected breadth-bar container")
 	}
-	// breadth-separator must exist between holdings and portfolio row
-	if !strings.Contains(body, `class="breadth-separator"`) {
-		t.Error("expected breadth-separator between holding rows and portfolio row")
+	if !strings.Contains(body, `class="breadth-counts"`) {
+		t.Error("expected breadth-counts for falling/flat/rising counts")
 	}
-	// breadth-holdings container must exist
-	if !strings.Contains(body, `class="breadth-holdings"`) {
-		t.Error("expected breadth-holdings container for per-holding trend rows")
+	// Per-holding rows and portfolio row must NOT exist (removed)
+	if strings.Contains(body, `class="breadth-portfolio-row"`) {
+		t.Error("breadth-portfolio-row should have been removed")
+	}
+	if strings.Contains(body, `class="breadth-separator"`) {
+		t.Error("breadth-separator should have been removed")
+	}
+	if strings.Contains(body, `class="breadth-holdings"`) {
+		t.Error("breadth-holdings should have been removed")
 	}
 }
 

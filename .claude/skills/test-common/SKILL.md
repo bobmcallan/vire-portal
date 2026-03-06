@@ -24,7 +24,7 @@ All UI tests MUST use the shared setup from `tests/common/`:
 - `LoginAndNavigate(ctx, url, timeout)` for authenticated pages
 - `JSErrorCollector` for capturing JS errors
 
-The portal container is shared per test process via `sync.Once`. When `VIRE_TEST_URL` is set, container startup is skipped (manual mode).
+The portal container is shared per test process via `sync.Once`. Tests always start their own Docker containers to ensure the latest vire-server image is used.
 
 ### Rule 3: Test Results Output
 
@@ -145,27 +145,17 @@ func TestMain(m *testing.M) {
         fmt.Fprintf(os.Stderr, "Failed to start portal: %v\n", err)
         os.Exit(1)
     }
-    if pc != nil {
-        os.Setenv("VIRE_TEST_URL", pc.URL())
-    }
+    commontest.SetTestURL(pc.URL())
 
     code := m.Run()
 
-    if pc != nil {
-        pc.CollectLogs(commontest.GetResultsDir())
-        pc.Cleanup()
-    }
+    pc.CollectLogs(commontest.GetResultsDir())
+    pc.Cleanup()
     os.Exit(code)
 }
 ```
 
-### Manual Mode
-
-Set `VIRE_TEST_URL` to skip container startup and test against a running server:
-
-```bash
-VIRE_TEST_URL=http://localhost:8883 go test -v ./tests/ui/... -run TestSmoke
-```
+Tests always run against Docker containers — there is no manual/local mode. This ensures the latest `vire-server:latest` image is always pulled and used.
 
 ## Key Components
 
@@ -177,8 +167,7 @@ VIRE_TEST_URL=http://localhost:8883 go test -v ./tests/ui/... -run TestSmoke
 - `PortalContainer.URL()` - Returns mapped URL
 - `PortalContainer.CollectLogs(dir)` - Saves container stdout/stderr to `container.log`
 - `PortalContainer.Cleanup()` - Terminates container
-- Skips container startup when `VIRE_TEST_URL` is set (manual mode)
-- Passes through `VIRE_API_URL` env var if set (for backend-connected tests)
+- Always pulls latest `vire-server:latest` image via `WithAlwaysPull()`
 
 ### `tests/common/browser.go` - Browser Helpers
 
@@ -196,7 +185,7 @@ VIRE_TEST_URL=http://localhost:8883 go test -v ./tests/ui/... -run TestSmoke
 
 Wrappers used by all UI test files:
 - `newBrowser(t)` - Create browser context with test config
-- `serverURL()` - Get server URL (from `VIRE_TEST_URL` or config)
+- `serverURL()` - Get server URL (from Docker container)
 - `loginAndNavigate(ctx, url)` - Login and navigate
 - `takeScreenshot(t, ctx, ...)` - Capture screenshot to results dir
 - `isVisible(ctx, sel)` / `isHidden(ctx, sel)` - Visibility helpers
@@ -208,25 +197,15 @@ Wrappers used by all UI test files:
 - `tests/docker/Dockerfile.server` - Multi-stage build for portal test image
 - `tests/docker/portal-test.toml` - Test container config (dev mode, port 8080)
 
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VIRE_TEST_URL` | *(none)* | Skip Docker, test against this URL |
-| `VIRE_API_URL` | *(none)* | Passed to container for backend-connected tests |
-
 ## Running Tests
 
 ```bash
-# Docker mode (auto-starts container)
-go test -v ./tests/ui/... -run TestSmoke -timeout 120s
-
-# Manual mode (requires running server)
-VIRE_TEST_URL=http://localhost:8883 go test -v ./tests/ui/... -run TestSmoke
-
 # Via wrapper script (recommended)
 ./scripts/ui-test.sh smoke
 ./scripts/ui-test.sh all
+
+# Direct (auto-starts Docker containers, pulls latest vire-server)
+go test -v ./tests/ui/... -run TestSmoke -timeout 120s
 
 # Specific test
 go test -v ./tests/ui/... -run TestDashboardSections -timeout 120s

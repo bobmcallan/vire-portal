@@ -159,7 +159,7 @@ Every test uses `newBrowser(t)` which creates a headless Chrome context via chro
 Use `loginAndNavigate(ctx, url)` for pages requiring dev auth. Use `navigateAndWait(ctx, url)` for public pages.
 
 ### Server URL
-Always use `serverURL()` -- never hardcode URLs. This function checks `VIRE_TEST_URL` env var first, then falls back to config.
+Always use `serverURL()` -- never hardcode URLs. This resolves to the Docker container URL set by `TestMain`.
 
 ### Selectors
 Selectors must match current HTML templates in `pages/`. Always verify selectors against the actual templates before writing tests.

@@ -220,6 +220,9 @@ function portfolioDashboard() {
         hasGrowthData: false,
         chartInstance: null,
         showChartBreakdown: false,
+        showMA20: false,
+        showMA50: false,
+        showMA200: false,
         loading: true,
         portfolioLoading: false,
         error: '',
@@ -272,13 +275,10 @@ function portfolioDashboard() {
                 this.$watch('showClosed', (val) => {
                     if (val) this.fetchClosedHoldings();
                 });
-                this.$watch('showChartBreakdown', (val) => {
-                    if (this.chartInstance) {
-                        this.chartInstance.data.datasets[1].hidden = !val;
-                        this.chartInstance.data.datasets[2].hidden = !val;
-                        this.chartInstance.update();
-                    }
-                });
+                this.$watch('showChartBreakdown', () => this.renderChart());
+                this.$watch('showMA20', () => this.renderChart());
+                this.$watch('showMA50', () => this.renderChart());
+                this.$watch('showMA200', () => this.renderChart());
                 // Fetch glossary for tooltips (non-blocking)
                 vireStore.fetch('/api/glossary')
                     .then(async res => {
@@ -497,6 +497,17 @@ function portfolioDashboard() {
             return filtered;
         },
 
+        computeMA(values, period) {
+            const result = [];
+            for (let i = 0; i < values.length; i++) {
+                if (i < period - 1) { result.push(null); continue; }
+                let sum = 0;
+                for (let j = i - period + 1; j <= i; j++) sum += values[j];
+                result.push(sum / period);
+            }
+            return result;
+        },
+
         renderChart() {
             if (this.chartInstance) {
                 this.chartInstance.destroy();
@@ -513,76 +524,103 @@ function portfolioDashboard() {
             const equityValues = this.growthData.map(p => p.equity_holdings_value || 0);
             const capitalLine = this.growthData.map(p => p.capital_contributions_net || this.capitalInvested || 0);
 
-            // Compute rebalance markers (holding_count changes by 3+)
-            const rebalanceAnnotations = {};
-            for (let i = 1; i < this.growthData.length; i++) {
-                const curr = this.growthData[i];
-                const prev = this.growthData[i - 1];
-                if (curr.holding_count != null && prev.holding_count != null) {
-                    const delta = Math.abs(curr.holding_count - prev.holding_count);
-                    if (delta >= 3) {
-                        rebalanceAnnotations['rebal' + i] = {
-                            type: 'line',
-                            xMin: labels[i],
-                            xMax: labels[i],
-                            borderColor: '#ccc',
-                            borderWidth: 1,
-                            borderDash: [4, 4],
-                            label: {
-                                display: true,
-                                content: 'Rebalance',
-                                position: 'start',
-                                font: { size: 9, family: "'IBM Plex Mono', monospace" },
-                                color: '#888',
-                                backgroundColor: 'transparent',
-                            },
-                        };
-                    }
-                }
+            // Background fill: green above cost basis, red below
+            const costBase = capitalLine.length > 0 ? capitalLine[capitalLine.length - 1] : 0;
+
+            // Moving averages
+            const ma20 = this.computeMA(totalValues, 20);
+            const ma50 = this.computeMA(totalValues, 50);
+            const ma200 = this.computeMA(totalValues, 200);
+
+            const datasets = [
+                {
+                    label: 'Portfolio Value',
+                    data: totalValues,
+                    borderColor: '#000',
+                    borderWidth: 2,
+                    borderDash: [],
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    fill: {
+                        target: { value: costBase },
+                        above: 'rgba(45, 138, 78, 0.08)',
+                        below: 'rgba(181, 71, 71, 0.08)',
+                    },
+                    tension: 0,
+                },
+                {
+                    label: 'Equity Value',
+                    data: equityValues,
+                    borderColor: '#888',
+                    borderWidth: 1,
+                    borderDash: [6, 3],
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    fill: false,
+                    tension: 0,
+                    hidden: !this.showChartBreakdown,
+                },
+                {
+                    label: 'Net Deposited',
+                    data: capitalLine,
+                    borderColor: '#000',
+                    borderWidth: 1,
+                    borderDash: [2, 2],
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    fill: false,
+                    tension: 0,
+                    hidden: !this.showChartBreakdown,
+                },
+            ];
+
+            // Add MA datasets (hidden by default, toggled via controls)
+            if (totalValues.length >= 20) {
+                datasets.push({
+                    label: '20 MA',
+                    data: ma20,
+                    borderColor: '#6fa8dc',
+                    borderWidth: 1,
+                    borderDash: [],
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    fill: false,
+                    tension: 0.2,
+                    hidden: !this.showMA20,
+                });
+            }
+            if (totalValues.length >= 50) {
+                datasets.push({
+                    label: '50 MA',
+                    data: ma50,
+                    borderColor: '#e69138',
+                    borderWidth: 1,
+                    borderDash: [],
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    fill: false,
+                    tension: 0.2,
+                    hidden: !this.showMA50,
+                });
+            }
+            if (totalValues.length >= 200) {
+                datasets.push({
+                    label: '200 MA',
+                    data: ma200,
+                    borderColor: '#cc4125',
+                    borderWidth: 1,
+                    borderDash: [],
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    fill: false,
+                    tension: 0.2,
+                    hidden: !this.showMA200,
+                });
             }
 
             this.chartInstance = new Chart(canvas, {
                 type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Portfolio Value',
-                            data: totalValues,
-                            borderColor: '#000',
-                            borderWidth: 2,
-                            borderDash: [],
-                            pointRadius: 0,
-                            pointHoverRadius: 4,
-                            fill: false,
-                            tension: 0,
-                        },
-                        {
-                            label: 'Equity Value',
-                            data: equityValues,
-                            borderColor: '#888',
-                            borderWidth: 1,
-                            borderDash: [6, 3],
-                            pointRadius: 0,
-                            pointHoverRadius: 4,
-                            fill: false,
-                            tension: 0,
-                            hidden: !this.showChartBreakdown,
-                        },
-                        {
-                            label: 'Net Deposited',
-                            data: capitalLine,
-                            borderColor: '#000',
-                            borderWidth: 1,
-                            borderDash: [2, 2],
-                            pointRadius: 0,
-                            pointHoverRadius: 4,
-                            fill: false,
-                            tension: 0,
-                            hidden: !this.showChartBreakdown,
-                        },
-                    ],
-                },
+                data: { labels: labels, datasets: datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -591,12 +629,7 @@ function portfolioDashboard() {
                         intersect: false,
                     },
                     plugins: {
-                        legend: {
-                            display: false,
-                        },
-                        annotation: Object.keys(rebalanceAnnotations).length > 0 ? {
-                            annotations: rebalanceAnnotations,
-                        } : undefined,
+                        legend: { display: false },
                         tooltip: {
                             backgroundColor: '#fff',
                             titleColor: '#000',
@@ -605,8 +638,10 @@ function portfolioDashboard() {
                             borderWidth: 1,
                             titleFont: { family: "'IBM Plex Mono', monospace", size: 11 },
                             bodyFont: { family: "'IBM Plex Mono', monospace", size: 11 },
+                            filter: function(item) { return item.raw != null; },
                             callbacks: {
                                 label: function(ctx) {
+                                    if (ctx.raw == null) return null;
                                     const val = Number(ctx.raw).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                                     return ctx.dataset.label + ': $' + val;
                                 },

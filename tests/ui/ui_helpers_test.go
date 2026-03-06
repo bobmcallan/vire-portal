@@ -13,24 +13,20 @@ import (
 )
 
 // TestMain wires up container lifecycle for Docker-based testing.
-// In Docker mode (default), it starts a portal container and sets VIRE_TEST_URL.
-// In manual mode (VIRE_TEST_URL already set), it skips container startup.
+// Always starts SurrealDB + vire-server + vire-portal containers to ensure
+// the latest vire-server image is used (no stale local server).
 func TestMain(m *testing.M) {
 	pc, err := commontest.StartPortalForTestMain()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to start portal container: %v\n", err)
 		os.Exit(1)
 	}
-	if pc != nil {
-		os.Setenv("VIRE_TEST_URL", pc.URL())
-	}
+	commontest.SetTestURL(pc.URL())
 
 	code := m.Run()
 
-	if pc != nil {
-		pc.CollectLogs(commontest.GetResultsDir())
-		pc.Cleanup()
-	}
+	pc.CollectLogs(commontest.GetResultsDir())
+	pc.Cleanup()
 
 	os.Exit(code)
 }

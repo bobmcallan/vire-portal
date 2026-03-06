@@ -119,6 +119,12 @@ func GetTestURL() string {
 	return LoadTestConfig().Server.URL
 }
 
+// SetTestURL sets the VIRE_TEST_URL environment variable.
+// Used by TestMain to propagate the Docker container URL to test helpers.
+func SetTestURL(url string) {
+	os.Setenv("VIRE_TEST_URL", url)
+}
+
 func GetLogPath(suite string) string {
 	return filepath.Join(GetResultsDir(), suite+".log")
 }

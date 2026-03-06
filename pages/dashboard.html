@@ -106,7 +106,19 @@
                 <div class="growth-chart-controls">
                     <label class="chart-toggle-label">
                         <input type="checkbox" x-model="showChartBreakdown">
-                        <span>Show breakdown</span>
+                        <span>Breakdown</span>
+                    </label>
+                    <label class="chart-toggle-label">
+                        <input type="checkbox" x-model="showMA20">
+                        <span>20d</span>
+                    </label>
+                    <label class="chart-toggle-label">
+                        <input type="checkbox" x-model="showMA50">
+                        <span>50d</span>
+                    </label>
+                    <label class="chart-toggle-label">
+                        <input type="checkbox" x-model="showMA200">
+                        <span>200d</span>
                     </label>
                 </div>
                 <div class="growth-chart-container">
@@ -127,29 +139,6 @@
                         <span class="text-muted breadth-sync" x-show="lastSynced" x-text="'as at ' + fmtSyncedTime(lastSynced)"></span>
                     </span>
                 </div>
-
-                <!-- Per-holding trend rows -->
-                <div class="breadth-holdings">
-                    <template x-for="h in filteredHoldings.filter(x => x.holding_value_market > 0)" :key="h.ticker">
-                        <div class="breadth-holding-row">
-                            <span class="breadth-holding-ticker" x-text="h.ticker"></span>
-                            <span :class="trendArrowClass(h.trend_score)" x-text="trendArrow(h.trend_score)"></span>
-                            <span class="text-muted breadth-holding-label" x-text="h.trend_label || ''"></span>
-                            <span class="breadth-holding-change" :class="changeClass(holdingTodayChange(h))" x-text="fmtTodayChange(holdingTodayChange(h))"></span>
-                        </div>
-                    </template>
-                </div>
-
-                <div class="breadth-separator"></div>
-
-                <!-- Portfolio summary line -->
-                <div class="breadth-portfolio-row">
-                    <span class="breadth-holding-ticker">PORTFOLIO</span>
-                    <span :class="trendArrowClass(breadth?.trend_score)" x-text="trendArrow(breadth?.trend_score)"></span>
-                    <span class="text-muted breadth-holding-label" x-text="breadth?.trend_label || ''"></span>
-                    <span class="breadth-holding-change" :class="changeClass(breadth?.today_change)" x-text="breadth?.today_change != null ? fmtTodayChange(breadth.today_change) : ''"></span>
-                </div>
-
                 <div class="breadth-bar">
                     <div class="breadth-segment breadth-falling" :style="'width:' + (breadth?.falling_weight_pct || 0) + '%'"></div>
                     <div class="breadth-segment breadth-flat" :style="'width:' + (breadth?.flat_weight_pct || 0) + '%'"></div>
@@ -193,8 +182,29 @@
                                         <td class="text-right" :class="gainClass(h.holding_return_net)" x-text="fmt(h.holding_return_net)"></td>
                                         <td class="text-right" :class="gainClass(h.holding_return_net_pct)" x-text="pct(h.holding_return_net_pct)"></td>
                                     </tr>
+                                    <tr class="holding-movement-row" x-show="h.holding_value_market > 0">
+                                        <td colspan="6">
+                                            <span class="holding-detail-label">Trend:</span>
+                                            <span :class="trendArrowClass(h.trend_score)" x-text="trendArrow(h.trend_score)"></span>
+                                            <span class="text-muted" x-text="h.trend_label || ''"></span>
+                                            <span class="holding-detail-sep"></span>
+                                            <span class="holding-detail-label">Daily Return:</span>
+                                            <span :class="changeClass(holdingTodayChange(h))" x-text="fmtTodayChange(holdingTodayChange(h))"></span>
+                                            <span class="text-muted" x-text="h.yesterday_price_change_pct != null ? ' / ' + changePct(h.yesterday_price_change_pct) : ''"></span>
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </template>
+                            <tfoot x-show="filteredHoldings.length > 0">
+                                <tr class="holdings-total-row">
+                                    <td class="tool-name">TOTAL</td>
+                                    <td></td>
+                                    <td class="text-right text-bold" x-text="fmt(equityValue)"></td>
+                                    <td class="text-right"></td>
+                                    <td class="text-right text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></td>
+                                    <td class="text-right text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </div>

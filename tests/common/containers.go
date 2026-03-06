@@ -209,6 +209,7 @@ func startTestEnvironment() (*PortalContainer, error) {
 	// 4. Start vire-server (pulled from GHCR, name suffixed to avoid conflicts with dev stack)
 	serverContainer, err := testcontainers.Run(ctx, "ghcr.io/bobmcallan/vire-server:latest",
 		testcontainers.WithExposedPorts("8080/tcp"),
+		testcontainers.WithAlwaysPull(),
 		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
 			ContainerRequest: testcontainers.ContainerRequest{
 				Name: "vire-server-tc",
@@ -314,12 +315,8 @@ func startTestEnvironment() (*PortalContainer, error) {
 }
 
 // StartPortal starts the full test environment (one per test process).
-// Returns nil when VIRE_TEST_URL is set (manual mode -- tests use the existing server).
 func StartPortal(t *testing.T) *PortalContainer {
 	t.Helper()
-	if os.Getenv("VIRE_TEST_URL") != "" {
-		return nil
-	}
 
 	portalOnce.Do(func() {
 		if err := buildPortalImage(); err != nil {
@@ -340,12 +337,7 @@ func StartPortal(t *testing.T) *PortalContainer {
 }
 
 // StartPortalForTestMain starts the full test environment for use in TestMain (no *testing.T).
-// Returns (nil, nil) when VIRE_TEST_URL is set (manual mode).
 func StartPortalForTestMain() (*PortalContainer, error) {
-	if os.Getenv("VIRE_TEST_URL") != "" {
-		return nil, nil
-	}
-
 	portalOnce.Do(func() {
 		if err := buildPortalImage(); err != nil {
 			portalStartErr = fmt.Errorf("build portal image: %w", err)

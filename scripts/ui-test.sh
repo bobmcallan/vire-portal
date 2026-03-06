@@ -17,10 +17,8 @@ RESULTS_DIR="tests/logs"
 TIMEOUT=300
 CONFIG_FILE="tests/ui/test_config.toml"
 
-# Read server URL from test config, fall back to env var, then default
-if [ -n "$VIRE_TEST_URL" ]; then
-    SERVER_URL="$VIRE_TEST_URL"
-elif [ -f "$CONFIG_FILE" ]; then
+# Read server URL from test config (display only — tests always start their own containers)
+if [ -f "$CONFIG_FILE" ]; then
     SERVER_URL=$(grep -E '^url\s*=' "$CONFIG_FILE" | sed 's/.*=\s*"\(.*\)"/\1/' | head -1)
 fi
 SERVER_URL="${SERVER_URL:-http://localhost:8883}"
@@ -86,21 +84,9 @@ cleanup_test_containers() {
     done
 }
 
-# Check server health (skip in Docker mode — TestMain starts its own container)
-if [ -n "$VIRE_TEST_URL" ]; then
-    echo "Checking server health..."
-    if ! curl -sf "${SERVER_URL}/api/health" > /dev/null 2>&1; then
-        echo "ERROR: Server not responding at ${SERVER_URL}"
-        echo "Start the server with: ./scripts/run.sh restart"
-        exit 1
-    fi
-    echo "Server: OK"
-else
-    DOCKER_MODE=true
-    echo "Docker mode: container will be started by TestMain"
-    # Clean up stale test containers from previous runs
-    cleanup_test_containers
-fi
+# Clean up stale test containers from previous runs
+echo "Docker mode: container will be started by TestMain"
+cleanup_test_containers
 echo ""
 
 # Run tests, capturing output to log file
@@ -197,11 +183,9 @@ fi
 echo ""
 
 # Post-test cleanup: ensure test containers are removed even if the test process
-# crashed or timed out before Cleanup() could run. No-op in manual mode.
-if [ -n "$DOCKER_MODE" ]; then
-    echo "Cleaning up test containers..."
-    cleanup_test_containers
-fi
+# crashed or timed out before Cleanup() could run.
+echo "Cleaning up test containers..."
+cleanup_test_containers
 
 # Exit based on test failures (not raw go test exit code which may be non-zero
 # due to goroutine leaks during testcontainers cleanup).

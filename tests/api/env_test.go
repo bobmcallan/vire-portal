@@ -119,9 +119,10 @@ func NewServerEnvWithOptions(t *testing.T, opts ServerEnvOptions) *ServerEnv {
 		serverEnv[k] = v
 	}
 
-	// Start vire-server from GHCR
+	// Start vire-server from GHCR (always pull latest image)
 	serverContainer, err := testcontainers.Run(ctx, "ghcr.io/bobmcallan/vire-server:latest",
 		testcontainers.WithExposedPorts("8080/tcp"),
+		testcontainers.WithAlwaysPull(),
 		network.WithNetwork([]string{"vire-server-api-tc"}, testNet),
 		testcontainers.WithEnv(serverEnv),
 		testcontainers.WithWaitStrategy(
