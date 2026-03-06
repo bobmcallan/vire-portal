@@ -114,6 +114,7 @@
     </main>
     {{template "footer.html" .}}
 
+    <script>window.__VIRE_DATA__ = { feedbackItems: {{.FeedbackJSON}}, feedbackTotal: {{.FeedbackTotal}} };</script>
     <script>
     function helpPage() {
         return {
@@ -130,6 +131,14 @@
             feedbackError: null,
 
             init() {
+                const ssrData = window.__VIRE_DATA__;
+                if (ssrData && ssrData.feedbackItems) {
+                    this.feedbackItems = ssrData.feedbackItems;
+                    this.feedbackTotal = ssrData.feedbackTotal || this.feedbackItems.length;
+                    this.feedbackLoading = false;
+                    window.__VIRE_DATA__ = null;
+                    return;
+                }
                 this.loadFeedback();
             },
 

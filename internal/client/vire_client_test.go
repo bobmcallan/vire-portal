@@ -7,6 +7,85 @@ import (
 	"testing"
 )
 
+// --- ProxyGet Tests ---
+
+func TestProxyGet_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/glossary" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"categories":[]}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	body, err := c.ProxyGet("/api/glossary", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(body) != `{"categories":[]}` {
+		t.Errorf("unexpected body: %s", string(body))
+	}
+}
+
+func TestProxyGet_SetsUserIDHeader(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Vire-User-ID") != "alice" {
+			t.Errorf("expected X-Vire-User-ID=alice, got %s", r.Header.Get("X-Vire-User-ID"))
+		}
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	_, err := c.ProxyGet("/api/portfolios", "alice")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestProxyGet_EmptyUserID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Vire-User-ID") != "" {
+			t.Errorf("expected no X-Vire-User-ID header, got %s", r.Header.Get("X-Vire-User-ID"))
+		}
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	_, err := c.ProxyGet("/api/glossary", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestProxyGet_Non2xxReturnsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"db down"}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL)
+	_, err := c.ProxyGet("/api/glossary", "")
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestProxyGet_NetworkError(t *testing.T) {
+	c := NewVireClient("http://127.0.0.1:1")
+	_, err := c.ProxyGet("/api/glossary", "")
+	if err == nil {
+		t.Fatal("expected error for unreachable server")
+	}
+}
+
 func TestGetUser_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/users/alice" {

@@ -288,6 +288,36 @@ func (c *VireClient) AdminUpdateUserRole(serviceID, userID, role string) error {
 	return nil
 }
 
+// ProxyGet performs a GET request to vire-server at the given path,
+// injecting the X-Vire-User-ID header for authentication.
+// Returns the raw response body bytes on success (2xx), or an error.
+func (c *VireClient) ProxyGet(path string, userID string) ([]byte, error) {
+	req, err := http.NewRequest("GET", c.baseURL+path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	if userID != "" {
+		req.Header.Set("X-Vire-User-ID", userID)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reach vire-server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("server returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	return body, nil
+}
+
 // UpdateUser updates user fields on vire-server.
 // PUT /api/users/{id} with JSON body -> { status: "ok", data: UserProfile }
 func (c *VireClient) UpdateUser(userID string, fields map[string]string) (*UserProfile, error) {

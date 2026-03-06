@@ -10,7 +10,7 @@
 
     {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
 
-    <main class="landing" x-data="serverCheck()" x-init="check()">
+    <main class="landing" x-data="serverCheck()">
         <div class="landing-inner">
 
             <div class="landing-hero">
@@ -76,7 +76,7 @@
     <script>
     function serverCheck() {
         return {
-            status: 'checking',
+            status: '{{if .ServerStatus}}ok{{else}}down{{end}}',
             check() {
                 this.status = 'checking';
                 fetch('/api/server-health')

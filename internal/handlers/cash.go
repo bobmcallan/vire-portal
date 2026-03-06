@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
 	"html/template"
 	"net/http"
+	"net/url"
 	"path/filepath"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
@@ -18,6 +20,7 @@ type CashHandler struct {
 	jwtSecret    []byte
 	userLookupFn func(string) (*client.UserProfile, error)
 	apiURL       string
+	proxyGetFn   func(path, userID string) ([]byte, error)
 }
 
 // NewCashHandler creates a new cash handler.
@@ -39,6 +42,11 @@ func NewCashHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userL
 // SetAPIURL sets the API URL for server version fetching.
 func (h *CashHandler) SetAPIURL(apiURL string) {
 	h.apiURL = apiURL
+}
+
+// SetProxyGetFn sets the proxy GET function for SSR data fetching.
+func (h *CashHandler) SetProxyGetFn(fn func(path, userID string) ([]byte, error)) {
+	h.proxyGetFn = fn
 }
 
 // ServeHTTP renders the cash page.
@@ -63,6 +71,32 @@ func (h *CashHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var portfoliosJSON, transactionsJSON template.JS
+	portfoliosJSON = "null"
+	transactionsJSON = "null"
+	if h.proxyGetFn != nil && claims != nil && claims.Sub != "" {
+		if body, err := h.proxyGetFn("/api/portfolios", claims.Sub); err == nil {
+			portfoliosJSON = template.JS(body)
+			var pData struct {
+				Portfolios []struct {
+					Name string `json:"name"`
+				} `json:"portfolios"`
+				Default string `json:"default"`
+			}
+			if json.Unmarshal(body, &pData) == nil {
+				selected := pData.Default
+				if selected == "" && len(pData.Portfolios) > 0 {
+					selected = pData.Portfolios[0].Name
+				}
+				if selected != "" {
+					if tBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/cash-transactions", claims.Sub); err == nil {
+						transactionsJSON = template.JS(tBody)
+					}
+				}
+			}
+		}
+	}
+
 	data := map[string]interface{}{
 		"Page":             "cash",
 		"DevMode":          h.devMode,
@@ -71,6 +105,8 @@ func (h *CashHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"UserRole":         userRole,
 		"PortalVersion":    config.GetVersion(),
 		"ServerVersion":    GetServerVersion(h.apiURL),
+		"PortfoliosJSON":   portfoliosJSON,
+		"TransactionsJSON": transactionsJSON,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "cash.html", data); err != nil {

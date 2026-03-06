@@ -13,8 +13,8 @@
 
             <div class="landing-hero">
                 <h1 class="landing-title">VIRE</h1>
-                <p class="landing-tagline" x-data x-text="errorMessage()">
-                    Something went wrong.
+                <p class="landing-tagline">
+                    {{.ErrorMessage}}
                 </p>
             </div>
 
@@ -27,20 +27,6 @@
     </main>
 
     {{template "footer.html" .}}
-
-    <script>
-    function errorMessage() {
-        var reason = new URLSearchParams(window.location.search).get('reason') || '';
-        var messages = {
-            'server_unavailable': 'The authentication server is unavailable. Please try again shortly.',
-            'auth_failed':        'Authentication failed. Please try again.',
-            'invalid_credentials':'Invalid username or password.',
-            'missing_credentials':'Please provide both username and password.',
-            'bad_request':        'Bad request. Please try again.'
-        };
-        return messages[reason] || 'Something went wrong. Please try again.';
-    }
-    </script>
 
 </body>
 

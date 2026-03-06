@@ -2847,3 +2847,206 @@ func buildTestJWT(sub string) string {
 	payload := base64.RawURLEncoding.EncodeToString(claims)
 	return header + "." + payload + "."
 }
+
+// --- SSR Migration Tests ---
+
+func TestServeErrorPage_ResolvesReason(t *testing.T) {
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/error?reason=auth_failed", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeErrorPage()(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "Authentication failed. Please try again.") {
+		t.Error("expected resolved error message for auth_failed reason")
+	}
+}
+
+func TestServeErrorPage_UnknownReason(t *testing.T) {
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/error?reason=unknown", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeErrorPage()(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "Something went wrong. Please try again.") {
+		t.Error("expected default error message for unknown reason")
+	}
+}
+
+func TestServeErrorPage_NoReason(t *testing.T) {
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/error", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeErrorPage()(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "Something went wrong. Please try again.") {
+		t.Error("expected default error message when no reason param")
+	}
+}
+
+func TestServeLandingPage_ServerUp(t *testing.T) {
+	// Mock a healthy vire-server
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetAPIURL(srv.URL)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeLandingPage()(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "SIGN IN") {
+		t.Error("expected sign-in content when server is up")
+	}
+	// Should have SSR status 'ok'
+	if !strings.Contains(body, "'ok'") {
+		t.Error("expected SSR status 'ok' in page")
+	}
+}
+
+func TestServeLandingPage_ServerDown(t *testing.T) {
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetAPIURL("http://127.0.0.1:1") // unreachable
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeLandingPage()(w, req)
+
+	body := w.Body.String()
+	// Should have SSR status 'down'
+	if !strings.Contains(body, "'down'") {
+		t.Error("expected SSR status 'down' in page when server unreachable")
+	}
+}
+
+func TestServeLandingPage_ClearsSessionCookie(t *testing.T) {
+	handler := NewPageHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: "vire_session", Value: "some-token"})
+	w := httptest.NewRecorder()
+
+	handler.ServeLandingPage()(w, req)
+
+	cookies := w.Result().Cookies()
+	found := false
+	for _, c := range cookies {
+		if c.Name == "vire_session" && c.MaxAge < 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected vire_session cookie to be cleared (MaxAge < 0)")
+	}
+}
+
+func TestStrategyHandler_SSR_EmbedJSON(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if strings.Contains(path, "/api/portfolios") && !strings.Contains(path, "/strategy") && !strings.Contains(path, "/plan") {
+			return []byte(`{"portfolios":[{"name":"Test"}],"default":"Test"}`), nil
+		}
+		if strings.Contains(path, "/strategy") {
+			return []byte(`{"notes":"buy low"}`), nil
+		}
+		if strings.Contains(path, "/plan") {
+			return []byte(`{"notes":"hold"}`), nil
+		}
+		return []byte(`{}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "window.__VIRE_DATA__") {
+		t.Error("expected window.__VIRE_DATA__ in strategy page body")
+	}
+	if !strings.Contains(body, `"portfolios"`) {
+		t.Error("expected portfolios JSON embedded in page")
+	}
+}
+
+func TestStrategyHandler_SSR_NilProxyGet(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+	// No SetProxyGetFn call — proxyGetFn is nil
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestCashHandler_SSR_EmbedJSON(t *testing.T) {
+	handler := NewCashHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if strings.Contains(path, "/api/portfolios") && !strings.Contains(path, "/cash-transactions") {
+			return []byte(`{"portfolios":[{"name":"Test"}],"default":"Test"}`), nil
+		}
+		if strings.Contains(path, "/cash-transactions") {
+			return []byte(`{"transactions":[],"accounts":[],"summary":{}}`), nil
+		}
+		return []byte(`{}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/cash", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "window.__VIRE_DATA__") {
+		t.Error("expected window.__VIRE_DATA__ in cash page body")
+	}
+}
+
+func TestCashHandler_SSR_NilProxyGet(t *testing.T) {
+	handler := NewCashHandler(nil, true, []byte(testJWTSecret), nil)
+	// No SetProxyGetFn call — proxyGetFn is nil
+
+	req := httptest.NewRequest("GET", "/cash", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}

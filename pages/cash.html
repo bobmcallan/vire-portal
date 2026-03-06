@@ -111,6 +111,13 @@
 
     {{template "footer.html" .}}
 
+    <script>
+    window.__VIRE_DATA__ = {
+        portfolios: {{.PortfoliosJSON}},
+        transactions: {{.TransactionsJSON}}
+    };
+    </script>
+
 </body>
 
 </html>

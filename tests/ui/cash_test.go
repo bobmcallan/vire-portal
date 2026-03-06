@@ -98,7 +98,7 @@ func TestCashAccountBalances(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 	takeScreenshot(t, ctx, "cash", "account-balances.png")
 
 	visible, err := isVisible(ctx, ".portfolio-summary-accounts")
@@ -145,7 +145,7 @@ func TestCashCategoryBreakdown(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 	takeScreenshot(t, ctx, "cash", "category-breakdown.png")
 
 	hasCategoryRow, err := commontest.EvalBool(ctx, `
@@ -201,7 +201,7 @@ func TestCashTransactionsTable(t *testing.T) {
 	}
 
 	// Wait for Alpine to load transaction data
-	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 
 	takeScreenshot(t, ctx, "cash", "transactions-table.png")
 
@@ -258,7 +258,7 @@ func TestCashTransactionColors(t *testing.T) {
 	}
 
 	// Wait for Alpine to render
-	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 
 	takeScreenshot(t, ctx, "cash", "transaction-colors.png")
 
@@ -304,7 +304,7 @@ func TestCashPagination(t *testing.T) {
 	}
 
 	// Wait for Alpine to render
-	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 
 	takeScreenshot(t, ctx, "cash", "pagination.png")
 

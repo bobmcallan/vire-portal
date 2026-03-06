@@ -67,6 +67,14 @@
 
     {{template "footer.html" .}}
 
+    <script>
+    window.__VIRE_DATA__ = {
+        portfolios: {{.PortfoliosJSON}},
+        strategy: {{.StrategyJSON}},
+        plan: {{.PlanJSON}}
+    };
+    </script>
+
 </body>
 
 </html>

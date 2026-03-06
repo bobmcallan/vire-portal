@@ -51,6 +51,7 @@
     </main>
     {{template "footer.html" .}}
 
+    <script>window.__VIRE_DATA__ = { entries: {{.EntriesJSON}} };</script>
     <script>
     function changelogPage() {
         return {
@@ -70,6 +71,13 @@
             },
 
             init() {
+                const ssrData = window.__VIRE_DATA__;
+                if (ssrData && ssrData.entries) {
+                    this.entries = ssrData.entries;
+                    this.loading = false;
+                    window.__VIRE_DATA__ = null;
+                    return;
+                }
                 fetch('/api/changelog?per_page=100&page=1')
                     .then(r => {
                         if (!r.ok) throw new Error('Failed to load changelog');

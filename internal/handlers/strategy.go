@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
 	"html/template"
 	"net/http"
+	"net/url"
 	"path/filepath"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
@@ -18,6 +20,7 @@ type StrategyHandler struct {
 	jwtSecret    []byte
 	userLookupFn func(string) (*client.UserProfile, error)
 	apiURL       string
+	proxyGetFn   func(path, userID string) ([]byte, error)
 }
 
 // NewStrategyHandler creates a new strategy handler.
@@ -39,6 +42,11 @@ func NewStrategyHandler(logger *common.Logger, devMode bool, jwtSecret []byte, u
 // SetAPIURL sets the API URL for server version fetching.
 func (h *StrategyHandler) SetAPIURL(apiURL string) {
 	h.apiURL = apiURL
+}
+
+// SetProxyGetFn sets the proxy GET function for SSR data fetching.
+func (h *StrategyHandler) SetProxyGetFn(fn func(path, userID string) ([]byte, error)) {
+	h.proxyGetFn = fn
 }
 
 // ServeHTTP renders the strategy page.
@@ -63,6 +71,36 @@ func (h *StrategyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var portfoliosJSON, strategyJSON, planJSON template.JS
+	portfoliosJSON = "null"
+	strategyJSON = "null"
+	planJSON = "null"
+	if h.proxyGetFn != nil && claims != nil && claims.Sub != "" {
+		if body, err := h.proxyGetFn("/api/portfolios", claims.Sub); err == nil {
+			portfoliosJSON = template.JS(body)
+			var pData struct {
+				Portfolios []struct {
+					Name string `json:"name"`
+				} `json:"portfolios"`
+				Default string `json:"default"`
+			}
+			if json.Unmarshal(body, &pData) == nil {
+				selected := pData.Default
+				if selected == "" && len(pData.Portfolios) > 0 {
+					selected = pData.Portfolios[0].Name
+				}
+				if selected != "" {
+					if sBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/strategy", claims.Sub); err == nil {
+						strategyJSON = template.JS(sBody)
+					}
+					if pBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/plan", claims.Sub); err == nil {
+						planJSON = template.JS(pBody)
+					}
+				}
+			}
+		}
+	}
+
 	data := map[string]interface{}{
 		"Page":             "strategy",
 		"DevMode":          h.devMode,
@@ -71,6 +109,9 @@ func (h *StrategyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"UserRole":         userRole,
 		"PortalVersion":    config.GetVersion(),
 		"ServerVersion":    GetServerVersion(h.apiURL),
+		"PortfoliosJSON":   portfoliosJSON,
+		"StrategyJSON":     strategyJSON,
+		"PlanJSON":         planJSON,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "strategy.html", data); err != nil {

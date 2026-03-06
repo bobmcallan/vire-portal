@@ -161,6 +161,16 @@ func (a *App) initHandlers() {
 	)
 	a.CashHandler.SetAPIURL(a.Config.API.URL)
 
+	a.PageHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		return vireClient.ProxyGet(path, userID)
+	})
+	a.StrategyHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		return vireClient.ProxyGet(path, userID)
+	})
+	a.CashHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		return vireClient.ProxyGet(path, userID)
+	})
+
 	a.MCPPageHandler = handlers.NewMCPPageHandler(
 		a.Logger,
 		a.Config.IsDevMode(),

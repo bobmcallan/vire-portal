@@ -130,7 +130,7 @@ See `.claude/skills/test-common/SKILL.md` and `.claude/skills/test-create-review
 - test-executor: "Execute all tests and report results"
 
 **Phase 5 — Verify** (blockedBy: Phase 4):
-- implementer: "Build, vet, run locally, update docs"
+- implementer: "Build and vet"
 - reviewer: "Validate docs match implementation"
 
 ### Step 3: Spawn Teammates
@@ -169,9 +169,6 @@ For implement tasks: write tests first (as listed in the spec), then implement t
 For verify tasks:
   go test ./...
   go vet ./...
-  ./scripts/run.sh restart
-  curl -s http://localhost:${PORTAL_PORT:-8881}/api/health
-  Leave server running.
 For docs tasks: update README.md and affected skill files.
 
 Only message teammates for blocking issues or questions. Mark tasks via TaskUpdate.
@@ -362,9 +359,6 @@ When all tasks finish:
    - New code has tests
    - All tests pass (`go test ./...`) — verified by reviewing actual command output
    - `go vet ./...` clean
-   - Server builds and runs (`./scripts/run.sh restart`) — leave it running
-   - Health endpoint responds (`curl -s http://localhost:${PORTAL_PORT:-8881}/api/health`)
-   - Script validation passes (`./scripts/test-scripts.sh`)
    - **If web pages changed:** UI tests executed via `./scripts/ui-test.sh` (never raw `go test`). Confirm by checking `tests/logs/` for results.
    - Architecture docs updated (architect signed off)
    - Devils-advocate signed off

@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
 	"html/template"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
 	"github.com/bobmcallan/vire-portal/internal/config"
@@ -19,6 +21,7 @@ type PageHandler struct {
 	jwtSecret    []byte
 	apiURL       string
 	userLookupFn func(string) (*client.UserProfile, error)
+	proxyGetFn   func(path, userID string) ([]byte, error)
 }
 
 // NewPageHandler creates a new page handler that loads templates from the pages directory.
@@ -40,6 +43,11 @@ func NewPageHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userL
 // SetAPIURL sets the API URL for server version fetching.
 func (h *PageHandler) SetAPIURL(apiURL string) {
 	h.apiURL = apiURL
+}
+
+// SetProxyGetFn sets the proxy GET function for SSR data fetching.
+func (h *PageHandler) SetProxyGetFn(fn func(path, userID string) ([]byte, error)) {
+	h.proxyGetFn = fn
 }
 
 // FindPagesDir locates the pages directory.
@@ -101,6 +109,221 @@ func (h *PageHandler) ServePage(templateName string, pageName string) http.Handl
 			}
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
+	}
+}
+
+// ServeErrorPage renders the error page with server-side resolved error message.
+func (h *PageHandler) ServeErrorPage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
+		var userRole string
+		if loggedIn && h.userLookupFn != nil && claims != nil && claims.Sub != "" {
+			if user, err := h.userLookupFn(claims.Sub); err == nil && user != nil {
+				userRole = user.Role
+			}
+		}
+
+		reason := r.URL.Query().Get("reason")
+		messages := map[string]string{
+			"server_unavailable":  "The authentication server is unavailable. Please try again shortly.",
+			"auth_failed":         "Authentication failed. Please try again.",
+			"invalid_credentials": "Invalid username or password.",
+			"missing_credentials": "Please provide both username and password.",
+			"bad_request":         "Bad request. Please try again.",
+		}
+		msg := messages[reason]
+		if msg == "" {
+			msg = "Something went wrong. Please try again."
+		}
+
+		data := map[string]interface{}{
+			"Page":          "error",
+			"DevMode":       h.devMode,
+			"LoggedIn":      loggedIn,
+			"UserRole":      userRole,
+			"PortalVersion": config.GetVersion(),
+			"ServerVersion": GetServerVersion(h.apiURL),
+			"ErrorMessage":  msg,
+		}
+		h.templates.ExecuteTemplate(w, "error.html", data)
+	}
+}
+
+// ServeLandingPage renders the landing page with server-side health check.
+func (h *PageHandler) ServeLandingPage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Auto-logout: clear session cookie
+		http.SetCookie(w, &http.Cookie{
+			Name: "vire_session", Value: "", Path: "/",
+			MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode,
+		})
+
+		serverUp := checkServerHealth(h.apiURL)
+
+		data := map[string]interface{}{
+			"Page":          "home",
+			"DevMode":       h.devMode,
+			"LoggedIn":      false,
+			"UserRole":      "",
+			"PortalVersion": config.GetVersion(),
+			"ServerVersion": GetServerVersion(h.apiURL),
+			"ServerStatus":  serverUp,
+		}
+		h.templates.ExecuteTemplate(w, "landing.html", data)
+	}
+}
+
+func checkServerHealth(apiURL string) bool {
+	if apiURL == "" {
+		return false
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(apiURL + "/api/health")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
+// GlossaryTerm represents a single term in the glossary.
+type GlossaryTerm struct {
+	Term       string `json:"term"`
+	Label      string `json:"label"`
+	Definition string `json:"definition"`
+	Formula    string `json:"formula"`
+}
+
+// GlossaryCategory represents a category of glossary terms.
+type GlossaryCategory struct {
+	Name  string         `json:"name"`
+	Terms []GlossaryTerm `json:"terms"`
+}
+
+// ServeGlossaryPage renders the glossary page with server-side fetched data.
+func (h *PageHandler) ServeGlossaryPage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
+		var userRole string
+		if loggedIn && h.userLookupFn != nil && claims != nil && claims.Sub != "" {
+			if user, err := h.userLookupFn(claims.Sub); err == nil && user != nil {
+				userRole = user.Role
+			}
+		}
+
+		var categories []GlossaryCategory
+		var fetchError string
+		if h.proxyGetFn != nil {
+			body, err := h.proxyGetFn("/api/glossary", "")
+			if err != nil {
+				fetchError = "Glossary data is not yet available."
+			} else {
+				var resp struct {
+					Categories []GlossaryCategory `json:"categories"`
+				}
+				if json.Unmarshal(body, &resp) == nil {
+					categories = resp.Categories
+				}
+			}
+		}
+
+		data := map[string]interface{}{
+			"Page":          "glossary",
+			"DevMode":       h.devMode,
+			"LoggedIn":      loggedIn,
+			"UserRole":      userRole,
+			"PortalVersion": config.GetVersion(),
+			"ServerVersion": GetServerVersion(h.apiURL),
+			"Categories":    categories,
+			"FetchError":    fetchError,
+			"TermParam":     r.URL.Query().Get("term"),
+		}
+		h.templates.ExecuteTemplate(w, "glossary.html", data)
+	}
+}
+
+// ServeChangelogPage renders the changelog page with JSON hydration.
+func (h *PageHandler) ServeChangelogPage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
+		var userRole string
+		if loggedIn && h.userLookupFn != nil && claims != nil && claims.Sub != "" {
+			if user, err := h.userLookupFn(claims.Sub); err == nil && user != nil {
+				userRole = user.Role
+			}
+		}
+
+		var entriesJSON template.JS = "[]"
+		if h.proxyGetFn != nil {
+			body, err := h.proxyGetFn("/api/changelog?per_page=100&page=1", "")
+			if err == nil {
+				var resp struct {
+					Items json.RawMessage `json:"items"`
+				}
+				if json.Unmarshal(body, &resp) == nil && resp.Items != nil {
+					entriesJSON = template.JS(resp.Items)
+				}
+			}
+		}
+
+		data := map[string]interface{}{
+			"Page":          "changelog",
+			"DevMode":       h.devMode,
+			"LoggedIn":      loggedIn,
+			"UserRole":      userRole,
+			"PortalVersion": config.GetVersion(),
+			"ServerVersion": GetServerVersion(h.apiURL),
+			"EntriesJSON":   entriesJSON,
+		}
+		h.templates.ExecuteTemplate(w, "changelog.html", data)
+	}
+}
+
+// ServeHelpPage renders the help page with JSON hydration for feedback.
+func (h *PageHandler) ServeHelpPage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		loggedIn, claims := IsLoggedIn(r, h.jwtSecret)
+		if !loggedIn {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
+		var userRole string
+		if h.userLookupFn != nil && claims != nil && claims.Sub != "" {
+			if user, err := h.userLookupFn(claims.Sub); err == nil && user != nil {
+				userRole = user.Role
+			}
+		}
+
+		var feedbackJSON template.JS = "[]"
+		var feedbackTotal int
+		if h.proxyGetFn != nil && claims != nil && claims.Sub != "" {
+			body, err := h.proxyGetFn("/api/feedback?per_page=50", claims.Sub)
+			if err == nil {
+				var resp struct {
+					Items json.RawMessage `json:"items"`
+					Total int             `json:"total"`
+				}
+				if json.Unmarshal(body, &resp) == nil {
+					if resp.Items != nil {
+						feedbackJSON = template.JS(resp.Items)
+					}
+					feedbackTotal = resp.Total
+				}
+			}
+		}
+
+		data := map[string]interface{}{
+			"Page":          "help",
+			"DevMode":       h.devMode,
+			"LoggedIn":      loggedIn,
+			"UserRole":      userRole,
+			"PortalVersion": config.GetVersion(),
+			"ServerVersion": GetServerVersion(h.apiURL),
+			"FeedbackJSON":  feedbackJSON,
+			"FeedbackTotal": feedbackTotal,
+		}
+		h.templates.ExecuteTemplate(w, "help.html", data)
 	}
 }
 

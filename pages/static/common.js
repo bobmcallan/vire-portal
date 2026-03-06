@@ -976,6 +976,31 @@ function cashTransactions() {
 
         async init() {
             try {
+                const ssrData = window.__VIRE_DATA__;
+                if (ssrData && ssrData.portfolios) {
+                    const data = ssrData.portfolios;
+                    this.portfolios = vireStore.dedup(data.portfolios || [], 'name');
+                    this.defaultPortfolio = data.default || '';
+                    if (this.defaultPortfolio) {
+                        this.selected = this.defaultPortfolio;
+                    } else if (this.portfolios.length > 0) {
+                        this.selected = this.portfolios[0].name;
+                    }
+                    if (ssrData.transactions) {
+                        const td = ssrData.transactions;
+                        const txns = td.transactions || [];
+                        txns.sort((a, b) => new Date(b.date) - new Date(a.date));
+                        this.transactions = txns;
+                        this.accounts = td.accounts || [];
+                        const summary = td.summary || {};
+                        this.totalCash = summary.capital_gross || 0;
+                        this.transactionCount = summary.transaction_count || 0;
+                        this.byCategory = summary.net_cash_by_category || {};
+                    }
+                    window.__VIRE_DATA__ = null;
+                    this.loading = false;
+                    return;
+                }
                 const res = await vireStore.fetch('/api/portfolios');
                 if (!res.ok) {
                     this.error = 'Failed to load portfolios';
@@ -1083,6 +1108,28 @@ function portfolioStrategy() {
 
         async init() {
             try {
+                const ssrData = window.__VIRE_DATA__;
+                if (ssrData && ssrData.portfolios) {
+                    const data = ssrData.portfolios;
+                    this.portfolios = vireStore.dedup(data.portfolios || [], 'name');
+                    this.defaultPortfolio = data.default || '';
+                    if (this.defaultPortfolio) {
+                        this.selected = this.defaultPortfolio;
+                    } else if (this.portfolios.length > 0) {
+                        this.selected = this.portfolios[0].name;
+                    }
+                    if (ssrData.strategy) {
+                        const sd = ssrData.strategy;
+                        this.strategy = sd.notes || JSON.stringify(sd.strategy || sd, null, 2);
+                    }
+                    if (ssrData.plan) {
+                        const pd = ssrData.plan;
+                        this.plan = pd.notes || JSON.stringify(pd.plan || pd, null, 2);
+                    }
+                    window.__VIRE_DATA__ = null;
+                    this.loading = false;
+                    return;
+                }
                 const res = await vireStore.fetch('/api/portfolios');
                 if (!res.ok) {
                     this.error = 'Failed to load portfolios';

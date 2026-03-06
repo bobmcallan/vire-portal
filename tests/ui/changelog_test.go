@@ -59,8 +59,8 @@ func TestChangelogPageNoJSErrors(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	// Wait for Alpine component to initialise and fetch data (Rule 8)
-	chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+	// SSR hydrates data via window.__VIRE_DATA__, Alpine init is fast
+	chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 
 	takeScreenshot(t, ctx, "changelog", "no-js-errors.png")
 
@@ -103,8 +103,8 @@ func TestChangelogPageContent(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	// Wait 2s for initial content load
-	err = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+	// SSR hydrates data -- short wait for Alpine to process
+	err = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 	if err != nil {
 		t.Fatalf("error during wait: %v", err)
 	}
