@@ -39,16 +39,16 @@ type App struct {
 	Logger *common.Logger
 
 	// HTTP handlers
-	PageHandler         *handlers.PageHandler
-	HealthHandler       *handlers.HealthHandler
-	VersionHandler      *handlers.VersionHandler
-	AuthHandler         *handlers.AuthHandler
-	DashboardHandler    *handlers.DashboardHandler
-	StrategyHandler     *handlers.StrategyHandler
-	CashHandler         *handlers.CashHandler
-	MCPPageHandler      *handlers.MCPPageHandler
-	ProfileHandler      *handlers.ProfileHandler
-	ServerHealthHandler *handlers.ServerHealthHandler
+	PageHandler            *handlers.PageHandler
+	HealthHandler          *handlers.HealthHandler
+	VersionHandler         *handlers.VersionHandler
+	AuthHandler            *handlers.AuthHandler
+	DashboardHandler       *handlers.DashboardHandler
+	StrategyHandler        *handlers.StrategyHandler
+	CashHandler            *handlers.CashHandler
+	MCPPageHandler         *handlers.MCPPageHandler
+	ProfileHandler         *handlers.ProfileHandler
+	ServerHealthHandler    *handlers.ServerHealthHandler
 	MobileDashboardHandler *handlers.MobileDashboardHandler
 	MCPHandler             *mcp.Handler
 	MCPDevHandler          *mcp.DevHandler

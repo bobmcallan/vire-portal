@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
@@ -94,7 +95,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.proxyGetFn != nil && claims != nil && claims.Sub != "" {
 		ssrStart := time.Now()
 
-		// 1. Fetch portfolio list
+		// 1. Fetch portfolio list (must complete first to determine selected portfolio)
 		t1 := time.Now()
 		if body, err := h.proxyGetFn("/api/portfolios", claims.Sub); err == nil {
 			portfoliosJSON = template.JS(body)
@@ -136,52 +137,74 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if b, err := json.Marshal(selected); err == nil {
 					selectedJSON = template.JS(b)
 				}
+
 				if selected != "" {
-					// 2. Fetch portfolio data (holdings, metrics, changes, breadth)
-					t2 := time.Now()
-					if pBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected), claims.Sub); err == nil {
-						portfolioJSON = template.JS(pBody)
-						if h.logger != nil {
-							h.logger.Info().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: portfolio data")
-						}
-					} else if h.logger != nil {
-						h.logger.Warn().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("dashboard SSR: portfolio data failed")
-					}
+					// Fetch portfolio data, timeline, watchlist, glossary in parallel
+					escapedName := url.PathEscape(selected)
+					userID := claims.Sub
+					var wg sync.WaitGroup
+					wg.Add(4)
 
-					// 3. Fetch timeline (growth chart data)
-					t3 := time.Now()
-					if tBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/timeline", claims.Sub); err == nil {
-						timelineJSON = template.JS(tBody)
-						if h.logger != nil {
-							h.logger.Info().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: timeline")
+					go func() {
+						defer wg.Done()
+						t2 := time.Now()
+						if pBody, err := h.proxyGetFn("/api/portfolios/"+escapedName, userID); err == nil {
+							portfolioJSON = template.JS(pBody)
+							if h.logger != nil {
+								h.logger.Info().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: portfolio data")
+							}
+						} else if h.logger != nil {
+							h.logger.Warn().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("dashboard SSR: portfolio data failed")
 						}
-					} else if h.logger != nil {
-						h.logger.Warn().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("dashboard SSR: timeline failed")
-					}
+					}()
 
-					// 4. Fetch watchlist
-					t4 := time.Now()
-					if wBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/watchlist", claims.Sub); err == nil {
-						watchlistJSON = template.JS(wBody)
-						if h.logger != nil {
-							h.logger.Info().Int64("duration_ms", time.Since(t4).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: watchlist")
+					go func() {
+						defer wg.Done()
+						t3 := time.Now()
+						if tBody, err := h.proxyGetFn("/api/portfolios/"+escapedName+"/timeline", userID); err == nil {
+							timelineJSON = template.JS(tBody)
+							if h.logger != nil {
+								h.logger.Info().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: timeline")
+							}
+						} else if h.logger != nil {
+							h.logger.Warn().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("dashboard SSR: timeline failed")
 						}
-					} else if h.logger != nil {
-						h.logger.Warn().Int64("duration_ms", time.Since(t4).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("dashboard SSR: watchlist failed")
-					}
+					}()
+
+					go func() {
+						defer wg.Done()
+						t4 := time.Now()
+						if wBody, err := h.proxyGetFn("/api/portfolios/"+escapedName+"/watchlist", userID); err == nil {
+							watchlistJSON = template.JS(wBody)
+							if h.logger != nil {
+								h.logger.Info().Int64("duration_ms", time.Since(t4).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: watchlist")
+							}
+						} else if h.logger != nil {
+							h.logger.Warn().Int64("duration_ms", time.Since(t4).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("dashboard SSR: watchlist failed")
+						}
+					}()
+
+					go func() {
+						defer wg.Done()
+						t5 := time.Now()
+						if gBody, err := h.proxyGetFn("/api/glossary", userID); err == nil {
+							glossaryJSON = template.JS(gBody)
+							if h.logger != nil {
+								h.logger.Info().Int64("duration_ms", time.Since(t5).Milliseconds()).Msg("dashboard SSR: glossary")
+							}
+						} else if h.logger != nil {
+							h.logger.Warn().Int64("duration_ms", time.Since(t5).Milliseconds()).Msg("dashboard SSR: glossary failed")
+						}
+					}()
+
+					wg.Wait()
 				}
 			}
 		} else if h.logger != nil {
 			h.logger.Warn().Int64("duration_ms", time.Since(t1).Milliseconds()).Str("error", err.Error()).Msg("dashboard SSR: portfolios failed")
 		}
 
-		// 5. Fetch glossary (independent of portfolio selection)
-		t5 := time.Now()
-		if gBody, err := h.proxyGetFn("/api/glossary", claims.Sub); err == nil {
-			glossaryJSON = template.JS(gBody)
-		}
 		if h.logger != nil {
-			h.logger.Info().Int64("duration_ms", time.Since(t5).Milliseconds()).Msg("dashboard SSR: glossary")
 			h.logger.Info().Int64("duration_ms", time.Since(ssrStart).Milliseconds()).Msg("dashboard SSR: total")
 		}
 	}
