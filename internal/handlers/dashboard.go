@@ -82,12 +82,13 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var portfoliosJSON, portfolioJSON, timelineJSON, watchlistJSON, glossaryJSON template.JS
+	var portfoliosJSON, portfolioJSON, timelineJSON, watchlistJSON, glossaryJSON, selectedJSON template.JS
 	portfoliosJSON = "null"
 	portfolioJSON = "null"
 	timelineJSON = "null"
 	watchlistJSON = "null"
 	glossaryJSON = "null"
+	selectedJSON = `""`
 	selectedPortfolio := ""
 
 	if h.proxyGetFn != nil && claims != nil && claims.Sub != "" {
@@ -132,6 +133,9 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					selected = pData.Portfolios[0].Name
 				}
 				selectedPortfolio = selected
+				if b, err := json.Marshal(selected); err == nil {
+					selectedJSON = template.JS(b)
+				}
 				if selected != "" {
 					// 2. Fetch portfolio data (holdings, metrics, changes, breadth)
 					t2 := time.Now()
@@ -190,6 +194,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"WatchlistJSON":     watchlistJSON,
 		"GlossaryJSON":      glossaryJSON,
 		"SelectedPortfolio": selectedPortfolio,
+		"SelectedJSON":      selectedJSON,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "dashboard.html", data); err != nil {
