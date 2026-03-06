@@ -28,7 +28,7 @@ type VireClient struct {
 func NewVireClient(baseURL string) *VireClient {
 	return &VireClient{
 		baseURL:    baseURL,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
