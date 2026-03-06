@@ -260,12 +260,16 @@ function portfolioDashboard() {
             if (path.startsWith('/dashboard/')) {
                 return decodeURIComponent(path.substring('/dashboard/'.length));
             }
+            if (path.startsWith('/m/')) {
+                return decodeURIComponent(path.substring('/m/'.length));
+            }
             return '';
         },
 
         _updateURL() {
             if (this.selected) {
-                const newPath = '/dashboard/' + encodeURIComponent(this.selected);
+                const base = window.location.pathname.startsWith('/m') ? '/m/' : '/dashboard/';
+                const newPath = base + encodeURIComponent(this.selected);
                 if (window.location.pathname !== newPath) {
                     history.replaceState(null, '', newPath);
                 }
