@@ -49,10 +49,11 @@ type App struct {
 	MCPPageHandler      *handlers.MCPPageHandler
 	ProfileHandler      *handlers.ProfileHandler
 	ServerHealthHandler *handlers.ServerHealthHandler
-	MCPHandler          *mcp.Handler
-	MCPDevHandler       *mcp.DevHandler
-	OAuthServer         *auth.OAuthServer
-	AdminUsersHandler   *handlers.AdminUsersHandler
+	MobileDashboardHandler *handlers.MobileDashboardHandler
+	MCPHandler             *mcp.Handler
+	MCPDevHandler          *mcp.DevHandler
+	OAuthServer            *auth.OAuthServer
+	AdminUsersHandler      *handlers.AdminUsersHandler
 }
 
 // New initializes the application with all dependencies.
@@ -145,6 +146,14 @@ func (a *App) initHandlers() {
 	)
 	a.DashboardHandler.SetAPIURL(a.Config.API.URL)
 
+	a.MobileDashboardHandler = handlers.NewMobileDashboardHandler(
+		a.Logger,
+		a.Config.IsDevMode(),
+		jwtSecret,
+		userLookup,
+	)
+	a.MobileDashboardHandler.SetAPIURL(a.Config.API.URL)
+
 	a.StrategyHandler = handlers.NewStrategyHandler(
 		a.Logger,
 		a.Config.IsDevMode(),
@@ -171,6 +180,9 @@ func (a *App) initHandlers() {
 		return vireClient.ProxyGet(path, userID)
 	})
 	a.DashboardHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		return vireClient.ProxyGet(path, userID)
+	})
+	a.MobileDashboardHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
 		return vireClient.ProxyGet(path, userID)
 	})
 

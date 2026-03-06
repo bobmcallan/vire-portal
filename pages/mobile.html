@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {{template "head.html" .}}
+    <title>VIRE MOBILE</title>
+</head>
+
+<body>
+
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+
+    <main class="page" x-data="portfolioDashboard()">
+        <div class="page-body mobile-dashboard">
+
+            {{if .NavexaKeyMissing}}
+            <div class="warning-banner">
+                <strong>WARNING:</strong> Navexa API key not configured.
+                <a href="/profile">Set your API key in Profile</a> to enable portfolio sync.
+            </div>
+            {{end}}
+
+            <!-- Loading state -->
+            <div x-show="loading" class="text-muted" style="padding: 1rem 0;">Loading...</div>
+
+            <!-- Error state -->
+            <div x-show="error" class="warning-banner" x-text="error"></div>
+
+            <!-- Empty state -->
+            <div x-show="!loading && portfolios.length === 0 && !error" class="text-muted" style="padding: 1rem 0;">
+                No portfolios found. <a href="/profile">Set your API key</a>.
+            </div>
+
+            <!-- Portfolio loading overlay -->
+            <div class="portfolio-loading-overlay" x-show="portfolioLoading" x-cloak>
+                <span>Loading...</span>
+            </div>
+
+            <!-- Portfolio header -->
+            <div class="mobile-portfolio-header" x-show="!loading && portfolios.length > 0" x-cloak>
+                <select x-model="selected" @change="loadPortfolio()" class="form-select mobile-portfolio-select">
+                    <template x-for="p in portfolios" :key="p.name">
+                        <option :value="p.name" x-text="p.name" :selected="p.name === selected"></option>
+                    </template>
+                </select>
+                <button class="btn btn-secondary btn-sm" @click="refreshPortfolio()" :disabled="refreshing">
+                    <span x-show="!refreshing">REFRESH</span>
+                    <span x-show="refreshing">...</span>
+                </button>
+            </div>
+
+            <!-- Synced timestamp -->
+            <div class="mobile-synced" x-show="lastSynced" x-cloak>
+                <span class="text-muted" x-text="'Synced ' + fmtSynced(lastSynced)"></span>
+            </div>
+
+            <!-- Portfolio value -->
+            <div class="mobile-value-section" x-show="filteredHoldings.length > 0" x-cloak>
+                <span class="label">PORTFOLIO VALUE</span>
+                <span class="mobile-value-amount" x-text="fmt(totalValue)"></span>
+                <div class="mobile-changes-row" x-show="hasChanges" x-cloak>
+                    <span :class="changeClass(changeDayPct)" x-text="'D:' + changePct(changeDayPct)"></span>
+                    <span :class="changeClass(changeWeekPct)" x-text="'W:' + changePct(changeWeekPct)"></span>
+                    <span :class="changeClass(changeMonthPct)" x-text="'M:' + changePct(changeMonthPct)"></span>
+                </div>
+            </div>
+
+            <!-- Performance -->
+            <div class="mobile-performance-row" x-show="filteredHoldings.length > 0" x-cloak>
+                <div class="mobile-perf-item">
+                    <span class="label">NET RETURN $</span>
+                    <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>
+                    <span class="mobile-today-change" x-show="changeReturnDayDollar != null" x-cloak>
+                        <span :class="changeClass(changeReturnDayDollar)" x-text="changeDollar(changeReturnDayDollar) + ' today'"></span>
+                    </span>
+                </div>
+                <div class="mobile-perf-item" style="text-align:right">
+                    <span class="label">NET RETURN %</span>
+                    <span class="text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></span>
+                    <span class="mobile-today-change" x-show="changeReturnDayPct != null" x-cloak>
+                        <span :class="changeClass(changeReturnDayPct)" x-text="changePct(changeReturnDayPct) + ' today'"></span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Growth chart (simple, no controls) -->
+            <div class="mobile-chart-section" x-show="hasGrowthData" x-cloak>
+                <div class="mobile-chart-container" id="growthChartScroll">
+                    <div id="growthChartSizer" style="height:100%;min-width:100%">
+                        <canvas id="growthChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Holdings -->
+            <div class="mobile-holdings-section" x-show="filteredHoldings.length > 0" x-cloak>
+                <div class="panel-header">HOLDINGS</div>
+                <template x-for="h in filteredHoldings" :key="h.ticker">
+                    <div class="mobile-holding-card" x-show="h.holding_value_market > 0">
+                        <div class="mobile-holding-left">
+                            <span class="mobile-holding-ticker" x-text="h.ticker"></span>
+                            <span class="mobile-holding-name text-muted" x-text="h.name"></span>
+                        </div>
+                        <div class="mobile-holding-right">
+                            <span class="text-bold" x-text="fmt(h.holding_value_market)"></span>
+                            <span :class="gainClass(h.holding_return_net_pct)" x-text="pct(h.holding_return_net_pct)"></span>
+                        </div>
+                    </div>
+                </template>
+                <!-- Total -->
+                <div class="mobile-holding-card mobile-holding-total" x-show="filteredHoldings.length > 0">
+                    <div class="mobile-holding-left">
+                        <span class="mobile-holding-ticker">TOTAL</span>
+                    </div>
+                    <div class="mobile-holding-right">
+                        <span class="text-bold" x-text="fmt(equityValue)"></span>
+                        <span :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Full dashboard link -->
+            <div class="mobile-full-link" x-show="!loading">
+                <a :href="selected ? '/dashboard/' + encodeURIComponent(selected) : '/dashboard'">VIEW FULL DASHBOARD &rarr;</a>
+            </div>
+
+        </div>
+    </main>
+
+    {{template "footer.html" .}}
+
+    <script>
+    window.__VIRE_DATA__ = {
+        portfolios: {{.PortfoliosJSON}},
+        portfolio: {{.PortfolioJSON}},
+        timeline: {{.TimelineJSON}},
+        watchlist: null,
+        glossary: null,
+        selectedPortfolio: {{.SelectedJSON}}
+    };
+    </script>
+
+</body>
+
+</html>
