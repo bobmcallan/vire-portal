@@ -255,6 +255,23 @@ function portfolioDashboard() {
             return val > 0 ? 'gain-positive' : 'gain-negative';
         },
 
+        _getPortfolioFromURL() {
+            const path = window.location.pathname;
+            if (path.startsWith('/dashboard/')) {
+                return decodeURIComponent(path.substring('/dashboard/'.length));
+            }
+            return '';
+        },
+
+        _updateURL() {
+            if (this.selected) {
+                const newPath = '/dashboard/' + encodeURIComponent(this.selected);
+                if (window.location.pathname !== newPath) {
+                    history.replaceState(null, '', newPath);
+                }
+            }
+        },
+
         _applyPortfolioData(holdingsData) {
             this.holdings = vireStore.dedup(holdingsData.holdings || [], 'ticker');
             this.totalDividends = Number(holdingsData.income_dividends_forecast) || 0;
@@ -312,13 +329,17 @@ function portfolioDashboard() {
 
         async init() {
             try {
+                const initStart = performance.now();
                 const ssrData = window.__VIRE_DATA__;
                 if (ssrData && ssrData.portfolios) {
                     // --- SSR path: hydrate from server-embedded data ---
                     const data = ssrData.portfolios;
                     this.portfolios = vireStore.dedup(data.portfolios || [], 'name');
                     this.defaultPortfolio = data.default || '';
-                    if (this.defaultPortfolio) {
+                    // Use server-selected portfolio (from URL path or default)
+                    if (ssrData.selectedPortfolio) {
+                        this.selected = ssrData.selectedPortfolio;
+                    } else if (this.defaultPortfolio) {
                         this.selected = this.defaultPortfolio;
                     } else if (this.portfolios.length > 0) {
                         this.selected = this.portfolios[0].name;
@@ -345,6 +366,8 @@ function portfolioDashboard() {
 
                     window.__VIRE_DATA__ = null;
                     this.loading = false;
+                    this._updateURL();
+                    console.log(`[dashboard] SSR hydration: ${(performance.now() - initStart).toFixed(0)}ms`);
 
                     // Set up watchers (same as client-side path)
                     this.$watch('showClosed', (val) => {
@@ -362,7 +385,10 @@ function portfolioDashboard() {
                 }
 
                 // --- Client-side fallback path ---
+                console.log('[dashboard] SSR data not available, using client-side fetch');
+                const fetchStart = performance.now();
                 const res = await vireStore.fetch('/api/portfolios');
+                console.log(`[dashboard] fetch /api/portfolios: ${(performance.now() - fetchStart).toFixed(0)}ms`);
                 if (!res.ok) {
                     this.error = 'Failed to load portfolios';
                     this.loading = false;
@@ -371,7 +397,11 @@ function portfolioDashboard() {
                 const data = await res.json();
                 this.portfolios = vireStore.dedup(data.portfolios || [], 'name');
                 this.defaultPortfolio = data.default || '';
-                if (this.defaultPortfolio) {
+                // Check URL path for portfolio selection
+                const urlPortfolio = this._getPortfolioFromURL();
+                if (urlPortfolio && this.portfolios.some(p => p.name === urlPortfolio)) {
+                    this.selected = urlPortfolio;
+                } else if (this.defaultPortfolio) {
                     this.selected = this.defaultPortfolio;
                 } else if (this.portfolios.length > 0) {
                     this.selected = this.portfolios[0].name;
@@ -384,6 +414,7 @@ function portfolioDashboard() {
                 this.$watch('showMA20', () => this.renderChart());
                 this.$watch('showMA50', () => this.renderChart());
                 this.$watch('showMA200', () => this.renderChart());
+                console.log(`[dashboard] client-side init (excl. glossary/growth/watchlist): ${(performance.now() - initStart).toFixed(0)}ms`);
                 // Fetch glossary for tooltips (non-blocking)
                 vireStore.fetch('/api/glossary')
                     .then(async res => {
@@ -408,9 +439,11 @@ function portfolioDashboard() {
 
         async loadPortfolio() {
             if (!this.selected) return;
+            this._updateURL();
             this.portfolioLoading = true;
             this.closedHoldings = null;
             try {
+                const lpStart = performance.now();
                 const holdingsRes = await vireStore.fetch('/api/portfolios/' + encodeURIComponent(this.selected));
 
                 if (holdingsRes.ok) {
@@ -450,6 +483,7 @@ function portfolioDashboard() {
                     this.breadth = null;
                     this.hasBreadth = false;
                 }
+                console.log(`[dashboard] fetch /api/portfolios/${this.selected}: ${(performance.now() - lpStart).toFixed(0)}ms`);
                 // Fetch growth history and watchlist (non-blocking, non-fatal)
                 this.fetchGrowthData();
                 this.fetchWatchlist();
@@ -554,12 +588,40 @@ function portfolioDashboard() {
                 this.chartInstance = null;
             }
             const canvas = document.getElementById('growthChart');
-            if (!canvas || typeof Chart === 'undefined') return;
+            const scrollEl = document.getElementById('growthChartScroll');
+            const sizerEl = document.getElementById('growthChartSizer');
+            if (!canvas || !scrollEl || !sizerEl || typeof Chart === 'undefined') return;
 
-            const labels = this.growthData.map(p => {
+            const totalPoints = this.growthData.length;
+            if (totalPoints === 0) return;
+
+            // Calculate canvas width: ~4px per data point, min = container width
+            const containerWidth = scrollEl.clientWidth;
+            const pxPerPoint = 4;
+            const canvasWidth = Math.max(containerWidth, totalPoints * pxPerPoint);
+            sizerEl.style.width = canvasWidth + 'px';
+
+            // Build labels with year markers
+            const labels = this.growthData.map((p, i) => {
                 const d = new Date(p.date);
-                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const prev = i > 0 ? new Date(this.growthData[i - 1].date) : null;
+                // Show year on Jan 1 or first data point of a new year
+                if (prev && d.getFullYear() !== prev.getFullYear()) {
+                    return d.getFullYear().toString();
+                }
+                // Show month on 1st of month or first data point of a new month
+                if (prev && (d.getMonth() !== prev.getMonth())) {
+                    const mo = d.toLocaleDateString('en-US', { month: 'short' });
+                    return mo + ' \'' + (d.getFullYear() % 100).toString().padStart(2, '0');
+                }
+                // First point
+                if (i === 0) {
+                    const mo = d.toLocaleDateString('en-US', { month: 'short' });
+                    return mo + ' \'' + (d.getFullYear() % 100).toString().padStart(2, '0');
+                }
+                return '';
             });
+
             const totalValues = this.growthData.map(p => p.portfolio_value || p.value || 0);
             const equityValues = this.growthData.map(p => p.equity_holdings_value || 0);
             const capitalLine = this.growthData.map(p => p.capital_contributions_net || this.capitalInvested || 0);
@@ -698,6 +760,17 @@ function portfolioDashboard() {
                             bodyFont: { family: "'IBM Plex Mono', monospace", size: 11 },
                             filter: function(item) { return item.raw != null; },
                             callbacks: {
+                                title: function(items) {
+                                    if (!items.length) return '';
+                                    const idx = items[0].dataIndex;
+                                    const chart = items[0].chart;
+                                    const rawData = chart.config._config?.rawDates;
+                                    if (rawData && rawData[idx]) {
+                                        const d = new Date(rawData[idx]);
+                                        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                    }
+                                    return items[0].label || '';
+                                },
                                 label: function(ctx) {
                                     if (ctx.raw == null) return null;
                                     const val = Number(ctx.raw).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -708,11 +781,35 @@ function portfolioDashboard() {
                     },
                     scales: {
                         x: {
-                            grid: { display: false },
+                            grid: {
+                                display: true,
+                                color: function(ctx) {
+                                    // Draw vertical grid lines at year boundaries
+                                    const label = ctx.tick?.label || '';
+                                    if (/^\d{4}$/.test(label)) return '#ccc';
+                                    return 'transparent';
+                                },
+                            },
                             ticks: {
-                                font: { family: "'IBM Plex Mono', monospace", size: 10 },
-                                color: '#888',
-                                maxTicksLimit: 10,
+                                font: function(ctx) {
+                                    const label = ctx.tick?.label || '';
+                                    const isYear = /^\d{4}$/.test(label);
+                                    return {
+                                        family: "'IBM Plex Mono', monospace",
+                                        size: isYear ? 11 : 10,
+                                        weight: isYear ? 'bold' : 'normal',
+                                    };
+                                },
+                                color: function(ctx) {
+                                    const label = ctx.tick?.label || '';
+                                    return /^\d{4}$/.test(label) ? '#000' : '#888';
+                                },
+                                autoSkip: false,
+                                maxRotation: 0,
+                                callback: function(val, idx) {
+                                    const label = this.getLabelForValue(val);
+                                    return label || null;
+                                },
                             },
                             border: { color: '#000' },
                         },
@@ -731,6 +828,11 @@ function portfolioDashboard() {
                 },
             });
 
+            // Store raw dates for tooltip
+            this.chartInstance.config._config.rawDates = this.growthData.map(p => p.date);
+
+            // Scroll to right (today) after render
+            scrollEl.scrollLeft = scrollEl.scrollWidth;
         },
 
         async toggleDefault() {

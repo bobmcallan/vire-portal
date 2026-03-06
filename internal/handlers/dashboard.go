@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
 	"github.com/bobmcallan/vire-portal/internal/config"
@@ -71,17 +73,34 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Extract portfolio from URL path: /dashboard/{portfolio}
+	var urlPortfolio string
+	if pathSuffix := strings.TrimPrefix(r.URL.Path, "/dashboard"); len(pathSuffix) > 1 && pathSuffix[0] == '/' {
+		decoded, err := url.PathUnescape(pathSuffix[1:])
+		if err == nil {
+			urlPortfolio = decoded
+		}
+	}
+
 	var portfoliosJSON, portfolioJSON, timelineJSON, watchlistJSON, glossaryJSON template.JS
 	portfoliosJSON = "null"
 	portfolioJSON = "null"
 	timelineJSON = "null"
 	watchlistJSON = "null"
 	glossaryJSON = "null"
+	selectedPortfolio := ""
 
 	if h.proxyGetFn != nil && claims != nil && claims.Sub != "" {
+		ssrStart := time.Now()
+
 		// 1. Fetch portfolio list
+		t1 := time.Now()
 		if body, err := h.proxyGetFn("/api/portfolios", claims.Sub); err == nil {
 			portfoliosJSON = template.JS(body)
+
+			if h.logger != nil {
+				h.logger.Info().Int64("duration_ms", time.Since(t1).Milliseconds()).Msg("dashboard SSR: portfolios")
+			}
 
 			// Parse to find default/selected portfolio name
 			var pData struct {
@@ -91,45 +110,86 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Default string `json:"default"`
 			}
 			if json.Unmarshal(body, &pData) == nil {
-				selected := pData.Default
+				// Priority: URL path > default > first portfolio
+				selected := urlPortfolio
+				if selected != "" {
+					// Validate URL portfolio exists in the list
+					found := false
+					for _, p := range pData.Portfolios {
+						if p.Name == selected {
+							found = true
+							break
+						}
+					}
+					if !found {
+						selected = ""
+					}
+				}
+				if selected == "" {
+					selected = pData.Default
+				}
 				if selected == "" && len(pData.Portfolios) > 0 {
 					selected = pData.Portfolios[0].Name
 				}
+				selectedPortfolio = selected
 				if selected != "" {
 					// 2. Fetch portfolio data (holdings, metrics, changes, breadth)
+					t2 := time.Now()
 					if pBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected), claims.Sub); err == nil {
 						portfolioJSON = template.JS(pBody)
 					}
+					if h.logger != nil {
+						h.logger.Info().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: portfolio data")
+					}
+
 					// 3. Fetch timeline (growth chart data)
+					t3 := time.Now()
 					if tBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/timeline", claims.Sub); err == nil {
 						timelineJSON = template.JS(tBody)
 					}
+					if h.logger != nil {
+						h.logger.Info().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: timeline")
+					}
+
 					// 4. Fetch watchlist
+					t4 := time.Now()
 					if wBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/watchlist", claims.Sub); err == nil {
 						watchlistJSON = template.JS(wBody)
 					}
+					if h.logger != nil {
+						h.logger.Info().Int64("duration_ms", time.Since(t4).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: watchlist")
+					}
 				}
 			}
+		} else if h.logger != nil {
+			h.logger.Warn().Int64("duration_ms", time.Since(t1).Milliseconds()).Str("error", err.Error()).Msg("dashboard SSR: portfolios failed")
 		}
+
 		// 5. Fetch glossary (independent of portfolio selection)
+		t5 := time.Now()
 		if gBody, err := h.proxyGetFn("/api/glossary", claims.Sub); err == nil {
 			glossaryJSON = template.JS(gBody)
+		}
+		if h.logger != nil {
+			h.logger.Info().Int64("duration_ms", time.Since(t5).Milliseconds()).Msg("dashboard SSR: glossary")
+			h.logger.Info().Int64("duration_ms", time.Since(ssrStart).Milliseconds()).Msg("dashboard SSR: total")
 		}
 	}
 
 	data := map[string]interface{}{
-		"Page":             "dashboard",
-		"DevMode":          h.devMode,
-		"LoggedIn":         loggedIn,
-		"NavexaKeyMissing": navexaKeyMissing,
-		"UserRole":         userRole,
-		"PortalVersion":    config.GetVersion(),
-		"ServerVersion":    GetServerVersion(h.apiURL),
-		"PortfoliosJSON":   portfoliosJSON,
-		"PortfolioJSON":    portfolioJSON,
-		"TimelineJSON":     timelineJSON,
-		"WatchlistJSON":    watchlistJSON,
-		"GlossaryJSON":     glossaryJSON,
+		"Page":              "dashboard",
+		"DevMode":           h.devMode,
+		"LoggedIn":          loggedIn,
+		"NavexaKeyMissing":  navexaKeyMissing,
+		"UserRole":          userRole,
+		"PortalVersion":     config.GetVersion(),
+		"ServerVersion":     GetServerVersion(h.apiURL),
+		"PortfoliosJSON":    portfoliosJSON,
+		"PortfolioJSON":     portfolioJSON,
+		"TimelineJSON":      timelineJSON,
+		"WatchlistJSON":     watchlistJSON,
+		"GlossaryJSON":      glossaryJSON,
+		"SelectedPortfolio": selectedPortfolio,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "dashboard.html", data); err != nil {

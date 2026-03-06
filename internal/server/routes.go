@@ -32,6 +32,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 
 	// UI page routes (HTML templates)
 	mux.HandleFunc("GET /dashboard", s.app.DashboardHandler.ServeHTTP)
+	mux.HandleFunc("GET /dashboard/{portfolio...}", s.app.DashboardHandler.ServeHTTP)
 	mux.HandleFunc("GET /strategy", s.app.StrategyHandler.ServeHTTP)
 	mux.HandleFunc("GET /cash", s.app.CashHandler.ServeHTTP)
 	mux.HandleFunc("GET /mcp-info", s.app.MCPPageHandler.ServeHTTP)

@@ -1238,14 +1238,20 @@ code {
     padding: 1rem;
 }
 
-.growth-chart-container {
+.growth-chart-scroll {
     width: 100%;
-    aspect-ratio: 3 / 1;
+    overflow-x: auto;
+    height: 220px;
+}
+
+.growth-chart-canvas-sizer {
+    height: 100%;
+    min-width: 100%;
 }
 
 @media (max-width: 48rem) {
-    .growth-chart-container {
-        aspect-ratio: 2 / 1;
+    .growth-chart-scroll {
+        height: 180px;
     }
 }
 

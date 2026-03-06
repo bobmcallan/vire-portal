@@ -121,8 +121,10 @@
                         <span>200d</span>
                     </label>
                 </div>
-                <div class="growth-chart-container">
-                    <canvas id="growthChart"></canvas>
+                <div class="growth-chart-scroll" id="growthChartScroll">
+                    <div class="growth-chart-canvas-sizer" id="growthChartSizer">
+                        <canvas id="growthChart"></canvas>
+                    </div>
                 </div>
             </div>
             <div class="growth-chart-ghost" x-show="!portfolioLoading && filteredHoldings.length > 0 && !hasGrowthData" x-cloak>
@@ -258,7 +260,8 @@
         portfolio: {{.PortfolioJSON}},
         timeline: {{.TimelineJSON}},
         watchlist: {{.WatchlistJSON}},
-        glossary: {{.GlossaryJSON}}
+        glossary: {{.GlossaryJSON}},
+        selectedPortfolio: {{printf "%q" .SelectedPortfolio}}
     };
     </script>
 
