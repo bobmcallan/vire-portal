@@ -3198,6 +3198,74 @@ func TestDashboardHandler_SSR_NoDefaultPortfolio(t *testing.T) {
 	}
 }
 
+// --- Dashboard Mobile Redirect Tests ---
+
+func TestDashboardHandler_MobileRedirect(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect for mobile UA, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/m" {
+		t.Errorf("expected redirect to /m, got %s", loc)
+	}
+}
+
+func TestDashboardHandler_MobileRedirectPreservesPortfolio(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard/SMSF", nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect for Android mobile UA, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/m/SMSF" {
+		t.Errorf("expected redirect to /m/SMSF, got %s", loc)
+	}
+}
+
+func TestDashboardHandler_NoRedirectForDesktop(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for desktop UA, got %d", w.Code)
+	}
+}
+
+func TestDashboardHandler_NoRedirectForIPad(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for iPad (tablet), got %d", w.Code)
+	}
+}
+
 // --- MobileDashboardHandler Tests ---
 
 func TestMobileDashboardHandler_Returns200(t *testing.T) {

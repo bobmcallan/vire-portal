@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
@@ -48,6 +49,22 @@ func (h *PageHandler) SetAPIURL(apiURL string) {
 // SetProxyGetFn sets the proxy GET function for SSR data fetching.
 func (h *PageHandler) SetProxyGetFn(fn func(path, userID string) ([]byte, error)) {
 	h.proxyGetFn = fn
+}
+
+// isMobileBrowser checks the User-Agent string for common mobile device patterns.
+func isMobileBrowser(ua string) bool {
+	ua = strings.ToLower(ua)
+	mobileKeywords := []string{"iphone", "android", "mobile", "ipod", "windows phone", "blackberry", "opera mini", "iemobile"}
+	for _, kw := range mobileKeywords {
+		if strings.Contains(ua, kw) {
+			// Exclude tablets (iPad, Android tablet without "mobile")
+			if strings.Contains(ua, "ipad") {
+				return false
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // FindPagesDir locates the pages directory.

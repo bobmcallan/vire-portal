@@ -62,6 +62,16 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Redirect mobile browsers to /m
+	if isMobileBrowser(r.UserAgent()) {
+		mobilePath := "/m"
+		if pathSuffix := strings.TrimPrefix(r.URL.Path, "/dashboard"); len(pathSuffix) > 1 && pathSuffix[0] == '/' {
+			mobilePath = "/m" + pathSuffix
+		}
+		http.Redirect(w, r, mobilePath, http.StatusFound)
+		return
+	}
+
 	var userRole string
 	navexaKeyMissing := false
 	if h.userLookupFn != nil && claims != nil && claims.Sub != "" {
