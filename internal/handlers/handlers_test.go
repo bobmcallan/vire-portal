@@ -3197,3 +3197,154 @@ func TestDashboardHandler_SSR_NoDefaultPortfolio(t *testing.T) {
 		t.Error("expected handler to select first portfolio when no default")
 	}
 }
+
+// --- MobileDashboardHandler Tests ---
+
+func TestMobileDashboardHandler_Returns200(t *testing.T) {
+	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/m", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestMobileDashboardHandler_RedirectsUnauthenticated(t *testing.T) {
+	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/m", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/" {
+		t.Errorf("expected redirect to /, got %s", loc)
+	}
+}
+
+func TestMobileDashboardHandler_SSR_EmbedJSON(t *testing.T) {
+	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return []byte(`{"portfolios":[{"name":"Test"}],"default":"Test"}`), nil
+		}
+		if strings.Contains(path, "/api/portfolios/Test") && !strings.Contains(path, "/timeline") {
+			return []byte(`{"holdings":[{"ticker":"AAPL"}],"portfolio_value":1000}`), nil
+		}
+		if strings.Contains(path, "/timeline") {
+			return []byte(`{"data_points":[{"date":"2026-01-01","portfolio_value":900}]}`), nil
+		}
+		return []byte(`{}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/m", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "window.__VIRE_DATA__") {
+		t.Error("expected window.__VIRE_DATA__ in mobile page body")
+	}
+	if !strings.Contains(body, `"AAPL"`) {
+		t.Error("expected portfolio holdings data embedded in page")
+	}
+	if !strings.Contains(body, `"data_points"`) {
+		t.Error("expected timeline data embedded in page")
+	}
+	// Mobile page should NOT have watchlist or glossary
+	if !strings.Contains(body, `watchlist: null`) {
+		t.Error("expected watchlist to be null in mobile page")
+	}
+	if !strings.Contains(body, `glossary: null`) {
+		t.Error("expected glossary to be null in mobile page")
+	}
+}
+
+func TestMobileDashboardHandler_SSR_NilProxyGet(t *testing.T) {
+	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/m", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "window.__VIRE_DATA__") {
+		t.Error("expected window.__VIRE_DATA__ even with nil proxyGetFn")
+	}
+}
+
+func TestMobileDashboardHandler_URLPortfolioExtraction(t *testing.T) {
+	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return []byte(`{"portfolios":[{"name":"SMSF"},{"name":"Trading"}],"default":"Trading"}`), nil
+		}
+		if strings.Contains(path, "/api/portfolios/SMSF") && !strings.Contains(path, "/timeline") {
+			return []byte(`{"holdings":[{"ticker":"GNP"}]}`), nil
+		}
+		if strings.Contains(path, "/timeline") {
+			return []byte(`{"data_points":[]}`), nil
+		}
+		return []byte(`{}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/m/SMSF", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	// Should select SMSF from URL, not default Trading
+	if !strings.Contains(body, `"GNP"`) {
+		t.Error("expected SMSF portfolio data (GNP ticker) — URL portfolio should override default")
+	}
+}
+
+func TestMobileDashboardHandler_ProxyGetPartialFailure(t *testing.T) {
+	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return []byte(`{"portfolios":[{"name":"Test"}],"default":"Test"}`), nil
+		}
+		if strings.Contains(path, "/api/portfolios/Test") && !strings.Contains(path, "/timeline") {
+			return []byte(`{"holdings":[{"ticker":"AAPL"}]}`), nil
+		}
+		return nil, fmt.Errorf("simulated failure")
+	})
+
+	req := httptest.NewRequest("GET", "/m", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 even with partial failures, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"AAPL"`) {
+		t.Error("portfolio data should still be embedded despite timeline failure")
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
@@ -131,27 +132,38 @@ func (h *MobileDashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 					selectedJSON = template.JS(b)
 				}
 				if selected != "" {
-					// 2. Fetch portfolio data
-					t2 := time.Now()
-					if pBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected), claims.Sub); err == nil {
-						portfolioJSON = template.JS(pBody)
-						if h.logger != nil {
-							h.logger.Info().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Msg("mobile SSR: portfolio data")
-						}
-					} else if h.logger != nil {
-						h.logger.Warn().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("mobile SSR: portfolio data failed")
-					}
+					escapedName := url.PathEscape(selected)
+					userID := claims.Sub
+					var wg sync.WaitGroup
+					wg.Add(2)
 
-					// 3. Fetch timeline
-					t3 := time.Now()
-					if tBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/timeline", claims.Sub); err == nil {
-						timelineJSON = template.JS(tBody)
-						if h.logger != nil {
-							h.logger.Info().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Msg("mobile SSR: timeline")
+					go func() {
+						defer wg.Done()
+						t2 := time.Now()
+						if pBody, err := h.proxyGetFn("/api/portfolios/"+escapedName, userID); err == nil {
+							portfolioJSON = template.JS(pBody)
+							if h.logger != nil {
+								h.logger.Info().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Msg("mobile SSR: portfolio data")
+							}
+						} else if h.logger != nil {
+							h.logger.Warn().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("mobile SSR: portfolio data failed")
 						}
-					} else if h.logger != nil {
-						h.logger.Warn().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("mobile SSR: timeline failed")
-					}
+					}()
+
+					go func() {
+						defer wg.Done()
+						t3 := time.Now()
+						if tBody, err := h.proxyGetFn("/api/portfolios/"+escapedName+"/timeline", userID); err == nil {
+							timelineJSON = template.JS(tBody)
+							if h.logger != nil {
+								h.logger.Info().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Msg("mobile SSR: timeline")
+							}
+						} else if h.logger != nil {
+							h.logger.Warn().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("mobile SSR: timeline failed")
+						}
+					}()
+
+					wg.Wait()
 				}
 			}
 		} else if h.logger != nil {
