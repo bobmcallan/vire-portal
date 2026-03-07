@@ -1319,27 +1319,27 @@ code {
     padding: 1rem 1.5rem;
     margin-bottom: 2rem;
     font-size: 0.875rem;
-    color: #ccc;
+    color: #555;
 }
 
 /* Strategy rendered markdown */
 .strategy-rendered {
     line-height: 1.6;
-    color: #ccc;
+    color: #222;
 }
 .strategy-rendered h2 {
     font-size: 1.1rem;
     font-weight: 700;
     margin: 1.5rem 0 0.5rem;
-    color: #fff;
-    border-bottom: 1px solid #333;
+    color: #000;
+    border-bottom: 1px solid #ccc;
     padding-bottom: 0.25rem;
 }
 .strategy-rendered h3 {
     font-size: 0.95rem;
     font-weight: 700;
     margin: 1.25rem 0 0.4rem;
-    color: #fff;
+    color: #000;
 }
 .strategy-rendered p {
     margin: 0.5rem 0;
@@ -1351,16 +1351,16 @@ code {
     margin: 0.25rem 0;
 }
 .strategy-rendered strong {
-    color: #fff;
+    color: #000;
 }
 .strategy-rendered pre {
-    background: #111;
+    background: #f5f5f5;
     padding: 1rem;
     overflow-x: auto;
     font-size: 0.8rem;
 }
 .strategy-rendered code {
-    background: #222;
+    background: #eee;
     padding: 0.1rem 0.3rem;
     font-size: 0.85em;
 }
@@ -1374,7 +1374,7 @@ code {
 .plan-table th {
     text-align: left;
     padding: 0.5rem 0.75rem;
-    border-bottom: 2px solid #333;
+    border-bottom: 2px solid #ccc;
     font-size: 0.75rem;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -1382,7 +1382,7 @@ code {
 }
 .plan-table td {
     padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid #222;
+    border-bottom: 1px solid #ddd;
     vertical-align: top;
 }
 .plan-completed {
@@ -1405,7 +1405,7 @@ code {
 .plan-notes-cell {
     max-width: 300px;
     font-size: 0.8rem;
-    color: #999;
+    color: #555;
 }
 
 
