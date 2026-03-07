@@ -2773,7 +2773,7 @@ func TestStrategyHandler_PageIdentifier(t *testing.T) {
 	}
 }
 
-func TestStrategyHandler_ContainsStrategyEditor(t *testing.T) {
+func TestStrategyHandler_ContainsStrategyRendered(t *testing.T) {
 	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/strategy", nil)
@@ -2789,8 +2789,11 @@ func TestStrategyHandler_ContainsStrategyEditor(t *testing.T) {
 	if !strings.Contains(body, "PLAN") {
 		t.Error("expected PLAN header in page body")
 	}
-	if !strings.Contains(body, "portfolio-editor") {
-		t.Error("expected portfolio-editor textarea in page body")
+	if !strings.Contains(body, "strategy-rendered") {
+		t.Error("expected strategy-rendered div in page body")
+	}
+	if !strings.Contains(body, "plan-table") {
+		t.Error("expected plan-table in page body")
 	}
 }
 

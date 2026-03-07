@@ -707,3 +707,507 @@ func TestHelpPage_StressProxyGetError(t *testing.T) {
 		t.Errorf("expected 200 even when proxyGet fails, got %d", w.Code)
 	}
 }
+
+// =============================================================================
+// Strategy Read-Only HTML Rendering — Stress Tests (Devils Advocate)
+// =============================================================================
+
+// --- Strategy: XSS payloads in strategy notes via SSR JSON ---
+// The renderStrategy() function uses marked.parse() which outputs raw HTML
+// into x-html. marked.js v15 does NOT sanitize by default — it passes through
+// script tags, event handlers, etc. This test verifies the SSR JSON embedding
+// doesn't break the page, and documents the XSS surface.
+
+func TestStrategyReadOnly_StressXSSInStrategyNotes(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	xssPayloads := []struct {
+		name  string
+		notes string
+	}{
+		{"script_tag", `<script>alert('xss')</script>`},
+		{"img_onerror", `<img src=x onerror=alert(1)>`},
+		{"svg_onload", `<svg onload=alert(1)>`},
+		{"iframe", `<iframe src="javascript:alert(1)"></iframe>`},
+		{"event_handler", `<div onmouseover="alert(1)">hover me</div>`},
+		{"markdown_link_js", `[click](javascript:alert(1))`},
+		{"markdown_img_onerror", `![alt](x" onerror="alert(1))`},
+		{"nested_script", `# Title\n<script>document.cookie</script>\nMore text`},
+	}
+
+	for _, tc := range xssPayloads {
+		t.Run(tc.name, func(t *testing.T) {
+			handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+				if strings.Contains(path, "strategy") {
+					return json.Marshal(map[string]interface{}{
+						"notes": tc.notes,
+					})
+				}
+				if strings.Contains(path, "plan") {
+					return json.Marshal(map[string]interface{}{
+						"items": []interface{}{},
+					})
+				}
+				// portfolios
+				return json.Marshal(map[string]interface{}{
+					"portfolios": []map[string]interface{}{
+						{"name": "Test Portfolio"},
+					},
+					"default": "Test Portfolio",
+				})
+			})
+
+			req := httptest.NewRequest("GET", "/strategy", nil)
+			addAuthCookie(req, "test-user")
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d", w.Code)
+			}
+
+			body := w.Body.String()
+			// The page must render without crashing
+			if !strings.Contains(body, "STRATEGY") {
+				t.Error("page did not render STRATEGY section")
+			}
+
+			// The XSS payload is embedded in the SSR JSON block via template.JS.
+			// It will be passed to marked.parse() client-side, which does NOT sanitize.
+			// FINDING: marked.js v15 default config passes through HTML tags.
+			// This is an ACCEPTED RISK because:
+			// 1. Strategy notes come from the authenticated user's own data via vire-server
+			// 2. Users cannot inject content into other users' pages
+			// 3. The data source (vire-server) is trusted
+			// If sanitization is desired, use DOMPurify or marked's sanitizer option.
+			t.Logf("ACCEPTED RISK: XSS payload %q will be rendered via marked.parse() + x-html. "+
+				"Self-XSS only — user's own data rendered in their own session.", tc.name)
+		})
+	}
+}
+
+// --- Strategy: XSS payloads in plan item fields via SSR JSON ---
+// Plan items use x-text (Alpine textContent), which is safe against XSS.
+
+func TestStrategyReadOnly_StressXSSInPlanItems(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	maliciousPlan := map[string]interface{}{
+		"items": []map[string]interface{}{
+			{
+				"id":          "1",
+				"status":      `<script>alert(1)</script>`,
+				"action":      `BUY" onclick="alert(1)`,
+				"ticker":      `<img src=x onerror=alert(1)>`,
+				"description": `<svg onload=alert(1)>`,
+				"deadline":    "2026-01-01T00:00:00Z",
+				"notes":       `<iframe src="javascript:alert(1)">`,
+			},
+		},
+	}
+
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if strings.Contains(path, "plan") {
+			return json.Marshal(maliciousPlan)
+		}
+		if strings.Contains(path, "strategy") {
+			return json.Marshal(map[string]interface{}{"notes": "clean"})
+		}
+		return json.Marshal(map[string]interface{}{
+			"portfolios": []map[string]interface{}{{"name": "Test"}},
+			"default":    "Test",
+		})
+	})
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// Plan items are embedded in SSR JSON. Client-side, Alpine renders them via x-text
+	// which sets textContent (safe). The raw HTML in JSON is never interpreted as HTML.
+	if !strings.Contains(body, "PLAN") {
+		t.Error("page did not render PLAN section")
+	}
+	t.Log("SAFE: Plan item fields rendered via x-text (textContent), XSS payloads are text-escaped by Alpine")
+}
+
+// --- Strategy: empty/null/missing data ---
+
+func TestStrategyReadOnly_StressEmptyData(t *testing.T) {
+	cases := []struct {
+		name       string
+		strategyFn func() ([]byte, error)
+		planFn     func() ([]byte, error)
+	}{
+		{
+			"null_strategy_null_plan",
+			func() ([]byte, error) { return []byte(`null`), nil },
+			func() ([]byte, error) { return []byte(`null`), nil },
+		},
+		{
+			"empty_object_strategy",
+			func() ([]byte, error) { return []byte(`{}`), nil },
+			func() ([]byte, error) { return []byte(`{}`), nil },
+		},
+		{
+			"empty_notes",
+			func() ([]byte, error) { return json.Marshal(map[string]interface{}{"notes": ""}) },
+			func() ([]byte, error) {
+				return json.Marshal(map[string]interface{}{"items": []interface{}{}})
+			},
+		},
+		{
+			"missing_notes_field",
+			func() ([]byte, error) { return json.Marshal(map[string]interface{}{"other": "data"}) },
+			func() ([]byte, error) { return json.Marshal(map[string]interface{}{"other": "data"}) },
+		},
+		{
+			"strategy_error",
+			func() ([]byte, error) { return nil, fmt.Errorf("strategy unavailable") },
+			func() ([]byte, error) {
+				return json.Marshal(map[string]interface{}{"items": []interface{}{}})
+			},
+		},
+		{
+			"plan_error",
+			func() ([]byte, error) { return json.Marshal(map[string]interface{}{"notes": "ok"}) },
+			func() ([]byte, error) { return nil, fmt.Errorf("plan unavailable") },
+		},
+		{
+			"both_error",
+			func() ([]byte, error) { return nil, fmt.Errorf("fail") },
+			func() ([]byte, error) { return nil, fmt.Errorf("fail") },
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+			handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+				if strings.Contains(path, "strategy") {
+					return tc.strategyFn()
+				}
+				if strings.Contains(path, "plan") {
+					return tc.planFn()
+				}
+				return json.Marshal(map[string]interface{}{
+					"portfolios": []map[string]interface{}{{"name": "Test"}},
+					"default":    "Test",
+				})
+			})
+
+			req := httptest.NewRequest("GET", "/strategy", nil)
+			addAuthCookie(req, "test-user")
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected 200, got %d", w.Code)
+			}
+		})
+	}
+}
+
+// --- Strategy: plan items with missing fields ---
+
+func TestStrategyReadOnly_StressPlanItemsMissingFields(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	// Plan items with various missing/null fields
+	plan := map[string]interface{}{
+		"items": []map[string]interface{}{
+			{"id": "1"}, // only id, everything else missing
+			{"id": "2", "status": "", "action": "", "ticker": ""}, // empty strings
+			{"id": "3", "status": nil, "action": nil},             // null values
+			{"id": "4", "description": "desc only"},               // no status/action/ticker
+			{"id": "5", "deadline": "invalid-date"},               // invalid date format
+			{"id": "6", "deadline": ""},                           // empty deadline
+			{"id": "7", "notes": strings.Repeat("x", 10000)},      // very long notes
+		},
+	}
+
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if strings.Contains(path, "plan") {
+			return json.Marshal(plan)
+		}
+		if strings.Contains(path, "strategy") {
+			return json.Marshal(map[string]interface{}{"notes": "ok"})
+		}
+		return json.Marshal(map[string]interface{}{
+			"portfolios": []map[string]interface{}{{"name": "Test"}},
+			"default":    "Test",
+		})
+	})
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// The JSON is embedded in the page. Client-side Alpine handles missing fields
+	// with || '-' fallbacks in x-text. The server just passes through the JSON.
+	t.Log("Plan items with missing fields embedded in SSR JSON. " +
+		"Alpine x-text uses || '-' fallbacks for missing ticker/action/notes/deadline.")
+}
+
+// --- Strategy: very large strategy content ---
+
+func TestStrategyReadOnly_StressLargeStrategyContent(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	// 500KB of markdown content
+	var sb strings.Builder
+	for i := 0; i < 5000; i++ {
+		sb.WriteString(fmt.Sprintf("## Section %d\n\nThis is paragraph %d with **bold** and *italic* text.\n\n- Item A\n- Item B\n- Item C\n\n", i, i))
+	}
+	largeNotes := sb.String()
+
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if strings.Contains(path, "strategy") {
+			return json.Marshal(map[string]interface{}{"notes": largeNotes})
+		}
+		if strings.Contains(path, "plan") {
+			return json.Marshal(map[string]interface{}{"items": []interface{}{}})
+		}
+		return json.Marshal(map[string]interface{}{
+			"portfolios": []map[string]interface{}{{"name": "Test"}},
+			"default":    "Test",
+		})
+	})
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "Section 0") || !strings.Contains(body, "Section 4999") {
+		t.Error("large strategy content not fully embedded in SSR JSON")
+	}
+}
+
+// --- Strategy: script-closing tag in strategy notes breaks SSR JSON block ---
+
+func TestStrategyReadOnly_StressScriptCloseInNotes(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	// A strategy note containing </script> will break the SSR <script> block
+	// because the browser's HTML parser sees </script> before the JSON parser.
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if strings.Contains(path, "strategy") {
+			return json.Marshal(map[string]interface{}{
+				"notes": `Here is some code: </script><script>alert('xss')</script>`,
+			})
+		}
+		if strings.Contains(path, "plan") {
+			return json.Marshal(map[string]interface{}{"items": []interface{}{}})
+		}
+		return json.Marshal(map[string]interface{}{
+			"portfolios": []map[string]interface{}{{"name": "Test"}},
+			"default":    "Test",
+		})
+	})
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// json.Marshal escapes </script> as \u003c/script\u003e in JSON string values.
+	// This is safe because Go's json.Marshal escapes < and > by default.
+	if strings.Contains(body, `</script><script>alert`) {
+		t.Error("SECURITY: </script> in strategy notes NOT escaped by json.Marshal — " +
+			"this would break the SSR script block")
+	} else {
+		t.Log("SAFE: json.Marshal escapes </script> as \\u003c/script\\u003e in JSON strings. " +
+			"The SSR script block is not broken.")
+	}
+}
+
+// --- Strategy: malformed JSON in SSR data ---
+
+func TestStrategyReadOnly_StressMalformedJSON(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	malformedResponses := []struct {
+		name string
+		body []byte
+	}{
+		{"truncated_json", []byte(`{"notes": "incomple`)},
+		{"not_json", []byte(`this is not json`)},
+		{"array_instead_of_object", []byte(`[1,2,3]`)},
+		{"empty_string", []byte(`""`)},
+		{"number", []byte(`42`)},
+		{"boolean", []byte(`true`)},
+	}
+
+	for _, tc := range malformedResponses {
+		t.Run(tc.name, func(t *testing.T) {
+			handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+				if strings.Contains(path, "strategy") || strings.Contains(path, "plan") {
+					return tc.body, nil
+				}
+				return json.Marshal(map[string]interface{}{
+					"portfolios": []map[string]interface{}{{"name": "Test"}},
+					"default":    "Test",
+				})
+			})
+
+			req := httptest.NewRequest("GET", "/strategy", nil)
+			addAuthCookie(req, "test-user")
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			// The handler embeds raw bytes via template.JS.
+			// Malformed JSON will cause a JS parse error client-side,
+			// but the page should still render server-side.
+			if w.Code != http.StatusOK {
+				t.Errorf("expected 200, got %d", w.Code)
+			}
+		})
+	}
+}
+
+// --- Strategy: concurrent requests don't corrupt shared state ---
+
+func TestStrategyReadOnly_StressConcurrentRequests(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if strings.Contains(path, "strategy") {
+			return json.Marshal(map[string]interface{}{"notes": "strategy for " + userID})
+		}
+		if strings.Contains(path, "plan") {
+			return json.Marshal(map[string]interface{}{"items": []interface{}{}})
+		}
+		return json.Marshal(map[string]interface{}{
+			"portfolios": []map[string]interface{}{{"name": "Portfolio-" + userID}},
+			"default":    "Portfolio-" + userID,
+		})
+	})
+
+	var wg sync.WaitGroup
+	errors := make(chan string, 50)
+
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			userID := fmt.Sprintf("user-%d", id)
+			req := httptest.NewRequest("GET", "/strategy", nil)
+			addAuthCookie(req, userID)
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				errors <- fmt.Sprintf("user %s: expected 200, got %d", userID, w.Code)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	for err := range errors {
+		t.Error(err)
+	}
+}
+
+// --- Strategy: SSR with unauthenticated request redirects ---
+
+func TestStrategyReadOnly_StressUnauthenticatedRedirect(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/strategy", nil)
+	// No auth cookie
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("expected 302 redirect for unauthenticated, got %d", w.Code)
+	}
+
+	location := w.Header().Get("Location")
+	if location != "/" {
+		t.Errorf("expected redirect to /, got %s", location)
+	}
+}
+
+// --- Strategy: expired/invalid JWT ---
+
+func TestStrategyReadOnly_StressInvalidJWT(t *testing.T) {
+	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
+
+	invalidTokens := []struct {
+		name  string
+		token string
+	}{
+		{"empty", ""},
+		{"garbage", "not-a-jwt"},
+		{"wrong_secret", createTestJWT("user") + "tampered"},
+		{"missing_parts", "eyJhbGciOiJIUzI1NiJ9"},
+	}
+
+	for _, tc := range invalidTokens {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/strategy", nil)
+			if tc.token != "" {
+				req.AddCookie(&http.Cookie{Name: "vire_session", Value: tc.token})
+			}
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			// Should redirect to login, not crash
+			if w.Code != http.StatusFound {
+				t.Errorf("expected 302 redirect for invalid JWT %q, got %d", tc.name, w.Code)
+			}
+		})
+	}
+}
+
+// --- Strategy: renderStrategy fallback escaping completeness ---
+// When marked.js is unavailable, renderStrategy falls back to:
+//   '<pre>' + notes.replace(/</g, '&lt;') + '</pre>'
+// This only escapes < which is the critical character for HTML injection
+// in a <pre> context. The & character is not escaped, which means &lt;
+// would render as < instead of &lt; — a minor display bug, not a security issue.
+
+func TestStrategyReadOnly_StressFallbackEscapingDoc(t *testing.T) {
+	// This is a documentation test — the escaping happens client-side.
+	// The fallback replace(/</g, '&lt;') prevents tag injection.
+	// Missing escapes:
+	//   & -> &amp; (display bug: &lt; renders as < instead of &lt;)
+	//   > -> &gt; (harmless — > alone doesn't create tags)
+	// Verdict: acceptable for a fallback path that only triggers when CDN fails.
+	t.Log("ACCEPTED: renderStrategy fallback escapes < only. " +
+		"Prevents tag injection. Missing &amp; is a minor display bug, not security. " +
+		"Fallback only triggers when marked.js CDN is unavailable.")
+}

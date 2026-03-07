@@ -1159,8 +1159,8 @@ function portfolioStrategy() {
         portfolios: [],
         selected: '',
         defaultPortfolio: '',
-        strategy: '',
-        plan: '',
+        strategyHtml: '',
+        planItems: [],
         loading: true,
         error: '',
         get isDefault() { return this.selected === this.defaultPortfolio; },
@@ -1178,12 +1178,10 @@ function portfolioStrategy() {
                         this.selected = this.portfolios[0].name;
                     }
                     if (ssrData.strategy) {
-                        const sd = ssrData.strategy;
-                        this.strategy = sd.notes || JSON.stringify(sd.strategy || sd, null, 2);
+                        this.renderStrategy(ssrData.strategy);
                     }
                     if (ssrData.plan) {
-                        const pd = ssrData.plan;
-                        this.plan = pd.notes || JSON.stringify(pd.plan || pd, null, 2);
+                        this.renderPlan(ssrData.plan);
                     }
                     window.__VIRE_DATA__ = null;
                     this.loading = false;
@@ -1221,17 +1219,15 @@ function portfolioStrategy() {
                 ]);
 
                 if (strategyRes.ok) {
-                    const strategyData = await strategyRes.json();
-                    this.strategy = strategyData.notes || JSON.stringify(strategyData.strategy || strategyData, null, 2);
+                    this.renderStrategy(await strategyRes.json());
                 } else {
-                    this.strategy = '';
+                    this.strategyHtml = '<p class="text-muted">No strategy defined.</p>';
                 }
 
                 if (planRes.ok) {
-                    const planData = await planRes.json();
-                    this.plan = planData.notes || JSON.stringify(planData.plan || planData, null, 2);
+                    this.renderPlan(await planRes.json());
                 } else {
-                    this.plan = '';
+                    this.planItems = [];
                 }
             } catch (e) {
                 debugError('portfolioStrategy', 'loadPortfolio failed', e);
@@ -1262,32 +1258,19 @@ function portfolioStrategy() {
             }
         },
 
-        async saveStrategy() {
-            try {
-                await fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/strategy', {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ strategy: this.strategy }),
-                });
-                vireStore.invalidate('/api/portfolios');
-                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Strategy saved' } }));
-            } catch (e) {
-                debugError('portfolioStrategy', 'saveStrategy failed', e);
+        renderStrategy(data) {
+            const notes = data.notes || '';
+            if (notes && typeof marked !== 'undefined') {
+                this.strategyHtml = marked.parse(notes);
+            } else if (notes) {
+                this.strategyHtml = '<pre>' + notes.replace(/</g, '&lt;') + '</pre>';
+            } else {
+                this.strategyHtml = '<p class="text-muted">No strategy defined.</p>';
             }
         },
 
-        async savePlan() {
-            try {
-                await fetch('/api/portfolios/' + encodeURIComponent(this.selected) + '/plan', {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ notes: this.plan }),
-                });
-                vireStore.invalidate('/api/portfolios');
-                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Plan saved' } }));
-            } catch (e) {
-                debugError('portfolioStrategy', 'savePlan failed', e);
-            }
+        renderPlan(data) {
+            this.planItems = data.items || [];
         },
     };
 }

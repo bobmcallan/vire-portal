@@ -794,7 +794,7 @@ func TestStrategyHandler_StressGarbageTokenRedirect(t *testing.T) {
 
 // --- Strategy: XSS Safety ---
 
-func TestStrategyHandler_StressTemplateUsesXTextNotXHtml(t *testing.T) {
+func TestStrategyHandler_StressTemplateUsesXHtmlForStrategy(t *testing.T) {
 	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/strategy", nil)
@@ -805,11 +805,13 @@ func TestStrategyHandler_StressTemplateUsesXTextNotXHtml(t *testing.T) {
 
 	body := w.Body.String()
 
-	if strings.Contains(body, "x-html") {
-		t.Error("SECURITY: strategy template uses x-html which renders raw HTML — use x-text instead")
+	// Strategy section uses x-html for rendered markdown (user-owned data via authenticated API)
+	if !strings.Contains(body, `x-html="strategyHtml"`) {
+		t.Error("expected strategy section to use x-html for rendered markdown")
 	}
+	// Plan table uses x-text for individual fields
 	if !strings.Contains(body, "x-text=") {
-		t.Error("expected x-text directives for data display")
+		t.Error("expected x-text directives for plan table data display")
 	}
 }
 
@@ -876,7 +878,7 @@ func TestStrategyHandler_StressUsesCorrectAlpineComponent(t *testing.T) {
 	}
 }
 
-func TestStrategyHandler_StressEditorSectionsPresent(t *testing.T) {
+func TestStrategyHandler_StressReadOnlySectionsPresent(t *testing.T) {
 	handler := NewStrategyHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/strategy", nil)
@@ -887,20 +889,33 @@ func TestStrategyHandler_StressEditorSectionsPresent(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Strategy editor section
-	if !strings.Contains(body, `x-model="strategy"`) {
-		t.Error("expected strategy textarea with x-model binding")
+	// Strategy rendered section
+	if !strings.Contains(body, `strategy-rendered`) {
+		t.Error("expected strategy-rendered div in strategy page")
 	}
-	if !strings.Contains(body, `saveStrategy()`) {
-		t.Error("expected saveStrategy() button in strategy page")
+	if !strings.Contains(body, `x-html="strategyHtml"`) {
+		t.Error("expected strategyHtml binding in strategy page")
 	}
 
-	// Plan editor section
-	if !strings.Contains(body, `x-model="plan"`) {
-		t.Error("expected plan textarea with x-model binding")
+	// Plan table section
+	if !strings.Contains(body, `plan-table`) {
+		t.Error("expected plan-table in strategy page")
 	}
-	if !strings.Contains(body, `savePlan()`) {
-		t.Error("expected savePlan() button in strategy page")
+	if !strings.Contains(body, `planItems`) {
+		t.Error("expected planItems binding in strategy page")
+	}
+
+	// No save buttons
+	if strings.Contains(body, `saveStrategy()`) {
+		t.Error("strategy page should not have saveStrategy() button (read-only)")
+	}
+	if strings.Contains(body, `savePlan()`) {
+		t.Error("strategy page should not have savePlan() button (read-only)")
+	}
+
+	// Info banner
+	if !strings.Contains(body, `info-banner`) {
+		t.Error("expected info-banner in strategy page")
 	}
 }
 

@@ -44,21 +44,46 @@
                 No portfolios found. Configure your Navexa API key in <a href="/profile">Profile</a>.
             </div>
 
-            <!-- Strategy editor -->
+            <!-- Info banner -->
+            <div class="info-banner" x-show="selected" x-cloak>
+                To update your strategy or plan, discuss changes with Claude (AI) via the MCP chat interface.
+            </div>
+
+            <!-- Strategy section -->
             <section class="panel-headed" x-show="selected" x-cloak>
                 <div class="panel-header">STRATEGY</div>
-                <div class="panel-content">
-                    <textarea x-model="strategy" class="form-textarea portfolio-editor" placeholder="No strategy defined"></textarea>
-                    <button @click="saveStrategy()" class="btn btn-primary mt">SAVE STRATEGY</button>
-                </div>
+                <div class="panel-content strategy-rendered" x-html="strategyHtml"></div>
             </section>
 
-            <!-- Plan editor -->
+            <!-- Plan section -->
             <section class="panel-headed" x-show="selected" x-cloak>
                 <div class="panel-header">PLAN</div>
                 <div class="panel-content">
-                    <textarea x-model="plan" class="form-textarea portfolio-editor" placeholder="No plan defined"></textarea>
-                    <button @click="savePlan()" class="btn btn-primary mt">SAVE PLAN</button>
+                    <div x-show="planItems.length === 0" class="text-muted">No plan items defined.</div>
+                    <table class="plan-table" x-show="planItems.length > 0">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Action</th>
+                                <th>Ticker</th>
+                                <th>Description</th>
+                                <th>Deadline</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="item in planItems" :key="item.id">
+                                <tr :class="item.status === 'completed' ? 'plan-completed' : ''">
+                                    <td><span class="plan-status" :class="'plan-status-' + item.status" x-text="item.status"></span></td>
+                                    <td><span class="plan-action" :class="'plan-action-' + (item.action || '').toLowerCase()" x-text="item.action || '-'"></span></td>
+                                    <td x-text="item.ticker || '-'" style="white-space:nowrap;"></td>
+                                    <td x-text="item.description"></td>
+                                    <td x-text="item.deadline ? new Date(item.deadline).toLocaleDateString('en-AU', {day:'numeric',month:'short',year:'numeric'}) : '-'" style="white-space:nowrap;"></td>
+                                    <td x-text="item.notes || '-'" class="plan-notes-cell"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 

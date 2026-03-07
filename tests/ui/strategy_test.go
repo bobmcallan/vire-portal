@@ -39,6 +39,9 @@ func TestStrategyNoJSErrors(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
+	// Wait for Alpine to initialise and fetch data (Rule 8)
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
 	takeScreenshot(t, ctx, "strategy", "no-js-errors.png")
 
 	if jsErrs := errs.Errors(); len(jsErrs) > 0 {
@@ -101,14 +104,14 @@ func TestStrategyEditor(t *testing.T) {
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 
-	takeScreenshot(t, ctx, "strategy", "strategy-editor.png")
+	takeScreenshot(t, ctx, "strategy", "strategy-rendered.png")
 
-	visible, err := isVisible(ctx, "textarea.portfolio-editor")
+	visible, err := isVisible(ctx, ".strategy-rendered")
 	if err != nil {
-		t.Fatalf("error checking strategy editor visibility: %v", err)
+		t.Fatalf("error checking strategy rendered div visibility: %v", err)
 	}
 	if !visible {
-		t.Skip("strategy editor not visible (no portfolio selected)")
+		t.Skip("strategy rendered div not visible (no portfolio selected)")
 	}
 
 	// Verify the STRATEGY panel header exists
@@ -138,15 +141,15 @@ func TestStrategyPlanEditor(t *testing.T) {
 	// Wait for Alpine to render
 	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
 
-	takeScreenshot(t, ctx, "strategy", "plan-editor.png")
+	takeScreenshot(t, ctx, "strategy", "plan-table.png")
 
-	// Check that there are at least 2 portfolio-editor textareas (strategy + plan)
-	count, err := elementCount(ctx, "textarea.portfolio-editor")
+	// Check that plan table exists
+	visible, err := isVisible(ctx, ".plan-table")
 	if err != nil {
-		t.Fatalf("error counting portfolio editors: %v", err)
+		t.Fatalf("error checking plan table visibility: %v", err)
 	}
-	if count < 2 {
-		t.Skip("plan editor not visible (no portfolio selected)")
+	if !visible {
+		t.Skip("plan table not visible (no portfolio selected or no plan items)")
 	}
 
 	// Verify the PLAN panel header exists
@@ -161,6 +164,70 @@ func TestStrategyPlanEditor(t *testing.T) {
 	}
 	if !planFound {
 		t.Fatal("PLAN panel header not found")
+	}
+}
+
+func TestStrategyInfoBanner(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/strategy")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+
+	takeScreenshot(t, ctx, "strategy", "info-banner.png")
+
+	visible, err := isVisible(ctx, ".info-banner")
+	if err != nil {
+		t.Fatalf("error checking info banner visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("info banner not visible (no portfolio selected)")
+	}
+
+	bannerContains, err := commontest.EvalBool(ctx, `
+		(() => {
+			const banner = document.querySelector('.info-banner');
+			return banner && banner.textContent.includes('discuss changes with Claude');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking info banner text: %v", err)
+	}
+	if !bannerContains {
+		t.Fatal("info banner does not contain expected text about Claude")
+	}
+}
+
+func TestStrategyNoSaveButtons(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/strategy")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+
+	takeScreenshot(t, ctx, "strategy", "no-save-buttons.png")
+
+	hasSave, err := commontest.EvalBool(ctx, `
+		(() => {
+			const buttons = document.querySelectorAll('button');
+			return Array.from(buttons).some(b => b.textContent.includes('SAVE'));
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking for SAVE buttons: %v", err)
+	}
+	if hasSave {
+		t.Error("found SAVE button(s), expected none")
 	}
 }
 

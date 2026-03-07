@@ -1313,6 +1313,101 @@ code {
     font-weight: 700;
 }
 
+/* Info banner */
+.info-banner {
+    border: 2px solid #555;
+    padding: 1rem 1.5rem;
+    margin-bottom: 2rem;
+    font-size: 0.875rem;
+    color: #ccc;
+}
+
+/* Strategy rendered markdown */
+.strategy-rendered {
+    line-height: 1.6;
+    color: #ccc;
+}
+.strategy-rendered h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 1.5rem 0 0.5rem;
+    color: #fff;
+    border-bottom: 1px solid #333;
+    padding-bottom: 0.25rem;
+}
+.strategy-rendered h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 1.25rem 0 0.4rem;
+    color: #fff;
+}
+.strategy-rendered p {
+    margin: 0.5rem 0;
+}
+.strategy-rendered ul, .strategy-rendered ol {
+    margin: 0.5rem 0 0.5rem 1.5rem;
+}
+.strategy-rendered li {
+    margin: 0.25rem 0;
+}
+.strategy-rendered strong {
+    color: #fff;
+}
+.strategy-rendered pre {
+    background: #111;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.8rem;
+}
+.strategy-rendered code {
+    background: #222;
+    padding: 0.1rem 0.3rem;
+    font-size: 0.85em;
+}
+
+/* Plan table */
+.plan-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.plan-table th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 2px solid #333;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #888;
+}
+.plan-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #222;
+    vertical-align: top;
+}
+.plan-completed {
+    opacity: 0.5;
+}
+.plan-status {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+.plan-status-completed { color: #2d8a4e; }
+.plan-status-pending { color: #d97706; }
+.plan-action {
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.plan-action-buy { color: #2d8a4e; }
+.plan-action-sell { color: #c53030; }
+.plan-action-watch { color: #d97706; }
+.plan-notes-cell {
+    max-width: 300px;
+    font-size: 0.8rem;
+    color: #999;
+}
+
 
 /* ============================================================
    SETTINGS
