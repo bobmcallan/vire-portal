@@ -402,10 +402,16 @@ When all tasks finish:
 
 After all tasks pass and summary is written, commit, push, and verify the deployment landed successfully.
 
-**6a — Commit & Push:**
+**6a — Commit & Push (MUST use /commit-push skill):**
 
-1. Use the `/commit-push` skill to commit and push the changes to `main`
-2. Note the short commit hash from the push output (e.g. `a1b2c3d`)
+**NON-NEGOTIABLE:** Always use the `/commit-push` skill — NEVER run `git commit` and `git push` manually.
+The `/commit-push` skill handles version bumping (`.version` patch increment + build timestamp),
+formatting, and conventional commit format. Skipping it means the version stays stale and the
+deployed build will report an outdated version number.
+
+1. Invoke the `/commit-push` skill to commit and push the changes to `main`
+2. The skill will: bump `.version` patch, update build timestamp, format code, commit, push
+3. Note the short commit hash from the push output (e.g. `a1b2c3d`)
 
 **6b — Wait for Deployment:**
 
