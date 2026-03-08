@@ -289,14 +289,19 @@ func (c *VireClient) AdminListPrompts(serviceID string) ([]AdminPrompt, error) {
 		return nil, fmt.Errorf("server returned %d: %s", resp.StatusCode, string(body))
 	}
 
-	var result struct {
-		Prompts []AdminPrompt `json:"prompts"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+	// Try raw array first (vire-server returns [...]), fall back to wrapped {"prompts":[...]}
+	var prompts []AdminPrompt
+	if err := json.Unmarshal(body, &prompts); err != nil {
+		var wrapped struct {
+			Prompts []AdminPrompt `json:"prompts"`
+		}
+		if err2 := json.Unmarshal(body, &wrapped); err2 != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
+		}
+		prompts = wrapped.Prompts
 	}
 
-	return result.Prompts, nil
+	return prompts, nil
 }
 
 // AdminGetPrompt fetches a single prompt template via the admin API endpoint.
