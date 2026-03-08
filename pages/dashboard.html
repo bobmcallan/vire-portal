@@ -189,7 +189,7 @@
                                         <td class="text-right" :class="gainClass(h.holding_return_net_pct)" x-text="pct(h.holding_return_net_pct)"></td>
                                     </tr>
                                     <tr class="holding-movement-row" x-show="h.holding_value_market > 0">
-                                        <td class="holding-movement-content" colspan="6">
+                                        <td colspan="6" class="holding-movement-content text-right">
                                             <span class="holding-detail-label">Trend:</span>
                                             <span :class="trendArrowClass(h.trend_score)" x-text="trendArrow(h.trend_score)"></span>
                                             <span class="text-muted" x-text="h.trend_label || ''"></span>
