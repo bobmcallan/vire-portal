@@ -1,7 +1,9 @@
 package server
 
 import (
+	"bufio"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -511,6 +513,44 @@ func TestCSRFMiddleware_SetsCookieOnGET(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected _csrf cookie to be set on GET response")
+	}
+}
+
+// --- responseWriter Hijack ---
+
+// mockHijacker implements http.ResponseWriter and http.Hijacker.
+type mockHijacker struct {
+	http.ResponseWriter
+	hijacked bool
+}
+
+func (m *mockHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	m.hijacked = true
+	return nil, nil, nil
+}
+
+func TestResponseWriter_Hijack(t *testing.T) {
+	mock := &mockHijacker{ResponseWriter: httptest.NewRecorder()}
+	rw := &responseWriter{ResponseWriter: mock, statusCode: http.StatusOK}
+
+	_, _, err := rw.Hijack()
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if !mock.hijacked {
+		t.Error("expected Hijack to be delegated to underlying writer")
+	}
+}
+
+func TestResponseWriter_HijackNotSupported(t *testing.T) {
+	rw := &responseWriter{ResponseWriter: httptest.NewRecorder(), statusCode: http.StatusOK}
+
+	_, _, err := rw.Hijack()
+	if err == nil {
+		t.Error("expected error when underlying writer does not support Hijack")
+	}
+	if !strings.Contains(err.Error(), "does not support Hijack") {
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
 

@@ -48,6 +48,9 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	// Static files (CSS, JS, images)
 	mux.HandleFunc("/static/", s.app.PageHandler.StaticFileHandler)
 
+	// WebSocket status endpoint
+	mux.Handle("/ws/status", s.app.WSStatusHandler)
+
 	// MCP endpoint (JSON-RPC over HTTP)
 	if s.app.MCPHandler != nil {
 		mux.Handle("/mcp", s.app.MCPHandler)

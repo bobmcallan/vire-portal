@@ -177,3 +177,22 @@ Error page reason keys are an allowlist in `ServeErrorPage()` — adding a new r
 - `http.Error()` used for page handlers (should redirect to `/error?reason=`)
 - Missing structured logging on error paths
 - New error reasons not added to the allowlist map
+
+## Rule 8: Multi-Instance Safety — Design for N Portals
+
+Multiple vire-portal instances can run concurrently against the same vire-server (e.g. staging + production, or horizontal scaling). All code must be safe in this context.
+
+**Principles:**
+- **No local state as source of truth** — the portal is stateless; vire-server is the single source of truth for all data
+- **No instance-specific assumptions** — never assume "this is the only portal" when designing features
+- **In-memory caches are per-instance** — `internal/cache/` response cache is local to each instance; cache invalidation on one instance does not propagate to others. This is acceptable for short-TTL debounce caches (2s SSR cache) but NOT for long-lived data
+- **Service registration is per-instance** — each portal registers with its own `VIRE_PORTAL_ID` (defaults to hostname). Multiple portals register as separate service identities
+- **MCP sessions are stateless** — the MCP endpoint uses stateless HTTP (no sticky sessions required). Any portal instance can serve any MCP request
+- **Config is per-instance** — each portal reads its own env vars / config. Do not assume shared config across instances
+
+**Check for:**
+- In-memory state used as coordination mechanism between requests (use vire-server API instead)
+- Assumptions that cache invalidation reaches all consumers (it only affects the local instance)
+- Singleton patterns that break when multiple processes run (e.g. file locks, port bindings, global counters)
+- Background goroutines that assume exclusive ownership of a resource (e.g. "only one portal syncs admins" — all portals will run SyncAdmins independently)
+- Write-then-read patterns where a write to vire-server is immediately followed by a read that assumes the write has landed (eventual consistency across instances)

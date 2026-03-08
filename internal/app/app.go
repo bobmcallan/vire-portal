@@ -57,6 +57,7 @@ type App struct {
 	OAuthServer            *auth.OAuthServer
 	AdminUsersHandler      *handlers.AdminUsersHandler
 	AdminPromptsHandler    *handlers.AdminPromptsHandler
+	WSStatusHandler        *handlers.WSStatusHandler
 }
 
 // New initializes the application with all dependencies.
@@ -138,6 +139,7 @@ func (a *App) initHandlers() {
 	)
 
 	a.ServerHealthHandler = handlers.NewServerHealthHandler(a.Logger, a.Config.API.URL)
+	a.WSStatusHandler = handlers.NewWSStatusHandler(a.Logger, a.Config.API.URL)
 	a.ProfileHandler = handlers.NewProfileHandler(a.Logger, a.Config.IsDevMode(), jwtSecret, userLookup, userSave)
 	a.ProfileHandler.SetAPIURL(a.Config.API.URL)
 

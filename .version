@@ -1,6 +1,6 @@
 [vire-portal]
-version: 0.3.39
-build: 2026-03-08-17-20-00
+version: 0.3.40
+build: 2026-03-08-07-17-50
 
 [vire-mcp]
 version: 0.1.23

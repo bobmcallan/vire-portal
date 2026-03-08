@@ -13,6 +13,7 @@ The portal is a Go server that renders HTML templates with Alpine.js for interac
 | `GET /` | PageHandler | No | Landing page (server-rendered HTML template) |
 | `GET /dashboard` | DashboardHandler | No | Dashboard (MCP config, tools, config status) |
 | `GET /static/*` | PageHandler | No | Static files (CSS, JS) |
+| `GET /ws/status` | WSStatusHandler | No | WebSocket status indicators (ping/response health check) |
 | `POST /mcp` | MCPHandler | No | MCP endpoint (Streamable HTTP, dynamic tools from vire-server catalog) |
 | `GET /.well-known/oauth-authorization-server` | OAuthServer | No | OAuth 2.1 authorization server metadata |
 | `GET /.well-known/oauth-protected-resource` | OAuthServer | No | OAuth 2.1 protected resource metadata |

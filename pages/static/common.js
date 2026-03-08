@@ -96,23 +96,62 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    // Status Indicators
+    // Status Indicators (WebSocket)
     Alpine.data('statusIndicators', () => ({
         portal: 'startup',
         server: 'startup',
+        _ws: null,
+        _timer: null,
+        _backoff: 1000,
+        _maxBackoff: 30000,
         init() {
-            this.check();
-            setInterval(() => this.check(), 5000);
+            this._connect();
         },
-        async check() {
+        destroy() {
+            if (this._timer) clearInterval(this._timer);
+            if (this._ws) this._ws.close();
+        },
+        _connect() {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const url = `${proto}//${location.host}/ws/status`;
             try {
-                const pr = await fetch('/api/health', { signal: AbortSignal.timeout(3000) });
-                this.portal = pr.ok ? 'up' : 'down';
-            } catch { this.portal = 'down'; }
-            try {
-                const sr = await fetch('/api/server-health', { signal: AbortSignal.timeout(3000) });
-                this.server = sr.ok ? 'up' : 'down';
-            } catch { this.server = 'down'; }
+                this._ws = new WebSocket(url);
+            } catch {
+                this.portal = 'down';
+                this.server = 'down';
+                this._scheduleReconnect();
+                return;
+            }
+            this._ws.onopen = () => {
+                this._backoff = 1000;
+                this._ping();
+                if (this._timer) clearInterval(this._timer);
+                this._timer = setInterval(() => this._ping(), 5000);
+            };
+            this._ws.onmessage = (e) => {
+                try {
+                    const d = JSON.parse(e.data);
+                    this.portal = d.portal || 'down';
+                    this.server = d.server || 'down';
+                } catch { /* ignore malformed */ }
+            };
+            this._ws.onclose = () => {
+                this.portal = 'down';
+                this.server = 'down';
+                if (this._timer) { clearInterval(this._timer); this._timer = null; }
+                this._scheduleReconnect();
+            };
+            this._ws.onerror = () => {}; // onclose fires after onerror
+        },
+        _ping() {
+            if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+                this._ws.send('ping');
+            }
+        },
+        _scheduleReconnect() {
+            const jitter = Math.random() * 500;
+            setTimeout(() => this._connect(), this._backoff + jitter);
+            this._backoff = Math.min(this._backoff * 2, this._maxBackoff);
         },
     }));
 
