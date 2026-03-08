@@ -20,14 +20,15 @@ import (
 // Handler is the HTTP handler for the MCP endpoint.
 // It wraps mcp-go's StreamableHTTPServer and delegates to it.
 type Handler struct {
-	streamable *mcpserver.StreamableHTTPServer
-	logger     *common.Logger
-	catalog    []CatalogTool
-	jwtSecret  []byte
-	mcpSrv     *mcpserver.MCPServer // for SetTools() during refresh
-	proxy      *MCPProxy            // for FetchCatalog() during refresh
-	catalogMu  sync.RWMutex         // protects catalog field
-	stopWatch  chan struct{}        // closed to stop version watcher
+	streamable    *mcpserver.StreamableHTTPServer
+	logger        *common.Logger
+	catalog       []CatalogTool
+	jwtSecret     []byte
+	portalBaseURL string
+	mcpSrv        *mcpserver.MCPServer // for SetTools() during refresh
+	proxy         *MCPProxy            // for FetchCatalog() during refresh
+	catalogMu     sync.RWMutex         // protects catalog field
+	stopWatch     chan struct{}        // closed to stop version watcher
 }
 
 // catalogRetryDelay is the delay between retry attempts.
@@ -88,6 +89,9 @@ func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 	// vire-portal and vire-server version info.
 	mcpSrv.AddTool(VersionTool(), VersionToolHandler(proxy))
 
+	// Register portal_get_page local tool
+	mcpSrv.AddTool(GetPageTool(), GetPageToolHandler(cfg.BaseURL(), []byte(cfg.Auth.JWTSecret)))
+
 	streamable := mcpserver.NewStreamableHTTPServer(mcpSrv,
 		mcpserver.WithStateLess(true),
 	)
@@ -98,13 +102,14 @@ func NewHandler(cfg *config.Config, logger *common.Logger) *Handler {
 		Msg("MCP handler initialized")
 
 	h := &Handler{
-		streamable: streamable,
-		logger:     logger,
-		catalog:    validated,
-		jwtSecret:  []byte(cfg.Auth.JWTSecret),
-		mcpSrv:     mcpSrv,
-		proxy:      proxy,
-		stopWatch:  make(chan struct{}),
+		streamable:    streamable,
+		logger:        logger,
+		catalog:       validated,
+		jwtSecret:     []byte(cfg.Auth.JWTSecret),
+		portalBaseURL: cfg.BaseURL(),
+		mcpSrv:        mcpSrv,
+		proxy:         proxy,
+		stopWatch:     make(chan struct{}),
 	}
 	go h.watchServerVersion()
 	return h
@@ -144,6 +149,11 @@ func (h *Handler) RefreshCatalog() (int, error) {
 	tools = append(tools, mcpserver.ServerTool{
 		Tool:    VersionTool(),
 		Handler: VersionToolHandler(h.proxy),
+	})
+	// Always include portal_get_page local tool
+	tools = append(tools, mcpserver.ServerTool{
+		Tool:    GetPageTool(),
+		Handler: GetPageToolHandler(h.portalBaseURL, h.jwtSecret),
 	})
 
 	h.mcpSrv.SetTools(tools...)
