@@ -16,7 +16,7 @@ func TestListUsers_EmptyBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.ListUsers()
 	if err == nil {
 		t.Fatal("expected error for empty body with 200 status")
@@ -31,7 +31,7 @@ func TestListUsers_InvalidJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.ListUsers()
 	if err == nil {
 		t.Fatal("expected error for invalid JSON response")
@@ -45,7 +45,7 @@ func TestListUsers_WrongJSONShape(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	users, err := c.ListUsers()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -66,7 +66,7 @@ func TestListUsers_EmptyDataArray(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	users, err := c.ListUsers()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -77,7 +77,7 @@ func TestListUsers_EmptyDataArray(t *testing.T) {
 }
 
 func TestListUsers_Unreachable(t *testing.T) {
-	c := NewVireClient("http://127.0.0.1:1")
+	c := NewVireClient("http://127.0.0.1:1", "", "")
 	_, err := c.ListUsers()
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
@@ -97,7 +97,7 @@ func TestListUsers_LargeResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.ListUsers()
 	// Should fail to parse because response was truncated at 1MB
 	if err == nil {
@@ -115,7 +115,7 @@ func TestListUsers_HTMLResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.ListUsers()
 	if err == nil {
 		t.Fatal("expected error for HTML response with 502")
@@ -139,7 +139,7 @@ func TestListUsers_NoAuthHeaders(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.ListUsers()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -170,7 +170,7 @@ func TestListUsers_HostileUserData(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	users, err := c.ListUsers()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -208,7 +208,7 @@ func TestListUsers_StatusCodes(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			c := NewVireClient(srv.URL)
+			c := NewVireClient(srv.URL, "", "")
 			_, err := c.ListUsers()
 
 			if tc.wantErr && err == nil {

@@ -42,7 +42,7 @@ func DevUsers(apiURL string, logger *common.Logger) {
 		return
 	}
 
-	c := client.NewVireClient(apiURL)
+	c := client.NewVireClient(apiURL, "", "")
 	seedWithRetry(c, users, logger)
 }
 

@@ -22,7 +22,7 @@ func TestProxyGet_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	body, err := c.ProxyGet("/api/glossary", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -41,7 +41,7 @@ func TestProxyGet_SetsUserIDHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.ProxyGet("/api/portfolios", "alice")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -57,7 +57,7 @@ func TestProxyGet_EmptyUserID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.ProxyGet("/api/glossary", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -71,7 +71,7 @@ func TestProxyGet_Non2xxReturnsError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.ProxyGet("/api/glossary", "")
 	if err == nil {
 		t.Fatal("expected error for 500 response")
@@ -79,7 +79,7 @@ func TestProxyGet_Non2xxReturnsError(t *testing.T) {
 }
 
 func TestProxyGet_NetworkError(t *testing.T) {
-	c := NewVireClient("http://127.0.0.1:1")
+	c := NewVireClient("http://127.0.0.1:1", "", "")
 	_, err := c.ProxyGet("/api/glossary", "")
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
@@ -108,7 +108,7 @@ func TestGetUser_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	user, err := c.GetUser("alice")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -134,7 +134,7 @@ func TestGetUser_NotFound(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.GetUser("nobody")
 	if err == nil {
 		t.Fatal("expected error for not found user")
@@ -151,7 +151,7 @@ func TestGetUser_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.GetUser("alice")
 	if err == nil {
 		t.Fatal("expected error for server error")
@@ -192,7 +192,7 @@ func TestUpdateUser_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	user, err := c.UpdateUser("alice", map[string]string{"navexa_key": "new-key-value"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -212,7 +212,7 @@ func TestUpdateUser_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.UpdateUser("alice", map[string]string{"navexa_key": "val"})
 	if err == nil {
 		t.Fatal("expected error for server error")
@@ -253,7 +253,7 @@ func TestUpsertUser_Created(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	err := c.UpsertUser(SeedUser{
 		Username: "alice",
 		Email:    "alice@example.com",
@@ -272,7 +272,7 @@ func TestUpsertUser_Updated(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	err := c.UpsertUser(SeedUser{Username: "alice", Email: "alice@example.com", Password: "pass"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -286,7 +286,7 @@ func TestUpsertUser_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	err := c.UpsertUser(SeedUser{Username: "alice"})
 	if err == nil {
 		t.Fatal("expected error for server error")
@@ -294,7 +294,7 @@ func TestUpsertUser_ServerError(t *testing.T) {
 }
 
 func TestUpsertUser_Unreachable(t *testing.T) {
-	c := NewVireClient("http://127.0.0.1:1")
+	c := NewVireClient("http://127.0.0.1:1", "", "")
 	err := c.UpsertUser(SeedUser{Username: "alice"})
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
@@ -340,7 +340,7 @@ func TestRegisterService_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	serviceUserID, err := c.RegisterService("portal-prod-1", "my-secret")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -357,7 +357,7 @@ func TestRegisterService_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("portal-prod-1", "wrong-key")
 	if err == nil {
 		t.Fatal("expected error for invalid service key")
@@ -365,7 +365,7 @@ func TestRegisterService_ServerError(t *testing.T) {
 }
 
 func TestRegisterService_Unreachable(t *testing.T) {
-	c := NewVireClient("http://127.0.0.1:1")
+	c := NewVireClient("http://127.0.0.1:1", "", "")
 	_, err := c.RegisterService("portal-prod-1", "key")
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
@@ -410,7 +410,7 @@ func TestAdminListUsers_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	users, err := c.AdminListUsers("service:portal-prod-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -442,7 +442,7 @@ func TestAdminListUsers_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.AdminListUsers("service:portal-prod-1")
 	if err == nil {
 		t.Fatal("expected error for unauthorized request")
@@ -479,7 +479,7 @@ func TestAdminUpdateUserRole_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	err := c.AdminUpdateUserRole("service:portal-prod-1", "alice", "admin")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -493,9 +493,138 @@ func TestAdminUpdateUserRole_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	err := c.AdminUpdateUserRole("service:portal-prod-1", "alice", "admin")
 	if err == nil {
 		t.Fatal("expected error for server error")
+	}
+}
+
+// --- Version Header Tests ---
+
+func TestVersionHeaders_SentOnAllRequests(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Portal-Version") != "1.2.3" {
+			t.Errorf("expected X-Portal-Version=1.2.3, got %s", r.Header.Get("X-Portal-Version"))
+		}
+		if r.Header.Get("X-Portal-Build") != "20260308-120000" {
+			t.Errorf("expected X-Portal-Build=20260308-120000, got %s", r.Header.Get("X-Portal-Build"))
+		}
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL, "1.2.3", "20260308-120000")
+	_, err := c.ProxyGet("/api/glossary", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestVersionHeaders_EmptyWhenNotSet(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Portal-Version") != "" {
+			t.Errorf("expected no X-Portal-Version header, got %s", r.Header.Get("X-Portal-Version"))
+		}
+		if r.Header.Get("X-Portal-Build") != "" {
+			t.Errorf("expected no X-Portal-Build header, got %s", r.Header.Get("X-Portal-Build"))
+		}
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL, "", "")
+	_, err := c.ProxyGet("/api/glossary", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestVersionHeaders_OnGetUser(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Portal-Version") != "2.0.0" {
+			t.Errorf("expected X-Portal-Version=2.0.0, got %s", r.Header.Get("X-Portal-Version"))
+		}
+		if r.Header.Get("X-Portal-Build") != "20260308-150000" {
+			t.Errorf("expected X-Portal-Build=20260308-150000, got %s", r.Header.Get("X-Portal-Build"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "ok",
+			"data": map[string]interface{}{
+				"username": "alice",
+				"email":    "alice@example.com",
+				"role":     "user",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL, "2.0.0", "20260308-150000")
+	_, err := c.GetUser("alice")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// --- ReportPortalVersion Tests ---
+
+func TestReportPortalVersion_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/portal/version" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.Header.Get("Content-Type") != "application/json" {
+			t.Errorf("expected application/json, got %s", r.Header.Get("Content-Type"))
+		}
+		if r.Header.Get("X-Vire-Service-ID") != "service:portal-prod-1" {
+			t.Errorf("expected X-Vire-Service-ID=service:portal-prod-1, got %s", r.Header.Get("X-Vire-Service-ID"))
+		}
+
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if body["version"] != "1.2.3" {
+			t.Errorf("expected version=1.2.3, got %s", body["version"])
+		}
+		if body["build"] != "20260308-120000" {
+			t.Errorf("expected build=20260308-120000, got %s", body["build"])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL, "", "")
+	err := c.ReportPortalVersion("service:portal-prod-1", "1.2.3", "20260308-120000")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestReportPortalVersion_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error":"unauthorized"}`))
+	}))
+	defer srv.Close()
+
+	c := NewVireClient(srv.URL, "", "")
+	err := c.ReportPortalVersion("service:portal-prod-1", "1.2.3", "20260308-120000")
+	if err == nil {
+		t.Fatal("expected error for 403 response")
+	}
+}
+
+func TestReportPortalVersion_Unreachable(t *testing.T) {
+	c := NewVireClient("http://127.0.0.1:1", "", "")
+	err := c.ReportPortalVersion("service:portal-prod-1", "1.2.3", "20260308-120000")
+	if err == nil {
+		t.Fatal("expected error for unreachable server")
 	}
 }

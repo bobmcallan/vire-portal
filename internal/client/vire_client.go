@@ -18,6 +18,23 @@ type UserProfile struct {
 	NavexaKeyPreview string `json:"navexa_key_preview"`
 }
 
+// versionTransport injects X-Portal-Version and X-Portal-Build headers on every request.
+type versionTransport struct {
+	base    http.RoundTripper
+	version string
+	build   string
+}
+
+func (t *versionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.version != "" {
+		req.Header.Set("X-Portal-Version", t.version)
+	}
+	if t.build != "" {
+		req.Header.Set("X-Portal-Build", t.build)
+	}
+	return t.base.RoundTrip(req)
+}
+
 // VireClient communicates with the vire-server REST API.
 type VireClient struct {
 	baseURL    string
@@ -25,10 +42,18 @@ type VireClient struct {
 }
 
 // NewVireClient creates a new client targeting the given vire-server URL.
-func NewVireClient(baseURL string) *VireClient {
+// Version and build strings are injected as headers on every request.
+func NewVireClient(baseURL, version, build string) *VireClient {
 	return &VireClient{
-		baseURL:    baseURL,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		baseURL: baseURL,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &versionTransport{
+				base:    http.DefaultTransport,
+				version: version,
+				build:   build,
+			},
+		},
 	}
 }
 
@@ -470,4 +495,41 @@ func (c *VireClient) UpdateUser(userID string, fields map[string]string) (*UserP
 	}
 
 	return &result.Data, nil
+}
+
+// ReportPortalVersion sends the portal version and build to vire-server.
+// POST /api/portal/version with X-Vire-Service-ID header for auth.
+func (c *VireClient) ReportPortalVersion(serviceID, version, build string) error {
+	payload := map[string]string{
+		"version": version,
+		"build":   build,
+	}
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/portal/version", bytes.NewReader(jsonData))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Vire-Service-ID", serviceID)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to reach vire-server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
 }

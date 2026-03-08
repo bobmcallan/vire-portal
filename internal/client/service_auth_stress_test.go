@@ -45,7 +45,7 @@ func TestRegisterService_ServiceKeyNotInHeaders(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("test-portal", "my-secret-service-key")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -61,7 +61,7 @@ func TestRegisterService_KeyNotInErrorMessages(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("test-portal", "super-secret-key-do-not-expose")
 	if err == nil {
 		t.Fatal("expected error for 403")
@@ -94,7 +94,7 @@ func TestRegisterService_CorrectEndpointAndMethod(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("portal-1", "key")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -129,7 +129,7 @@ func TestRegisterService_CorrectBodyFields(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	id, err := c.RegisterService("portal-prod-1", "test-key-123")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -146,7 +146,7 @@ func TestRegisterService_403Forbidden(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("portal-1", "wrong-key")
 	if err == nil {
 		t.Fatal("expected error for 403 response")
@@ -164,7 +164,7 @@ func TestRegisterService_501NotImplemented(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("portal-1", "key")
 	if err == nil {
 		t.Fatal("expected error for 501 response")
@@ -186,7 +186,7 @@ func TestRegisterService_EmptyServiceID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("", "key")
 	if err == nil {
 		t.Fatal("expected error for empty service ID")
@@ -200,7 +200,7 @@ func TestRegisterService_EmptyServiceKey(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("portal-1", "")
 	if err == nil {
 		t.Fatal("expected error for empty service key")
@@ -231,7 +231,7 @@ func TestRegisterService_HostileServiceID(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			c := NewVireClient(srv.URL)
+			c := NewVireClient(srv.URL, "", "")
 			// Must not panic
 			c.RegisterService(id, "key")
 		})
@@ -239,7 +239,7 @@ func TestRegisterService_HostileServiceID(t *testing.T) {
 }
 
 func TestRegisterService_ServerUnreachable(t *testing.T) {
-	c := NewVireClient("http://127.0.0.1:1")
+	c := NewVireClient("http://127.0.0.1:1", "", "")
 	_, err := c.RegisterService("portal", "key")
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
@@ -254,7 +254,7 @@ func TestRegisterService_MalformedJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("portal", "key")
 	if err == nil {
 		t.Fatal("expected error for malformed JSON")
@@ -267,7 +267,7 @@ func TestRegisterService_EmptyBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("portal", "key")
 	if err == nil {
 		t.Fatal("expected error for empty response body")
@@ -283,7 +283,7 @@ func TestRegisterService_HTMLErrorPage(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("portal", "key")
 	if err == nil {
 		t.Fatal("expected error for HTML error page")
@@ -304,7 +304,7 @@ func TestRegisterService_Idempotent(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	id1, err1 := c.RegisterService("portal-1", "key")
 	id2, err2 := c.RegisterService("portal-1", "key")
@@ -342,7 +342,7 @@ func TestRegisterService_ConcurrentRegistrations(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	var wg sync.WaitGroup
 	for i := 0; i < 20; i++ {
@@ -382,7 +382,7 @@ func TestRegisterService_SlowServer(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("portal", "key")
 	if err != nil {
 		t.Fatalf("short delay should not cause error: %v", err)
@@ -400,7 +400,7 @@ func TestRegisterService_LargeResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.RegisterService("portal", "key")
 	// Should fail to parse because response was truncated
 	if err == nil {
@@ -434,7 +434,7 @@ func TestAdminListUsers_ServiceIDHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.AdminListUsers("service:portal-prod-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -456,7 +456,7 @@ func TestAdminListUsers_NoAuthorizationHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	c.AdminListUsers("service:portal-1")
 }
 
@@ -479,7 +479,7 @@ func TestAdminListUsers_ResponseFormat(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	users, err := c.AdminListUsers("service:portal-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -512,7 +512,7 @@ func TestAdminListUsers_HostileServiceIDInHeader(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			c := NewVireClient(srv.URL)
+			c := NewVireClient(srv.URL, "", "")
 			// Must not panic
 			c.AdminListUsers(id)
 		})
@@ -530,7 +530,7 @@ func TestAdminListUsers_EmptyServiceID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.AdminListUsers("")
 	if err == nil {
 		t.Fatal("expected error for empty service ID")
@@ -544,7 +544,7 @@ func TestAdminListUsers_Unauthorized(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.AdminListUsers("service:invalid")
 	if err == nil {
 		t.Fatal("expected error for 401")
@@ -558,7 +558,7 @@ func TestAdminListUsers_Forbidden(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.AdminListUsers("service:portal-1")
 	if err == nil {
 		t.Fatal("expected error for 403")
@@ -573,7 +573,7 @@ func TestAdminListUsers_MalformedJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.AdminListUsers("service:portal-1")
 	if err == nil {
 		t.Fatal("expected error for malformed JSON")
@@ -587,7 +587,7 @@ func TestAdminListUsers_EmptyUserList(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	users, err := c.AdminListUsers("service:portal-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -620,7 +620,7 @@ func TestAdminListUsers_HostileUserData(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	users, err := c.AdminListUsers("service:portal-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -644,7 +644,7 @@ func TestAdminListUsers_WrongResponseFormat(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	users, err := c.AdminListUsers("service:portal-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -656,7 +656,7 @@ func TestAdminListUsers_WrongResponseFormat(t *testing.T) {
 }
 
 func TestAdminListUsers_ServerUnreachable(t *testing.T) {
-	c := NewVireClient("http://127.0.0.1:1")
+	c := NewVireClient("http://127.0.0.1:1", "", "")
 	_, err := c.AdminListUsers("service:portal-1")
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
@@ -673,7 +673,7 @@ func TestAdminListUsers_LargeResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.AdminListUsers("service:portal-1")
 	if err == nil {
 		t.Log("large response parsed without error (truncated)")
@@ -715,7 +715,7 @@ func TestAdminUpdateUserRole_CorrectEndpointAndMethod(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	err := c.AdminUpdateUserRole("service:portal-1", "alice", "admin")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -736,7 +736,7 @@ func TestAdminUpdateUserRole_ServiceIDHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	c.AdminUpdateUserRole("service:my-portal", "alice", "admin")
 }
 
@@ -754,7 +754,7 @@ func TestAdminUpdateUserRole_PathTraversalInUserID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	hostile := []string{
 		"../../etc/passwd",
 		"../admin",
@@ -779,7 +779,7 @@ func TestAdminUpdateUserRole_Forbidden(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	err := c.AdminUpdateUserRole("service:portal-1", "alice", "admin")
 	if err == nil {
 		t.Fatal("expected error for 403")
@@ -793,7 +793,7 @@ func TestAdminUpdateUserRole_NotFound(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	err := c.AdminUpdateUserRole("service:portal-1", "nobody", "admin")
 	if err == nil {
 		t.Fatal("expected error for 404")
@@ -823,7 +823,7 @@ func TestAdminUpdateUserRole_OnlySetsRoleField(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	c.AdminUpdateUserRole("service:portal-1", "alice", "admin")
 }
 
@@ -848,7 +848,7 @@ func TestAdminUpdateUserRole_HostileRoleValue(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			c := NewVireClient(srv.URL)
+			c := NewVireClient(srv.URL, "", "")
 			c.AdminUpdateUserRole("service:portal-1", "alice", role)
 
 			// Client should pass the role through as-is (server validates)
@@ -878,7 +878,7 @@ func TestAdminUpdateUserRole_ConcurrentUpdates(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	var wg sync.WaitGroup
 	users := []string{"alice", "bob", "charlie", "dave", "eve"}
@@ -901,7 +901,7 @@ func TestAdminUpdateUserRole_ConcurrentUpdates(t *testing.T) {
 }
 
 func TestAdminUpdateUserRole_ServerUnreachable(t *testing.T) {
-	c := NewVireClient("http://127.0.0.1:1")
+	c := NewVireClient("http://127.0.0.1:1", "", "")
 	err := c.AdminUpdateUserRole("service:portal-1", "alice", "admin")
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
@@ -938,7 +938,7 @@ func TestAdminListUsers_StatusCodes(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			c := NewVireClient(srv.URL)
+			c := NewVireClient(srv.URL, "", "")
 			_, err := c.AdminListUsers("service:portal-1")
 
 			if tc.wantErr && err == nil {
@@ -977,7 +977,7 @@ func TestAdminUpdateUserRole_StatusCodes(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			c := NewVireClient(srv.URL)
+			c := NewVireClient(srv.URL, "", "")
 			err := c.AdminUpdateUserRole("service:portal-1", "alice", "admin")
 
 			if tc.wantErr && err == nil {
@@ -1015,7 +1015,7 @@ func TestRegisterService_StatusCodes(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			c := NewVireClient(srv.URL)
+			c := NewVireClient(srv.URL, "", "")
 			_, err := c.RegisterService("portal", "key")
 
 			if tc.wantErr && err == nil {

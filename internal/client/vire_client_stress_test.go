@@ -28,7 +28,7 @@ func TestGetUser_PathTraversal(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	hostile := []string{
 		"../../etc/passwd",
@@ -60,7 +60,7 @@ func TestUpdateUser_PathTraversal(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	hostile := []string{
 		"../../etc/passwd",
@@ -86,7 +86,7 @@ func TestGetUser_EmptyBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.GetUser("alice")
 	if err == nil {
 		t.Fatal("expected error for empty body with 200 status")
@@ -101,7 +101,7 @@ func TestGetUser_InvalidJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.GetUser("alice")
 	if err == nil {
 		t.Fatal("expected error for invalid JSON response")
@@ -119,7 +119,7 @@ func TestGetUser_WrongJSONShape(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	user, err := c.GetUser("alice")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -139,7 +139,7 @@ func TestGetUser_HTMLResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.GetUser("alice")
 	if err == nil {
 		t.Fatal("expected error for HTML response with 502")
@@ -148,7 +148,7 @@ func TestGetUser_HTMLResponse(t *testing.T) {
 
 func TestGetUser_ServerUnreachable(t *testing.T) {
 	// Point to a port that's not listening
-	c := NewVireClient("http://127.0.0.1:1")
+	c := NewVireClient("http://127.0.0.1:1", "", "")
 	_, err := c.GetUser("alice")
 	if err == nil {
 		t.Fatal("expected error when server is unreachable")
@@ -172,7 +172,7 @@ func TestGetUser_SlowServer(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	user, err := c.GetUser("alice")
 	if err != nil {
 		t.Fatalf("short delay should not cause timeout: %v", err)
@@ -194,7 +194,7 @@ func TestGetUser_LargeResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.GetUser("alice")
 	// Should fail to parse because the response was truncated at 1MB
 	if err == nil {
@@ -221,7 +221,7 @@ func TestUpdateUser_HostileFieldValues(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	hostileValues := map[string]string{
 		"navexa_key":  "<script>alert('xss')</script>",
@@ -253,7 +253,7 @@ func TestUpdateUser_EmptyFields(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.UpdateUser("alice", map[string]string{})
 	if err != nil {
 		t.Fatalf("empty fields should not cause error: %v", err)
@@ -270,7 +270,7 @@ func TestUpdateUser_NilFields(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.UpdateUser("alice", nil)
 	if err != nil {
 		t.Fatalf("nil fields should not cause error: %v", err)
@@ -285,7 +285,7 @@ func TestUpdateUser_InvalidJSON_Response(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.UpdateUser("alice", map[string]string{"navexa_key": "val"})
 	if err == nil {
 		t.Fatal("expected error for invalid JSON response")
@@ -308,7 +308,7 @@ func TestGetUser_ConcurrentRequests(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
@@ -364,7 +364,7 @@ func TestGetUser_StatusCodes(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			c := NewVireClient(srv.URL)
+			c := NewVireClient(srv.URL, "", "")
 			_, err := c.GetUser("alice")
 
 			if tc.wantErr && err == nil {

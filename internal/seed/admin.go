@@ -18,7 +18,7 @@ func SyncAdmins(apiURL string, adminEmails []string, serviceUserID string, logge
 		return
 	}
 
-	c := client.NewVireClient(apiURL)
+	c := client.NewVireClient(apiURL, "", "")
 	syncAdminsWithRetry(c, adminEmails, serviceUserID, logger)
 }
 

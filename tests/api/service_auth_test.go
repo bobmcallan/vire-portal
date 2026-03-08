@@ -17,7 +17,7 @@ func TestRegisterService_ValidRegistration(t *testing.T) {
 	})
 	defer env.Cleanup()
 
-	c := client.NewVireClient(env.ServerURL())
+	c := client.NewVireClient(env.ServerURL(), "", "")
 	serviceUserID, err := c.RegisterService("portal-test-1", validServiceKey)
 	if err != nil {
 		t.Fatalf("RegisterService failed: %v", err)
@@ -33,7 +33,7 @@ func TestRegisterService_Idempotent(t *testing.T) {
 	})
 	defer env.Cleanup()
 
-	c := client.NewVireClient(env.ServerURL())
+	c := client.NewVireClient(env.ServerURL(), "", "")
 
 	// First registration
 	id1, err := c.RegisterService("portal-idempotent", validServiceKey)
@@ -58,7 +58,7 @@ func TestRegisterService_WrongKey(t *testing.T) {
 	})
 	defer env.Cleanup()
 
-	c := client.NewVireClient(env.ServerURL())
+	c := client.NewVireClient(env.ServerURL(), "", "")
 	_, err := c.RegisterService("portal-bad-key", "wrong-key-that-does-not-match-server")
 	if err == nil {
 		t.Fatal("expected error for wrong service key")
@@ -72,7 +72,7 @@ func TestRegisterService_NoServerKey(t *testing.T) {
 	env := NewServerEnv(t) // no VIRE_SERVICE_KEY set
 	defer env.Cleanup()
 
-	c := client.NewVireClient(env.ServerURL())
+	c := client.NewVireClient(env.ServerURL(), "", "")
 	_, err := c.RegisterService("portal-no-key", validServiceKey)
 	if err == nil {
 		t.Fatal("expected error when server has no service key configured")
@@ -91,7 +91,7 @@ func TestAdminListUsers_WithServiceAuth(t *testing.T) {
 	defer env.Cleanup()
 
 	// Register service
-	c := client.NewVireClient(env.ServerURL())
+	c := client.NewVireClient(env.ServerURL(), "", "")
 	serviceUserID, err := c.RegisterService("portal-list-test", validServiceKey)
 	if err != nil {
 		t.Fatalf("RegisterService failed: %v", err)
@@ -137,7 +137,7 @@ func TestAdminUpdateUserRole_PromoteToAdmin(t *testing.T) {
 	})
 	defer env.Cleanup()
 
-	c := client.NewVireClient(env.ServerURL())
+	c := client.NewVireClient(env.ServerURL(), "", "")
 
 	// Register service
 	serviceUserID, err := c.RegisterService("portal-promote-test", validServiceKey)
@@ -223,7 +223,7 @@ func TestSyncAdmins_EndToEnd(t *testing.T) {
 	seed.SyncAdmins(env.ServerURL(), []string{"alice@example.com", "carol@example.com"}, serviceUserID, nil)
 
 	// Verify roles via admin API
-	c := client.NewVireClient(env.ServerURL())
+	c := client.NewVireClient(env.ServerURL(), "", "")
 	users, err := c.AdminListUsers(serviceUserID)
 	if err != nil {
 		t.Fatalf("AdminListUsers failed: %v", err)
@@ -256,7 +256,7 @@ func TestSyncAdmins_AlreadyAdmin(t *testing.T) {
 		t.Fatalf("seed.RegisterService failed: %v", err)
 	}
 
-	c := client.NewVireClient(env.ServerURL())
+	c := client.NewVireClient(env.ServerURL(), "", "")
 
 	// Create user and promote manually
 	createUser(t, env, "prealice", "prealice@example.com", "password123")
@@ -336,7 +336,7 @@ func TestAdminListUsers_ResponseFormat(t *testing.T) {
 	defer env.Cleanup()
 
 	// Register service
-	c := client.NewVireClient(env.ServerURL())
+	c := client.NewVireClient(env.ServerURL(), "", "")
 	serviceUserID, err := c.RegisterService("portal-format-test", validServiceKey)
 	if err != nil {
 		t.Fatalf("RegisterService failed: %v", err)

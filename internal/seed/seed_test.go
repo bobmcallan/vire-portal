@@ -92,7 +92,7 @@ func TestSeedAll_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.NewVireClient(srv.URL)
+	c := client.NewVireClient(srv.URL, "", "")
 	users := []client.SeedUser{
 		{Username: "alice", Email: "alice@example.com", Password: "pass1", Role: "admin"},
 		{Username: "bob", Email: "bob@example.com", Password: "pass2", Role: "user"},
@@ -120,7 +120,7 @@ func TestSeedAll_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.NewVireClient(srv.URL)
+	c := client.NewVireClient(srv.URL, "", "")
 	users := []client.SeedUser{
 		{Username: "alice", Email: "alice@example.com", Password: "pass", Role: "admin"},
 	}
@@ -145,7 +145,7 @@ func TestSeedAll_StopsOnFirstError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.NewVireClient(srv.URL)
+	c := client.NewVireClient(srv.URL, "", "")
 	users := []client.SeedUser{
 		{Username: "alice"},
 		{Username: "bob"},
@@ -162,7 +162,7 @@ func TestSeedAll_StopsOnFirstError(t *testing.T) {
 }
 
 func TestSeedAll_Unreachable(t *testing.T) {
-	c := client.NewVireClient("http://127.0.0.1:1")
+	c := client.NewVireClient("http://127.0.0.1:1", "", "")
 	users := []client.SeedUser{
 		{Username: "alice"},
 	}

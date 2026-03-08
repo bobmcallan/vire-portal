@@ -95,9 +95,27 @@ func New(cfg *config.Config, logger *common.Logger) (*App, error) {
 				return
 			}
 			seed.SyncAdmins(cfg.API.URL, cfg.AdminEmails(), serviceUserID, logger)
+			if err := seed.ReportPortalVersion(cfg.API.URL, serviceUserID, config.GetVersion(), config.GetBuild(), logger); err != nil {
+				logger.Warn().Err(err).Msg("portal version report failed")
+			}
 		}()
 	} else if len(cfg.AdminEmails()) > 0 {
 		logger.Warn().Msg("VIRE_ADMIN_USERS set but VIRE_SERVICE_KEY not configured — admin sync disabled")
+	} else if cfg.Service.Key != "" {
+		go func() {
+			portalID := cfg.Service.PortalID
+			if portalID == "" {
+				portalID, _ = os.Hostname()
+			}
+			serviceUserID, err := seed.RegisterService(cfg.API.URL, portalID, cfg.Service.Key, logger)
+			if err != nil {
+				logger.Warn().Err(err).Msg("service registration failed, skipping version report")
+				return
+			}
+			if err := seed.ReportPortalVersion(cfg.API.URL, serviceUserID, config.GetVersion(), config.GetBuild(), logger); err != nil {
+				logger.Warn().Err(err).Msg("portal version report failed")
+			}
+		}()
 	}
 
 	logger.Info().Msg("application initialization complete")
@@ -109,7 +127,7 @@ func New(cfg *config.Config, logger *common.Logger) (*App, error) {
 func (a *App) initHandlers() {
 	jwtSecret := []byte(a.Config.Auth.JWTSecret)
 
-	vireClient := client.NewVireClient(a.Config.API.URL)
+	vireClient := client.NewVireClient(a.Config.API.URL, config.GetVersion(), config.GetBuild())
 
 	// User lookup via vire-server API (used by profile, dashboard, and page handler)
 	userLookup := func(userID string) (*client.UserProfile, error) {

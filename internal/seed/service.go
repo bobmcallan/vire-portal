@@ -12,7 +12,7 @@ import (
 // It retries on failure using the same retry logic as DevUsers.
 // Returns the service_user_id for use in admin API calls.
 func RegisterService(apiURL, serviceID, serviceKey string, logger *common.Logger) (string, error) {
-	c := client.NewVireClient(apiURL)
+	c := client.NewVireClient(apiURL, "", "")
 
 	var serviceUserID string
 	var err error
