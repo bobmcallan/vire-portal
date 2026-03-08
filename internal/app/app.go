@@ -3,8 +3,10 @@ package app
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/bobmcallan/vire-portal/internal/auth"
+	"github.com/bobmcallan/vire-portal/internal/cache"
 	"github.com/bobmcallan/vire-portal/internal/client"
 	"github.com/bobmcallan/vire-portal/internal/config"
 	"github.com/bobmcallan/vire-portal/internal/handlers"
@@ -170,21 +172,28 @@ func (a *App) initHandlers() {
 	)
 	a.CashHandler.SetAPIURL(a.Config.API.URL)
 
-	a.PageHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
-		return vireClient.ProxyGet(path, userID)
-	})
-	a.StrategyHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
-		return vireClient.ProxyGet(path, userID)
-	})
-	a.CashHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
-		return vireClient.ProxyGet(path, userID)
-	})
-	a.DashboardHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
-		return vireClient.ProxyGet(path, userID)
-	})
-	a.MobileDashboardHandler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
-		return vireClient.ProxyGet(path, userID)
-	})
+	// SSR debounce cache: 2s TTL prevents duplicate API calls on rapid page refreshes.
+	// This is NOT a data freshness cache — just debouncing so F5-F5-F5 doesn't
+	// hammer vire-server with 15 API calls in 2 seconds.
+	ssrCache := cache.New(2*time.Second, 500)
+	cachedProxyGet := func(path, userID string) ([]byte, error) {
+		key := cache.MakeKey(userID, "GET", path)
+		if cached, ok := ssrCache.Get(key); ok {
+			return cached.Body, nil
+		}
+		body, err := vireClient.ProxyGet(path, userID)
+		if err != nil {
+			return nil, err
+		}
+		ssrCache.Set(key, &cache.CachedResponse{StatusCode: 200, Body: body})
+		return body, nil
+	}
+
+	a.PageHandler.SetProxyGetFn(cachedProxyGet)
+	a.StrategyHandler.SetProxyGetFn(cachedProxyGet)
+	a.CashHandler.SetProxyGetFn(cachedProxyGet)
+	a.DashboardHandler.SetProxyGetFn(cachedProxyGet)
+	a.MobileDashboardHandler.SetProxyGetFn(cachedProxyGet)
 
 	a.MCPPageHandler = handlers.NewMCPPageHandler(
 		a.Logger,
