@@ -514,7 +514,7 @@ func TestAdminUsersHandler_StressNavAdminLinkForAdmin(t *testing.T) {
 	if !strings.Contains(body, `href="/admin/users"`) {
 		t.Error("expected Admin nav link for admin user")
 	}
-	if !strings.Contains(body, `>Users</a>`) {
+	if !strings.Contains(body, `>Users *</a>`) {
 		t.Error("expected Users link text in nav for admin user")
 	}
 }
