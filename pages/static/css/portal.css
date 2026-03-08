@@ -1776,3 +1776,53 @@ code {
 .mb0 { margin-bottom: 0; }
 .flex { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .hidden { display: none; }
+
+/* Prompt edit page */
+.prompt-textarea {
+    width: 100%;
+    min-height: 400px;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    padding: 1rem;
+    border: 1px solid #ddd;
+    background: #fafafa;
+    color: #333;
+    resize: vertical;
+    margin: 1rem 0;
+}
+
+.prompt-meta {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.5rem;
+}
+
+.prompt-meta div {
+    margin-bottom: 0.25rem;
+}
+
+.prompt-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.btn-save {
+    padding: 0.5rem 2rem;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid #888;
+    background: none;
+    color: #333;
+    cursor: pointer;
+}
+
+.btn-save:hover { background: #eee; }
+.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.prompt-success { color: #2e7d32; }
+.prompt-error { color: #c62828; }

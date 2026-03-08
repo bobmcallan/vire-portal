@@ -1274,3 +1274,46 @@ function portfolioStrategy() {
         },
     };
 }
+
+function promptEditor() {
+    return {
+        content: '',
+        saving: false,
+        message: '',
+        success: false,
+        promptName: '',
+        init() {
+            const data = window.__VIRE_DATA__;
+            if (data && data.prompt) {
+                this.content = data.prompt.content || '';
+                this.promptName = data.prompt.name || '';
+            }
+            window.__VIRE_DATA__ = null;
+        },
+        async save() {
+            this.saving = true;
+            this.message = '';
+            try {
+                const res = await fetch('/admin/prompts/' + encodeURIComponent(this.promptName), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: this.content }),
+                });
+                if (res.ok) {
+                    this.success = true;
+                    this.message = 'Saved successfully';
+                } else {
+                    const data = await res.json().catch(() => ({}));
+                    this.success = false;
+                    this.message = data.error || 'Save failed';
+                }
+            } catch (e) {
+                this.success = false;
+                this.message = 'Network error';
+            } finally {
+                this.saving = false;
+                setTimeout(() => { this.message = ''; }, 5000);
+            }
+        }
+    };
+}

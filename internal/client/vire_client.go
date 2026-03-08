@@ -255,6 +255,115 @@ func (c *VireClient) AdminListUsers(serviceID string) ([]AdminUser, error) {
 	return result.Users, nil
 }
 
+// AdminPrompt holds a prompt template returned by the admin API endpoint.
+type AdminPrompt struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+	Hash        string `json:"hash"`
+	IsOverride  bool   `json:"is_override"`
+	UpdatedAt   string `json:"updated_at"`
+}
+
+// AdminListPrompts fetches all prompt templates via the admin API endpoint.
+// GET /api/admin/prompts with X-Vire-Service-ID header -> { prompts: [...] }
+func (c *VireClient) AdminListPrompts(serviceID string) ([]AdminPrompt, error) {
+	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/api/admin/prompts", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Vire-Service-ID", serviceID)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reach vire-server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Prompts []AdminPrompt `json:"prompts"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result.Prompts, nil
+}
+
+// AdminGetPrompt fetches a single prompt template via the admin API endpoint.
+// GET /api/admin/prompts/{name} with X-Vire-Service-ID header
+func (c *VireClient) AdminGetPrompt(serviceID, name string) (*AdminPrompt, error) {
+	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/api/admin/prompts/"+name, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Vire-Service-ID", serviceID)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reach vire-server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var prompt AdminPrompt
+	if err := json.Unmarshal(body, &prompt); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &prompt, nil
+}
+
+// AdminSetPrompt updates a prompt template's content via the admin API endpoint.
+// PUT /api/admin/prompts/{name} with X-Vire-Service-ID header, body: {"content":"..."}
+func (c *VireClient) AdminSetPrompt(serviceID, name, content string) error {
+	jsonData, err := json.Marshal(map[string]string{"content": content})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, c.baseURL+"/api/admin/prompts/"+name, bytes.NewReader(jsonData))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Vire-Service-ID", serviceID)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to reach vire-server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 // AdminUpdateUserRole updates a user's role via the admin API endpoint.
 // PATCH /api/admin/users/{id}/role with X-Vire-Service-ID header
 func (c *VireClient) AdminUpdateUserRole(serviceID, userID, role string) error {

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{template "head.html" .}}
+    <title>VIRE PROMPT EDIT</title>
+</head>
+<body>
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+    <main class="page">
+        <div class="page-body">
+
+            <a href="/admin/prompts" style="font-size:0.85rem;color:#333;text-decoration:none;">&larr; Back to Prompts</a>
+
+            {{if .FetchError}}
+            <div class="warning-banner" style="margin-top:1rem;">
+                <strong>ERROR:</strong> {{.FetchError}}
+            </div>
+            {{end}}
+
+            {{if .Prompt}}
+            <section class="panel-headed" style="margin-top:1rem;" x-data="promptEditor()">
+                <div class="panel-header">PROMPT: {{.Prompt.Name}}</div>
+                <div class="panel-content">
+                    <div class="prompt-meta">
+                        <div><strong>Description:</strong> {{.Prompt.Description}}</div>
+                        <div><strong>Override:</strong> {{if .Prompt.IsOverride}}YES{{else}}NO{{end}}</div>
+                        <div><strong>Hash:</strong> {{.Prompt.Hash}}</div>
+                    </div>
+
+                    <textarea class="prompt-textarea" x-model="content" rows="20" spellcheck="false"></textarea>
+
+                    <div class="prompt-actions">
+                        <button class="btn-save" @click="save()" :disabled="saving" x-text="saving ? 'SAVING...' : 'SAVE'">SAVE</button>
+                        <span x-show="message" :class="success ? 'prompt-success' : 'prompt-error'" x-text="message" style="font-size:0.85rem;"></span>
+                    </div>
+                </div>
+            </section>
+
+            <script>
+                window.__VIRE_DATA__ = { prompt: {{.PromptJSON}} };
+            </script>
+            {{end}}
+
+        </div>
+    </main>
+    {{template "footer.html" .}}
+</body>
+</html>

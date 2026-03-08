@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{template "head.html" .}}
+    <title>VIRE PROMPTS</title>
+</head>
+<body>
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+    <main class="page">
+        <div class="page-body">
+
+            {{if .FetchError}}
+            <div class="warning-banner">
+                <strong>ERROR:</strong> {{.FetchError}}
+            </div>
+            {{end}}
+
+            <section class="panel-headed">
+                <div class="panel-header">PROMPTS [{{.PromptCount}}]</div>
+                <div class="panel-content">
+                    {{if .Prompts}}
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Override</th>
+                                    <th>Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{range .Prompts}}
+                                <tr>
+                                    <td><a href="/admin/prompts/{{.Name}}">{{.Name}}</a></td>
+                                    <td>{{.Description}}</td>
+                                    <td>{{if .IsOverride}}YES{{else}}-{{end}}</td>
+                                    <td>{{.UpdatedAt}}</td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
+                    </div>
+                    {{else}}
+                    <p class="no-tools">No prompts found.</p>
+                    {{end}}
+                </div>
+            </section>
+
+        </div>
+    </main>
+    {{template "footer.html" .}}
+</body>
+</html>

@@ -56,6 +56,7 @@ type App struct {
 	MCPDevHandler          *mcp.DevHandler
 	OAuthServer            *auth.OAuthServer
 	AdminUsersHandler      *handlers.AdminUsersHandler
+	AdminPromptsHandler    *handlers.AdminPromptsHandler
 }
 
 // New initializes the application with all dependencies.
@@ -230,6 +231,18 @@ func (a *App) initHandlers() {
 		serviceUserID,
 	)
 	a.AdminUsersHandler.SetAPIURL(a.Config.API.URL)
+
+	a.AdminPromptsHandler = handlers.NewAdminPromptsHandler(
+		a.Logger,
+		a.Config.IsDevMode(),
+		jwtSecret,
+		userLookup,
+		vireClient.AdminListPrompts,
+		vireClient.AdminGetPrompt,
+		vireClient.AdminSetPrompt,
+		serviceUserID,
+	)
+	a.AdminPromptsHandler.SetAPIURL(a.Config.API.URL)
 
 	a.OAuthServer = auth.NewOAuthServer(a.Config.BaseURL(), a.Config.API.URL, jwtSecret, a.Logger)
 	a.AuthHandler.SetOAuthServer(a.OAuthServer)

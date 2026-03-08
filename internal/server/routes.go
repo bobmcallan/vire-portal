@@ -64,6 +64,9 @@ func (s *Server) setupRoutes() *http.ServeMux {
 
 	// Admin routes
 	mux.HandleFunc("GET /admin/users", s.app.AdminUsersHandler.ServeHTTP)
+	mux.HandleFunc("GET /admin/prompts", s.app.AdminPromptsHandler.ServeHTTP)
+	mux.HandleFunc("GET /admin/prompts/{name}", s.app.AdminPromptsHandler.ServeHTTP)
+	mux.HandleFunc("POST /admin/prompts/{name}", s.app.AdminPromptsHandler.ServeHTTP)
 
 	// Auth routes
 	mux.HandleFunc("POST /api/auth/login", s.app.AuthHandler.HandleLogin)

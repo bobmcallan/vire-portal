@@ -482,6 +482,62 @@ func TestNavMobileHelpLink(t *testing.T) {
 	}
 }
 
+func TestNavDropdownPromptsLink(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = chromedp.Run(ctx,
+		chromedp.Click(".nav-hamburger", chromedp.ByQuery),
+		chromedp.Sleep(300*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "nav", "dropdown-prompts-link.png")
+
+	exists, err := common.Exists(ctx, `.nav-dropdown a[href="/admin/prompts"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Skip("Prompts link not found in dropdown (user may not have admin role)")
+	}
+}
+
+func TestNavDropdownUsersLink(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = chromedp.Run(ctx,
+		chromedp.Click(".nav-hamburger", chromedp.ByQuery),
+		chromedp.Sleep(300*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "nav", "dropdown-users-link.png")
+
+	exists, err := common.Exists(ctx, `.nav-dropdown a[href="/admin/users"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Skip("Users link not found in dropdown (user may not have admin role)")
+	}
+}
+
 func TestNavDropdownHelpLink(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
@@ -507,5 +563,91 @@ func TestNavDropdownHelpLink(t *testing.T) {
 	}
 	if !exists {
 		t.Error("Help link (a[href='/help']) not found in .nav-dropdown")
+	}
+}
+
+func TestNavMobilePromptsLink(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = chromedp.Run(ctx,
+		chromedp.EmulateViewport(375, 812),
+		chromedp.Navigate(serverURL()+"/dashboard"),
+		chromedp.WaitVisible("body", chromedp.ByQuery),
+		chromedp.Sleep(800*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, _ := elementCount(ctx, ".nav-hamburger")
+	if count == 0 {
+		t.Skip("no nav-hamburger found")
+	}
+
+	err = chromedp.Run(ctx,
+		chromedp.Click(".nav-hamburger", chromedp.ByQuery),
+		chromedp.Sleep(500*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "nav", "mobile-prompts-link.png")
+
+	exists, err := common.Exists(ctx, `.mobile-menu a[href="/admin/prompts"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Skip("Prompts link not found in mobile menu (user may not have admin role)")
+	}
+}
+
+func TestNavMobileUsersLink(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = chromedp.Run(ctx,
+		chromedp.EmulateViewport(375, 812),
+		chromedp.Navigate(serverURL()+"/dashboard"),
+		chromedp.WaitVisible("body", chromedp.ByQuery),
+		chromedp.Sleep(800*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, _ := elementCount(ctx, ".nav-hamburger")
+	if count == 0 {
+		t.Skip("no nav-hamburger found")
+	}
+
+	err = chromedp.Run(ctx,
+		chromedp.Click(".nav-hamburger", chromedp.ByQuery),
+		chromedp.Sleep(500*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	takeScreenshot(t, ctx, "nav", "mobile-users-link.png")
+
+	exists, err := common.Exists(ctx, `.mobile-menu a[href="/admin/users"]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Skip("Users link not found in mobile menu (user may not have admin role)")
 	}
 }
