@@ -316,19 +316,19 @@ func TestStrategyPlanNotesRow(t *testing.T) {
 		}
 	})
 
-	t.Run("notes_cell_has_colspan_5", func(t *testing.T) {
+	t.Run("notes_cell_has_colspan_2", func(t *testing.T) {
 		colspanValid, err := commontest.EvalBool(ctx, `
 			(() => {
 				const cells = document.querySelectorAll('.plan-notes-cell');
 				if (cells.length === 0) return true; // no notes is valid
-				return Array.from(cells).every(c => c.getAttribute('colspan') === '5');
+				return Array.from(cells).every(c => c.getAttribute('colspan') === '2');
 			})()
 		`)
 		if err != nil {
 			t.Fatalf("error checking colspan: %v", err)
 		}
 		if !colspanValid {
-			t.Error("plan-notes-cell does not have colspan=5")
+			t.Error("plan-notes-cell does not have colspan=2")
 		}
 	})
 }
