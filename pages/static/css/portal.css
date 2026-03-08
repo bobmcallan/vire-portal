@@ -1402,10 +1402,16 @@ code {
 .plan-action-buy { color: #2d8a4e; }
 .plan-action-sell { color: #c53030; }
 .plan-action-watch { color: #d97706; }
+/* Plan notes sub-row */
+.plan-notes-row td {
+    padding-top: 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #ddd;
+}
 .plan-notes-cell {
-    max-width: 300px;
     font-size: 0.8rem;
     color: #555;
+    font-style: italic;
 }
 
 

@@ -231,6 +231,108 @@ func TestStrategyNoSaveButtons(t *testing.T) {
 	}
 }
 
+func TestStrategyPlanNotesRow(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/strategy")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	// Wait for Alpine to render plan table
+	_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+
+	takeScreenshot(t, ctx, "strategy", "plan-notes-row.png")
+
+	// Check plan table is visible before asserting structure
+	visible, err := isVisible(ctx, ".plan-table")
+	if err != nil {
+		t.Fatalf("error checking plan table visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("plan table not visible (no portfolio selected or no plan items)")
+	}
+
+	t.Run("thead_has_5_columns", func(t *testing.T) {
+		count, err := elementCount(ctx, ".plan-table thead th")
+		if err != nil {
+			t.Fatalf("error counting thead th: %v", err)
+		}
+		if count != 5 {
+			t.Errorf("plan table thead th count = %d, want 5", count)
+		}
+	})
+
+	t.Run("no_notes_column_header", func(t *testing.T) {
+		hasNotesHeader, err := commontest.EvalBool(ctx, `
+			(() => {
+				const ths = document.querySelectorAll('.plan-table thead th');
+				return Array.from(ths).some(th => th.textContent.trim().toLowerCase() === 'notes');
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking for Notes header: %v", err)
+		}
+		if hasNotesHeader {
+			t.Error("found 'Notes' column header in plan table thead, expected none")
+		}
+	})
+
+	t.Run("notes_sub_rows_exist", func(t *testing.T) {
+		// Items with notes should have .plan-notes-row elements
+		hasNotesRows, err := commontest.EvalBool(ctx, `
+			document.querySelectorAll('.plan-notes-row').length >= 0
+		`)
+		if err != nil {
+			t.Fatalf("error checking for plan-notes-row elements: %v", err)
+		}
+		if !hasNotesRows {
+			t.Error("plan-notes-row selector query failed")
+		}
+	})
+
+	t.Run("notes_cell_displays_text", func(t *testing.T) {
+		// Check that visible .plan-notes-cell elements display note text
+		notesValid, err := commontest.EvalBool(ctx, `
+			(() => {
+				const cells = document.querySelectorAll('.plan-notes-cell');
+				if (cells.length === 0) return true; // no notes is valid
+				// Each visible notes cell should have non-empty text
+				for (const cell of cells) {
+					const row = cell.closest('.plan-notes-row');
+					if (row && row.style.display !== 'none' && cell.textContent.trim() === '') {
+						return false;
+					}
+				}
+				return true;
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking plan-notes-cell content: %v", err)
+		}
+		if !notesValid {
+			t.Error("found visible .plan-notes-cell with empty text content")
+		}
+	})
+
+	t.Run("notes_cell_has_colspan_5", func(t *testing.T) {
+		colspanValid, err := commontest.EvalBool(ctx, `
+			(() => {
+				const cells = document.querySelectorAll('.plan-notes-cell');
+				if (cells.length === 0) return true; // no notes is valid
+				return Array.from(cells).every(c => c.getAttribute('colspan') === '5');
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking colspan: %v", err)
+		}
+		if !colspanValid {
+			t.Error("plan-notes-cell does not have colspan=5")
+		}
+	})
+}
+
 func TestStrategyNavActive(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()

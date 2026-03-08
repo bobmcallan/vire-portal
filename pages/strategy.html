@@ -68,21 +68,26 @@
                                 <th>Ticker</th>
                                 <th>Description</th>
                                 <th>Deadline</th>
-                                <th>Notes</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <template x-for="item in planItems" :key="item.id">
-                                <tr :class="item.status === 'completed' ? 'plan-completed' : ''">
+                        <template x-for="item in planItems" :key="item.id">
+                            <tbody>
+                                <tr :class="item.status === 'completed' ? 'plan-completed' : ''"
+                                    class="plan-item-row"
+                                    :style="item.notes ? 'border-bottom:none' : ''">
                                     <td><span class="plan-status" :class="'plan-status-' + item.status" x-text="item.status"></span></td>
                                     <td><span class="plan-action" :class="'plan-action-' + (item.action || '').toLowerCase()" x-text="item.action || '-'"></span></td>
                                     <td x-text="item.ticker || '-'" style="white-space:nowrap;"></td>
                                     <td x-text="item.description"></td>
                                     <td x-text="item.deadline ? new Date(item.deadline).toLocaleDateString('en-AU', {day:'numeric',month:'short',year:'numeric'}) : '-'" style="white-space:nowrap;"></td>
-                                    <td x-text="item.notes || '-'" class="plan-notes-cell"></td>
                                 </tr>
-                            </template>
-                        </tbody>
+                                <tr x-show="item.notes"
+                                    :class="item.status === 'completed' ? 'plan-completed' : ''"
+                                    class="plan-notes-row">
+                                    <td colspan="5" class="plan-notes-cell" x-text="item.notes"></td>
+                                </tr>
+                            </tbody>
+                        </template>
                     </table>
                 </div>
             </section>

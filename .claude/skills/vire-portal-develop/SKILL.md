@@ -395,7 +395,81 @@ When all tasks finish:
 
 3. Shutdown teammates: `SendMessage type: "shutdown_request"` to each
 4. `TeamDelete`
-5. Summarise to user
+5. Proceed to **Step 6: Deploy & Verify**
+6. Summarise to user (include deploy status from Step 6)
+
+### Step 6: Deploy & Verify
+
+After all tasks pass and summary is written, commit, push, and verify the deployment landed successfully.
+
+**6a — Commit & Push:**
+
+1. Use the `/commit-push` skill to commit and push the changes to `main`
+2. Note the short commit hash from the push output (e.g. `a1b2c3d`)
+
+**6b — Wait for Deployment:**
+
+Poll the GitHub Actions workflow until the deploy job completes:
+
+```bash
+# Get the latest workflow run for the commit
+gh run list --branch main --limit 1 --json databaseId,status,conclusion
+
+# Watch until completed (poll every 30s, max 10 minutes)
+gh run watch <run-id> --exit-status
+```
+
+If the workflow fails, check the logs:
+```bash
+gh run view <run-id> --log-failed
+```
+Report the failure to the user and stop — do not proceed to verification.
+
+**6c — Verify Version via MCP:**
+
+Once the deploy job succeeds, poll the MCP version endpoint until the new commit hash appears:
+
+```
+Loop (max 10 attempts, 30s apart):
+  1. Call mcp__vire__system_get_version
+  2. Compare response "commit" field to the pushed commit hash
+  3. If match → deployment confirmed, break
+  4. If no match → wait 30s, retry
+```
+
+If the version doesn't update after 10 attempts (5 minutes), report timeout to the user.
+
+**6d — Post-Deploy Health Check:**
+
+Once the version is confirmed, run diagnostics to check for errors:
+
+1. **Diagnostics:** Call `mcp__vire__system_get_diagnostics` with `source: "portal"` and `limit: 20`
+   - Check for error-level log entries since deployment
+   - Report any errors to the user
+
+2. **Smoke test MCP tools:** Call `mcp__vire__system_list_mcp_tools` to verify the tool catalog loaded correctly
+   - Confirm the expected number of tools are registered
+   - Report any missing or failed tools
+
+3. **Version confirmation:** Call `mcp__vire__get_version` to double-check the deployed version matches
+
+**6e — Report:**
+
+Append deployment results to the work directory's `activity.log`:
+```
+HH:MM  Deploy: commit <hash> pushed to main
+HH:MM  Deploy: GitHub Actions workflow <run-id> completed (pass/fail)
+HH:MM  Deploy: version confirmed via MCP — v<version> build <build> commit <hash>
+HH:MM  Deploy: health check — <N> errors, <M> tools registered
+```
+
+Report to the user:
+- Deployed version, build, and commit
+- Any errors found in diagnostics
+- Tool catalog status
+- Overall deploy status: **GREEN** (no errors) or **YELLOW** (warnings/errors found)
+
+---
 
 ## Test Commands
 
