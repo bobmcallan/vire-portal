@@ -23,7 +23,6 @@ type AdminPromptsHandler struct {
 	adminListPromptsFn func(string) ([]client.AdminPrompt, error)
 	adminGetPromptFn   func(string, string) (*client.AdminPrompt, error)
 	adminSetPromptFn   func(string, string, string) error
-	serviceUserID      string
 	apiURL             string
 }
 
@@ -36,7 +35,6 @@ func NewAdminPromptsHandler(
 	listFn func(string) ([]client.AdminPrompt, error),
 	getFn func(string, string) (*client.AdminPrompt, error),
 	setFn func(string, string, string) error,
-	serviceUserID string,
 ) *AdminPromptsHandler {
 	pagesDir := FindPagesDir()
 
@@ -52,7 +50,6 @@ func NewAdminPromptsHandler(
 		adminListPromptsFn: listFn,
 		adminGetPromptFn:   getFn,
 		adminSetPromptFn:   setFn,
-		serviceUserID:      serviceUserID,
 	}
 }
 
@@ -91,23 +88,25 @@ func (h *AdminPromptsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	userID := claims.Sub
+
 	switch {
 	case r.Method == http.MethodPost && name != "":
-		h.handleSave(w, r, userRole, name)
+		h.handleSave(w, r, userID, name)
 	case name != "":
-		h.serveEdit(w, r, loggedIn, userRole, name)
+		h.serveEdit(w, r, loggedIn, userRole, userID, name)
 	default:
-		h.serveList(w, r, loggedIn, userRole)
+		h.serveList(w, r, loggedIn, userRole, userID)
 	}
 }
 
 // serveList renders the prompts list page.
-func (h *AdminPromptsHandler) serveList(w http.ResponseWriter, r *http.Request, loggedIn bool, userRole string) {
+func (h *AdminPromptsHandler) serveList(w http.ResponseWriter, r *http.Request, loggedIn bool, userRole, userID string) {
 	var prompts []client.AdminPrompt
 	var fetchErr string
-	if h.adminListPromptsFn != nil && h.serviceUserID != "" {
+	if h.adminListPromptsFn != nil && userID != "" {
 		var err error
-		prompts, err = h.adminListPromptsFn(h.serviceUserID)
+		prompts, err = h.adminListPromptsFn(userID)
 		if err != nil {
 			if h.logger != nil {
 				h.logger.Error().Str("error", err.Error()).Msg("failed to fetch admin prompt list")
@@ -139,12 +138,12 @@ func (h *AdminPromptsHandler) serveList(w http.ResponseWriter, r *http.Request, 
 }
 
 // serveEdit renders the prompt edit page.
-func (h *AdminPromptsHandler) serveEdit(w http.ResponseWriter, r *http.Request, loggedIn bool, userRole, name string) {
+func (h *AdminPromptsHandler) serveEdit(w http.ResponseWriter, r *http.Request, loggedIn bool, userRole, userID, name string) {
 	var prompt *client.AdminPrompt
 	var fetchErr string
-	if h.adminGetPromptFn != nil && h.serviceUserID != "" {
+	if h.adminGetPromptFn != nil && userID != "" {
 		var err error
-		prompt, err = h.adminGetPromptFn(h.serviceUserID, name)
+		prompt, err = h.adminGetPromptFn(userID, name)
 		if err != nil {
 			if h.logger != nil {
 				h.logger.Error().Str("error", err.Error()).Str("name", name).Msg("failed to fetch prompt")
@@ -182,7 +181,7 @@ func (h *AdminPromptsHandler) serveEdit(w http.ResponseWriter, r *http.Request, 
 }
 
 // handleSave saves updated prompt content.
-func (h *AdminPromptsHandler) handleSave(w http.ResponseWriter, r *http.Request, userRole, name string) {
+func (h *AdminPromptsHandler) handleSave(w http.ResponseWriter, r *http.Request, userID, name string) {
 	w.Header().Set("Content-Type", "application/json")
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
@@ -201,13 +200,13 @@ func (h *AdminPromptsHandler) handleSave(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	if h.adminSetPromptFn == nil || h.serviceUserID == "" {
+	if h.adminSetPromptFn == nil || userID == "" {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Admin API not configured"})
 		return
 	}
 
-	if err := h.adminSetPromptFn(h.serviceUserID, name, payload.Content); err != nil {
+	if err := h.adminSetPromptFn(userID, name, payload.Content); err != nil {
 		if h.logger != nil {
 			h.logger.Error().Str("error", err.Error()).Str("name", name).Msg("failed to save prompt")
 		}

@@ -240,7 +240,6 @@ func (a *App) initHandlers() {
 		vireClient.AdminListPrompts,
 		vireClient.AdminGetPrompt,
 		vireClient.AdminSetPrompt,
-		serviceUserID,
 	)
 	a.AdminPromptsHandler.SetAPIURL(a.Config.API.URL)
 

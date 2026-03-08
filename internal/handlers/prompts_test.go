@@ -37,11 +37,11 @@ var mockPrompts = []client.AdminPrompt{
 }
 
 func TestAdminPromptsHandler_ListAdminAccess(t *testing.T) {
-	listFn := func(serviceID string) ([]client.AdminPrompt, error) {
+	listFn := func(userID string) ([]client.AdminPrompt, error) {
 		return mockPrompts, nil
 	}
 
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), listFn, nil, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), listFn, nil, nil)
 	handler.SetAPIURL("http://localhost:8080")
 
 	req := httptest.NewRequest("GET", "/admin/prompts", nil)
@@ -64,7 +64,7 @@ func TestAdminPromptsHandler_ListAdminAccess(t *testing.T) {
 }
 
 func TestAdminPromptsHandler_ListUnauthenticatedRedirect(t *testing.T) {
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), nil, nil, nil, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), nil, nil, nil, nil)
 
 	req := httptest.NewRequest("GET", "/admin/prompts", nil)
 	w := httptest.NewRecorder()
@@ -80,7 +80,7 @@ func TestAdminPromptsHandler_ListUnauthenticatedRedirect(t *testing.T) {
 }
 
 func TestAdminPromptsHandler_ListNonAdminRedirect(t *testing.T) {
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newNonAdminUserLookup(), nil, nil, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newNonAdminUserLookup(), nil, nil, nil)
 
 	req := httptest.NewRequest("GET", "/admin/prompts", nil)
 	addAuthCookie(req, "regular-user-id")
@@ -97,11 +97,11 @@ func TestAdminPromptsHandler_ListNonAdminRedirect(t *testing.T) {
 }
 
 func TestAdminPromptsHandler_ListAPIError(t *testing.T) {
-	listFn := func(serviceID string) ([]client.AdminPrompt, error) {
+	listFn := func(userID string) ([]client.AdminPrompt, error) {
 		return nil, ErrTest
 	}
 
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), listFn, nil, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), listFn, nil, nil)
 	handler.SetAPIURL("http://localhost:8080")
 
 	req := httptest.NewRequest("GET", "/admin/prompts", nil)
@@ -120,8 +120,8 @@ func TestAdminPromptsHandler_ListAPIError(t *testing.T) {
 	}
 }
 
-func TestAdminPromptsHandler_ListNoServiceKey(t *testing.T) {
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), nil, nil, nil, "")
+func TestAdminPromptsHandler_ListNoListFn(t *testing.T) {
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), nil, nil, nil)
 	handler.SetAPIURL("http://localhost:8080")
 
 	req := httptest.NewRequest("GET", "/admin/prompts", nil)
@@ -152,11 +152,11 @@ func TestAdminPromptsHandler_ListXSSEscaping(t *testing.T) {
 		},
 	}
 
-	listFn := func(serviceID string) ([]client.AdminPrompt, error) {
+	listFn := func(userID string) ([]client.AdminPrompt, error) {
 		return xssPrompts, nil
 	}
 
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), listFn, nil, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), listFn, nil, nil)
 	handler.SetAPIURL("http://localhost:8080")
 
 	req := httptest.NewRequest("GET", "/admin/prompts", nil)
@@ -175,11 +175,11 @@ func TestAdminPromptsHandler_ListXSSEscaping(t *testing.T) {
 }
 
 func TestAdminPromptsHandler_EditAdminAccess(t *testing.T) {
-	getFn := func(serviceID, name string) (*client.AdminPrompt, error) {
+	getFn := func(userID, name string) (*client.AdminPrompt, error) {
 		return &mockPrompts[0], nil
 	}
 
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), nil, getFn, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), nil, getFn, nil)
 	handler.SetAPIURL("http://localhost:8080")
 
 	mux := http.NewServeMux()
@@ -205,7 +205,7 @@ func TestAdminPromptsHandler_EditAdminAccess(t *testing.T) {
 }
 
 func TestAdminPromptsHandler_EditUnauthenticatedRedirect(t *testing.T) {
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), nil, nil, nil, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), nil, nil, nil, nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /admin/prompts/{name}", handler.ServeHTTP)
@@ -224,7 +224,7 @@ func TestAdminPromptsHandler_EditUnauthenticatedRedirect(t *testing.T) {
 }
 
 func TestAdminPromptsHandler_EditNonAdminRedirect(t *testing.T) {
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newNonAdminUserLookup(), nil, nil, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newNonAdminUserLookup(), nil, nil, nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /admin/prompts/{name}", handler.ServeHTTP)
@@ -244,11 +244,11 @@ func TestAdminPromptsHandler_EditNonAdminRedirect(t *testing.T) {
 }
 
 func TestAdminPromptsHandler_EditAPIError(t *testing.T) {
-	getFn := func(serviceID, name string) (*client.AdminPrompt, error) {
+	getFn := func(userID, name string) (*client.AdminPrompt, error) {
 		return nil, ErrTest
 	}
 
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), nil, getFn, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), nil, getFn, nil)
 	handler.SetAPIURL("http://localhost:8080")
 
 	mux := http.NewServeMux()
@@ -272,13 +272,13 @@ func TestAdminPromptsHandler_EditAPIError(t *testing.T) {
 
 func TestAdminPromptsHandler_SaveSuccess(t *testing.T) {
 	var savedName, savedContent string
-	setFn := func(serviceID, name, content string) error {
+	setFn := func(userID, name, content string) error {
 		savedName = name
 		savedContent = content
 		return nil
 	}
 
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), nil, nil, setFn, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newAdminUserLookup(), nil, nil, setFn)
 	handler.SetAPIURL("http://localhost:8080")
 
 	mux := http.NewServeMux()
@@ -312,7 +312,7 @@ func TestAdminPromptsHandler_SaveSuccess(t *testing.T) {
 }
 
 func TestAdminPromptsHandler_SaveNonAdmin(t *testing.T) {
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newNonAdminUserLookup(), nil, nil, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), newNonAdminUserLookup(), nil, nil, nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /admin/prompts/{name}", handler.ServeHTTP)
@@ -334,7 +334,7 @@ func TestAdminPromptsHandler_SaveNonAdmin(t *testing.T) {
 }
 
 func TestAdminPromptsHandler_SaveUnauthenticated(t *testing.T) {
-	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), nil, nil, nil, nil, "service:test")
+	handler := NewAdminPromptsHandler(nil, false, []byte(testJWTSecret), nil, nil, nil, nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /admin/prompts/{name}", handler.ServeHTTP)
