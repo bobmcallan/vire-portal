@@ -108,7 +108,9 @@ FAILED=0
 SKIPPED=0
 
 while IFS= read -r line; do
-    case "$line" in
+    # Trim leading whitespace to count both top-level and subtest results
+    trimmed="${line#"${line%%[![:space:]]*}"}"
+    case "$trimmed" in
         "--- PASS:"*) PASSED=$((PASSED + 1)) ;;
         "--- FAIL:"*) FAILED=$((FAILED + 1)) ;;
         "--- SKIP:"*) SKIPPED=$((SKIPPED + 1)) ;;

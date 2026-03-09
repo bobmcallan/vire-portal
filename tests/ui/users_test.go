@@ -3,163 +3,13 @@ package tests
 import (
 	"strings"
 	"testing"
+	"time"
 
 	commontest "github.com/bobmcallan/vire-portal/tests/common"
+	"github.com/chromedp/chromedp"
 )
 
-func TestUsersPageLayout(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/admin/users")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "users", "page-layout.png")
-
-	// Check .page class for flex layout
-	pageVisible, err := isVisible(ctx, ".page")
-	if err != nil {
-		t.Fatalf("error checking page visibility: %v", err)
-	}
-	if !pageVisible {
-		t.Fatal(".page class not found")
-	}
-
-	// Check .page-body class for max-width container
-	bodyVisible, err := isVisible(ctx, ".page-body")
-	if err != nil {
-		t.Fatalf("error checking page-body visibility: %v", err)
-	}
-	if !bodyVisible {
-		t.Fatal(".page-body class not found")
-	}
-}
-
-func TestUsersPageNavVisible(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/admin/users")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "users", "nav-visible.png")
-
-	navVisible, err := isVisible(ctx, ".nav")
-	if err != nil {
-		t.Fatalf("error checking nav visibility: %v", err)
-	}
-	if !navVisible {
-		t.Fatal("nav not visible on users page")
-	}
-}
-
-func TestUsersPagePanelHeader(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/admin/users")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "users", "panel-header.png")
-
-	// Check if we're on the users page by looking for panel-headed section
-	panelVisible, err := isVisible(ctx, ".panel-headed")
-	if err != nil {
-		t.Fatalf("error checking panel visibility: %v", err)
-	}
-	if !panelVisible {
-		t.Skip("users panel not found (user may not have admin role, redirected to dashboard)")
-	}
-
-	headerExists, err := commontest.EvalBool(ctx, `
-		(() => {
-			const headers = document.querySelectorAll('.panel-header');
-			return Array.from(headers).some(h => h.textContent.includes('USERS'));
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking panel header: %v", err)
-	}
-	if !headerExists {
-		t.Error("panel header does not contain 'USERS'")
-	}
-}
-
-func TestUsersPageTableHeaders(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/admin/users")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "users", "table-headers.png")
-
-	// Check if we're on the users page by looking for panel-headed section
-	panelVisible, err := isVisible(ctx, ".panel-headed")
-	if err != nil {
-		t.Fatalf("error checking panel visibility: %v", err)
-	}
-	if !panelVisible {
-		t.Skip("users panel not found (user may not have admin role, redirected to dashboard)")
-	}
-
-	tableVisible, err := isVisible(ctx, ".tool-table")
-	if err != nil {
-		t.Fatalf("error checking table visibility: %v", err)
-	}
-	if !tableVisible {
-		t.Skip("users table not visible (no users data available)")
-	}
-
-	// Verify expected table headers
-	headersCorrect, err := commontest.EvalBool(ctx, `
-		(() => {
-			const headers = document.querySelectorAll('.tool-table thead th');
-			if (headers.length !== 5) return false;
-			const expected = ['Email', 'Name', 'Role', 'Provider', 'Joined'];
-			for (let i = 0; i < 5; i++) {
-				if (!headers[i].textContent.includes(expected[i])) return false;
-			}
-			return true;
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking table headers: %v", err)
-	}
-	if !headersCorrect {
-		t.Error("table headers do not match expected: Email, Name, Role, Provider, Joined")
-	}
-}
-
-func TestUsersPageFooterVisible(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/admin/users")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "users", "footer-visible.png")
-
-	footerVisible, err := isVisible(ctx, ".footer")
-	if err != nil {
-		t.Fatalf("error checking footer visibility: %v", err)
-	}
-	if !footerVisible {
-		t.Fatal("footer not visible on users page")
-	}
-}
-
-func TestUsersPageNoJSErrors(t *testing.T) {
+func TestUsers(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -169,9 +19,125 @@ func TestUsersPageNoJSErrors(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	takeScreenshot(t, ctx, "users", "no-js-errors.png")
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
 
-	if jsErrs := errs.Errors(); len(jsErrs) > 0 {
-		t.Errorf("JS errors on users page:\n  %s", strings.Join(jsErrs, "\n  "))
-	}
+	t.Run("NoJSErrors", func(t *testing.T) {
+		takeScreenshot(t, ctx, "users", "no-js-errors.png")
+
+		if jsErrs := errs.Errors(); len(jsErrs) > 0 {
+			t.Errorf("JS errors on users page:\n  %s", strings.Join(jsErrs, "\n  "))
+		}
+	})
+
+	t.Run("PageLayout", func(t *testing.T) {
+		takeScreenshot(t, ctx, "users", "page-layout.png")
+
+		// Check .page class for flex layout
+		pageVisible, err := isVisible(ctx, ".page")
+		if err != nil {
+			t.Fatalf("error checking page visibility: %v", err)
+		}
+		if !pageVisible {
+			t.Fatal(".page class not found")
+		}
+
+		// Check .page-body class for max-width container
+		bodyVisible, err := isVisible(ctx, ".page-body")
+		if err != nil {
+			t.Fatalf("error checking page-body visibility: %v", err)
+		}
+		if !bodyVisible {
+			t.Fatal(".page-body class not found")
+		}
+	})
+
+	t.Run("PageNavVisible", func(t *testing.T) {
+		takeScreenshot(t, ctx, "users", "nav-visible.png")
+
+		navVisible, err := isVisible(ctx, ".nav")
+		if err != nil {
+			t.Fatalf("error checking nav visibility: %v", err)
+		}
+		if !navVisible {
+			t.Fatal("nav not visible on users page")
+		}
+	})
+
+	t.Run("PagePanelHeader", func(t *testing.T) {
+		takeScreenshot(t, ctx, "users", "panel-header.png")
+
+		// Check if we're on the users page by looking for panel-headed section
+		panelVisible, err := isVisible(ctx, ".panel-headed")
+		if err != nil {
+			t.Fatalf("error checking panel visibility: %v", err)
+		}
+		if !panelVisible {
+			t.Skip("users panel not found (user may not have admin role, redirected to dashboard)")
+		}
+
+		headerExists, err := commontest.EvalBool(ctx, `
+			(() => {
+				const headers = document.querySelectorAll('.panel-header');
+				return Array.from(headers).some(h => h.textContent.includes('USERS'));
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking panel header: %v", err)
+		}
+		if !headerExists {
+			t.Error("panel header does not contain 'USERS'")
+		}
+	})
+
+	t.Run("PageTableHeaders", func(t *testing.T) {
+		takeScreenshot(t, ctx, "users", "table-headers.png")
+
+		// Check if we're on the users page by looking for panel-headed section
+		panelVisible, err := isVisible(ctx, ".panel-headed")
+		if err != nil {
+			t.Fatalf("error checking panel visibility: %v", err)
+		}
+		if !panelVisible {
+			t.Skip("users panel not found (user may not have admin role, redirected to dashboard)")
+		}
+
+		tableVisible, err := isVisible(ctx, ".tool-table")
+		if err != nil {
+			t.Fatalf("error checking table visibility: %v", err)
+		}
+		if !tableVisible {
+			t.Skip("users table not visible (no users data available)")
+		}
+
+		// Verify expected table headers
+		headersCorrect, err := commontest.EvalBool(ctx, `
+			(() => {
+				const headers = document.querySelectorAll('.tool-table thead th');
+				if (headers.length !== 5) return false;
+				const expected = ['Email', 'Name', 'Role', 'Provider', 'Joined'];
+				for (let i = 0; i < 5; i++) {
+					if (!headers[i].textContent.includes(expected[i])) return false;
+				}
+				return true;
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking table headers: %v", err)
+		}
+		if !headersCorrect {
+			t.Error("table headers do not match expected: Email, Name, Role, Provider, Joined")
+		}
+	})
+
+	t.Run("PageFooterVisible", func(t *testing.T) {
+		takeScreenshot(t, ctx, "users", "footer-visible.png")
+
+		footerVisible, err := isVisible(ctx, ".footer")
+		if err != nil {
+			t.Fatalf("error checking footer visibility: %v", err)
+		}
+		if !footerVisible {
+			t.Fatal("footer not visible on users page")
+		}
+	})
 }

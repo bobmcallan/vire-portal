@@ -3,78 +3,13 @@ package tests
 import (
 	"strings"
 	"testing"
+	"time"
 
 	commontest "github.com/bobmcallan/vire-portal/tests/common"
 	"github.com/chromedp/chromedp"
 )
 
-func TestDocsPageLoads(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/docs")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "docs", "page-loads.png")
-
-	visible, err := isVisible(ctx, ".page")
-	if err != nil {
-		t.Fatalf("error checking .page visibility: %v", err)
-	}
-	if !visible {
-		t.Fatal("docs .page not visible after login")
-	}
-}
-
-func TestDocsPageHasContent(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/docs")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "docs", "page-content.png")
-
-	// Verify Navexa content is present
-	navexaPresent, err := commontest.EvalBool(ctx, `
-		(() => {
-			const text = document.body.innerText.toLowerCase();
-			return text.includes('navexa');
-		})()
-	`)
-	if err != nil {
-		t.Fatalf("error checking Navexa content: %v", err)
-	}
-	if !navexaPresent {
-		t.Error("docs page does not contain 'Navexa' content")
-	}
-}
-
-func TestDocsPageHasNavigation(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/docs")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "docs", "nav-present.png")
-
-	visible, err := isVisible(ctx, ".nav")
-	if err != nil {
-		t.Fatalf("error checking nav visibility: %v", err)
-	}
-	if !visible {
-		t.Error("nav should be visible on /docs page")
-	}
-}
-
-func TestDocsPageNoJSErrors(t *testing.T) {
+func TestDocs(t *testing.T) {
 	ctx, cancel := newBrowser(t)
 	defer cancel()
 
@@ -84,54 +19,84 @@ func TestDocsPageNoJSErrors(t *testing.T) {
 		t.Fatalf("login and navigate failed: %v", err)
 	}
 
-	takeScreenshot(t, ctx, "docs", "no-js-errors.png")
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
 
-	if jsErrs := errs.Errors(); len(jsErrs) > 0 {
-		t.Errorf("JS errors on docs page:\n  %v", jsErrs)
-	}
-}
+	t.Run("NoJSErrors", func(t *testing.T) {
+		takeScreenshot(t, ctx, "docs", "no-js-errors.png")
 
-func TestDocsPageHasSectionTitle(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/docs")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "docs", "section-title.png")
-
-	count, err := elementCount(ctx, ".section-title")
-	if err != nil {
-		t.Fatalf("error counting section titles: %v", err)
-	}
-	if count < 1 {
-		t.Error("docs page should have at least one .section-title element")
-	}
-}
-
-func TestDocsPageNoTemplateMarkers(t *testing.T) {
-	ctx, cancel := newBrowser(t)
-	defer cancel()
-
-	err := loginAndNavigate(ctx, serverURL()+"/docs")
-	if err != nil {
-		t.Fatalf("login and navigate failed: %v", err)
-	}
-
-	takeScreenshot(t, ctx, "docs", "no-template-markers.png")
-
-	var bodyText string
-	err = chromedp.Run(ctx, chromedp.Evaluate(`document.body.innerText`, &bodyText))
-	if err != nil {
-		t.Fatalf("error getting body text: %v", err)
-	}
-
-	badMarkers := []string{"{{.", "<no value>", "{{template", "{{if", "{{range}"}
-	for _, marker := range badMarkers {
-		if strings.Contains(bodyText, marker) {
-			t.Fatalf("raw template marker %q found in docs page body", marker)
+		if jsErrs := errs.Errors(); len(jsErrs) > 0 {
+			t.Errorf("JS errors on docs page:\n  %v", jsErrs)
 		}
-	}
+	})
+
+	t.Run("PageLoads", func(t *testing.T) {
+		takeScreenshot(t, ctx, "docs", "page-loads.png")
+
+		visible, err := isVisible(ctx, ".page")
+		if err != nil {
+			t.Fatalf("error checking .page visibility: %v", err)
+		}
+		if !visible {
+			t.Fatal("docs .page not visible after login")
+		}
+	})
+
+	t.Run("PageHasContent", func(t *testing.T) {
+		takeScreenshot(t, ctx, "docs", "page-content.png")
+
+		// Verify Navexa content is present
+		navexaPresent, err := commontest.EvalBool(ctx, `
+			(() => {
+				const text = document.body.innerText.toLowerCase();
+				return text.includes('navexa');
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking Navexa content: %v", err)
+		}
+		if !navexaPresent {
+			t.Error("docs page does not contain 'Navexa' content")
+		}
+	})
+
+	t.Run("PageHasNavigation", func(t *testing.T) {
+		takeScreenshot(t, ctx, "docs", "nav-present.png")
+
+		visible, err := isVisible(ctx, ".nav")
+		if err != nil {
+			t.Fatalf("error checking nav visibility: %v", err)
+		}
+		if !visible {
+			t.Error("nav should be visible on /docs page")
+		}
+	})
+
+	t.Run("PageHasSectionTitle", func(t *testing.T) {
+		takeScreenshot(t, ctx, "docs", "section-title.png")
+
+		count, err := elementCount(ctx, ".section-title")
+		if err != nil {
+			t.Fatalf("error counting section titles: %v", err)
+		}
+		if count < 1 {
+			t.Error("docs page should have at least one .section-title element")
+		}
+	})
+
+	t.Run("PageNoTemplateMarkers", func(t *testing.T) {
+		takeScreenshot(t, ctx, "docs", "no-template-markers.png")
+
+		var bodyText string
+		err := chromedp.Run(ctx, chromedp.Evaluate(`document.body.innerText`, &bodyText))
+		if err != nil {
+			t.Fatalf("error getting body text: %v", err)
+		}
+
+		badMarkers := []string{"{{.", "<no value>", "{{template", "{{if", "{{range}"}
+		for _, marker := range badMarkers {
+			if strings.Contains(bodyText, marker) {
+				t.Fatalf("raw template marker %q found in docs page body", marker)
+			}
+		}
+	})
 }
