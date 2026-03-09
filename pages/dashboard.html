@@ -99,10 +99,6 @@
                         <span :class="changeClass(changeReturnDayPct)" x-text="changePct(changeReturnDayPct) + ' 1D'"></span>
                     </span>
                 </div>
-                <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
-                    <span class="label">DIVIDENDS <span class="label-info" :data-tooltip="glossaryDef('income_dividends_forecast')">i</span></span>
-                    <span class="text-bold" x-text="fmt(ledgerDividendReturn) + ' (' + fmt(totalDividends) + ')'"></span>
-                </div>
                 <div class="portfolio-summary-item" x-show="hasCurrencyData" x-cloak>
                     <span class="label">CURRENCY GAIN/LOSS <span class="label-info" :data-tooltip="glossaryDef('currency_gain_loss')">i</span></span>
                     <span class="text-bold" :class="gainClass(currencyGainLoss)" x-text="fmt(currencyGainLoss)"></span>
