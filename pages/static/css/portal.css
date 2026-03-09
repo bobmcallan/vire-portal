@@ -249,11 +249,13 @@ a:hover {
     color: #fff;
 }
 
-.nav-admin-item {
+.nav-dropdown a.nav-admin-item,
+.mobile-menu a.nav-admin-item {
     background: #fee2e2;
 }
 
-.nav-admin-item:hover {
+.nav-dropdown a.nav-admin-item:hover,
+.mobile-menu a.nav-admin-item:hover {
     background: #7f1d1d;
 }
 

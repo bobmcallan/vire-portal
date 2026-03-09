@@ -1699,20 +1699,20 @@ func TestDashboardEquityInPerformanceRow(t *testing.T) {
 		t.Skip("performance row not visible (no holdings data available)")
 	}
 
-	// Verify EQUITY VALUE label exists in performance row
+	// Verify NET EQUITY label exists in performance row
 	equityLabel, err := commontest.EvalBool(ctx, `
 		(() => {
 			const row = document.querySelector('.portfolio-summary-performance');
 			if (!row) return false;
 			const labels = row.querySelectorAll('.portfolio-summary-item .label');
-			return Array.from(labels).some(l => l.textContent.includes('EQUITY VALUE'));
+			return Array.from(labels).some(l => l.textContent.includes('NET EQUITY'));
 		})()
 	`)
 	if err != nil {
 		t.Fatalf("error checking equity label: %v", err)
 	}
 	if !equityLabel {
-		t.Skip("EQUITY VALUE label not found in performance row (no data)")
+		t.Skip("NET EQUITY label not found in performance row (no data)")
 	}
 }
 

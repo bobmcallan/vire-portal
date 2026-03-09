@@ -82,6 +82,10 @@
             <!-- Row 2: Performance -->
             <div class="portfolio-summary portfolio-summary-performance" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="portfolio-summary-item">
+                    <span class="label">NET EQUITY <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_value')">i</span></span>
+                    <span class="text-bold" x-text="fmt(equityValue)"></span>
+                </div>
+                <div class="portfolio-summary-item">
                     <span class="label">NET RETURN $ <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_return')">i</span></span>
                     <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>
                     <span class="portfolio-change-today" x-show="changeReturnDayDollar != null" x-cloak>
@@ -98,10 +102,6 @@
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
                     <span class="label">DIVIDENDS <span class="label-info" :data-tooltip="glossaryDef('income_dividends_forecast')">i</span></span>
                     <span class="text-bold" x-text="fmt(ledgerDividendReturn) + ' (' + fmt(totalDividends) + ')'"></span>
-                </div>
-                <div class="portfolio-summary-item">
-                    <span class="label">EQUITY VALUE <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_value')">i</span></span>
-                    <span class="text-bold" x-text="fmt(equityValue)"></span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCurrencyData" x-cloak>
                     <span class="label">CURRENCY GAIN/LOSS <span class="label-info" :data-tooltip="glossaryDef('currency_gain_loss')">i</span></span>
