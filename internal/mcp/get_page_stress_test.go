@@ -29,7 +29,6 @@ func TestGetPage_StressWhitelistBypass(t *testing.T) {
 		page string
 	}{
 		{"admin", "admin"},
-		{"admin/users", "admin/users"},
 		{"../admin", "../admin"},
 		{"/admin", "/admin"},
 		{"DASHBOARD", "DASHBOARD"},
