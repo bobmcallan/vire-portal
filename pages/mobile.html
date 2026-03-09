@@ -71,14 +71,14 @@
                     <span class="label">NET RETURN $</span>
                     <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>
                     <span class="mobile-today-change" x-show="changeReturnDayDollar != null" x-cloak>
-                        <span :class="changeClass(changeReturnDayDollar)" x-text="changeDollar(changeReturnDayDollar) + ' today'"></span>
+                        <span :class="changeClass(changeReturnDayDollar)" x-text="changeDollar(changeReturnDayDollar) + ' 1D'"></span>
                     </span>
                 </div>
                 <div class="mobile-perf-item" style="text-align:right">
                     <span class="label">NET RETURN %</span>
                     <span class="text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></span>
                     <span class="mobile-today-change" x-show="changeReturnDayPct != null" x-cloak>
-                        <span :class="changeClass(changeReturnDayPct)" x-text="changePct(changeReturnDayPct) + ' today'"></span>
+                        <span :class="changeClass(changeReturnDayPct)" x-text="changePct(changeReturnDayPct) + ' 1D'"></span>
                     </span>
                 </div>
             </div>

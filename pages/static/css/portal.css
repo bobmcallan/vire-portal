@@ -1839,3 +1839,54 @@ code {
 
 .prompt-success { color: #2e7d32; }
 .prompt-error { color: #c62828; }
+
+
+/* ============================================================
+   STOCK DETAIL PAGE
+   ============================================================ */
+
+.stock-back-link {
+    margin-bottom: 1.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.stock-back-link a {
+    text-decoration: none;
+    color: #000;
+}
+
+.stock-back-link a:hover {
+    text-decoration: underline;
+}
+
+.stock-ticker-heading {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    margin-bottom: 1.5rem;
+}
+
+.stock-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+@media (min-width: 48rem) {
+    .stock-detail-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.stock-detail-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.stock-placeholder {
+    opacity: 0.5;
+}

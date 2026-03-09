@@ -35,6 +35,7 @@ func (s *Server) setupRoutes() *http.ServeMux {
 	mux.HandleFunc("GET /dashboard/{portfolio...}", s.app.DashboardHandler.ServeHTTP)
 	mux.HandleFunc("GET /m", s.app.MobileDashboardHandler.ServeHTTP)
 	mux.HandleFunc("GET /m/{portfolio...}", s.app.MobileDashboardHandler.ServeHTTP)
+	mux.HandleFunc("GET /stock/{ticker...}", s.app.StockHandler.ServeHTTP)
 	mux.HandleFunc("GET /strategy", s.app.StrategyHandler.ServeHTTP)
 	mux.HandleFunc("GET /cash", s.app.CashHandler.ServeHTTP)
 	mux.HandleFunc("GET /mcp-info", s.app.MCPPageHandler.ServeHTTP)

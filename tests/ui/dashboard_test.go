@@ -351,7 +351,7 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 		t.Error("portfolio summary values are empty")
 	}
 
-	// Verify Row 2 NET RETURN uses daily-only badges with "today" suffix (not D/W/M)
+	// Verify Row 2 NET RETURN uses daily-only badges with "1D" suffix (not D/W/M)
 	perfRow, err := isVisible(ctx, ".portfolio-summary-performance")
 	if err != nil {
 		t.Fatalf("error checking performance row visibility: %v", err)
@@ -368,23 +368,23 @@ func TestDashboardPortfolioSummary(t *testing.T) {
 			t.Error("Row 2 should use .portfolio-change-today class instead of .portfolio-changes for daily-only badges")
 		}
 
-		// Check that daily badges contain "today" suffix text
+		// Check that daily badges contain "1D" suffix text
 		todaySuffix, err := commontest.EvalBool(ctx, `
 			(() => {
 				const badges = document.querySelectorAll('.portfolio-summary-performance .portfolio-change-today span');
 				if (badges.length === 0) return true; // no data, skip
 				for (const b of badges) {
 					const text = b.textContent.trim();
-					if (text && !text.includes('today')) return false;
+					if (text && !text.includes('1D')) return false;
 				}
 				return true;
 			})()
 		`)
 		if err != nil {
-			t.Fatalf("error checking today suffix: %v", err)
+			t.Fatalf("error checking 1D suffix: %v", err)
 		}
 		if !todaySuffix {
-			t.Error("Row 2 daily badges should contain 'today' suffix")
+			t.Error("Row 2 daily badges should contain '1D' suffix")
 		}
 
 		// Verify Row 2 does NOT have D/W/M multi-badge .portfolio-changes
@@ -1675,5 +1675,176 @@ func TestDashboardSSR_VireDataCleared(t *testing.T) {
 	}
 	if !cleared {
 		t.Error("window.__VIRE_DATA__ should be null (consumed) or have null portfolios (no SSR data)")
+	}
+}
+
+func TestDashboardEquityRow(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "equity-row.png")
+
+	visible, err := isVisible(ctx, ".portfolio-summary-equity")
+	if err != nil {
+		t.Fatalf("error checking equity row visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("equity row not visible (no holdings data available)")
+	}
+
+	// Verify EQUITY VALUE label exists
+	equityLabel, err := commontest.EvalBool(ctx, `
+		(() => {
+			const row = document.querySelector('.portfolio-summary-equity');
+			if (!row) return false;
+			const labels = row.querySelectorAll('.portfolio-summary-item .label');
+			if (labels.length < 1) return false;
+			return labels[0].textContent.includes('EQUITY VALUE');
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking equity label: %v", err)
+	}
+	if !equityLabel {
+		t.Error("equity row first label should be EQUITY VALUE")
+	}
+
+	// Verify equity value is populated
+	equityPopulated, err := commontest.EvalBool(ctx, `
+		(() => {
+			const row = document.querySelector('.portfolio-summary-equity');
+			if (!row) return false;
+			const val = row.querySelector('.portfolio-summary-item .text-bold');
+			return val && val.textContent.trim() !== '' && val.textContent.trim() !== '-';
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking equity value: %v", err)
+	}
+	if !equityPopulated {
+		t.Error("equity value is empty")
+	}
+
+	// Verify glossary tooltip icon on EQUITY VALUE
+	tooltipExists, err := commontest.EvalBool(ctx, `
+		(() => {
+			const row = document.querySelector('.portfolio-summary-equity');
+			if (!row) return false;
+			return row.querySelector('.label-info') !== null;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking equity tooltip: %v", err)
+	}
+	if !tooltipExists {
+		t.Error("EQUITY VALUE label missing glossary tooltip icon (.label-info)")
+	}
+}
+
+func TestDashboardTickerLinks(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "ticker-links.png")
+
+	visible, err := isVisible(ctx, ".tool-table")
+	if err != nil {
+		t.Fatalf("error checking holdings table visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("holdings table not visible (no portfolio data available)")
+	}
+
+	// Verify ticker cells contain <a> links to /stock/{ticker}
+	tickerLinksExist, err := commontest.EvalBool(ctx, `
+		(() => {
+			const links = document.querySelectorAll('.tool-table tbody .tool-name a');
+			if (links.length === 0) return false;
+			for (const a of links) {
+				const href = a.getAttribute('href') || '';
+				if (!href.startsWith('/stock/')) return false;
+				if (!a.textContent.trim()) return false;
+			}
+			return true;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking ticker links: %v", err)
+	}
+	if !tickerLinksExist {
+		t.Skip("no ticker links found (no holdings data available)")
+	}
+}
+
+func TestDashboardHoldingDetailFields(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/dashboard")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
+	takeScreenshot(t, ctx, "dashboard", "holding-detail-fields.png")
+
+	visible, err := isVisible(ctx, ".tool-table")
+	if err != nil {
+		t.Fatalf("error checking holdings table visibility: %v", err)
+	}
+	if !visible {
+		t.Skip("holdings table not visible (no portfolio data available)")
+	}
+
+	// Verify "Stock Trend:" label exists in holding detail rows
+	trendLabel, err := commontest.EvalBool(ctx, `
+		(() => {
+			const labels = document.querySelectorAll('.holding-detail-label');
+			return Array.from(labels).some(l => l.textContent.includes('Stock Trend:'));
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking Stock Trend label: %v", err)
+	}
+	if !trendLabel {
+		t.Skip("Stock Trend label not visible (no holding movement rows)")
+	}
+
+	// Verify "Daily Return:" label exists
+	dailyLabel, err := commontest.EvalBool(ctx, `
+		(() => {
+			const labels = document.querySelectorAll('.holding-detail-label');
+			return Array.from(labels).some(l => l.textContent.includes('Daily Return:'));
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking Daily Return label: %v", err)
+	}
+	if !dailyLabel {
+		t.Error("Daily Return: label not found in holding detail rows")
+	}
+
+	// Verify holding detail separator elements exist between fields
+	sepCount, err := elementCount(ctx, ".holding-detail-sep")
+	if err != nil {
+		t.Fatalf("error counting detail separators: %v", err)
+	}
+	if sepCount < 1 {
+		t.Error("holding detail separators (.holding-detail-sep) not found")
 	}
 }

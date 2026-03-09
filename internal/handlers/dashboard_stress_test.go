@@ -1359,9 +1359,9 @@ func TestDashboardHandler_StressReturnChangeBindings(t *testing.T) {
 		t.Error("expected portfolio-change-today class for daily return badges")
 	}
 
-	// Daily badges show "today" suffix
-	if !strings.Contains(body, `+ ' today'`) {
-		t.Error("expected 'today' suffix in daily return badges")
+	// Daily badges show "1D" suffix
+	if !strings.Contains(body, `+ ' 1D'`) {
+		t.Error("expected '1D' suffix in daily return badges")
 	}
 }
 

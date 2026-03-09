@@ -85,19 +85,32 @@
                     <span class="label">NET RETURN $ <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_return')">i</span></span>
                     <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>
                     <span class="portfolio-change-today" x-show="changeReturnDayDollar != null" x-cloak>
-                        <span :class="changeClass(changeReturnDayDollar)" x-text="changeDollar(changeReturnDayDollar) + ' today'"></span>
+                        <span :class="changeClass(changeReturnDayDollar)" x-text="changeDollar(changeReturnDayDollar) + ' 1D'"></span>
                     </span>
                 </div>
                 <div class="portfolio-summary-item">
                     <span class="label">NET RETURN % <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_return_pct')">i</span></span>
                     <span class="text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></span>
                     <span class="portfolio-change-today" x-show="changeReturnDayPct != null" x-cloak>
-                        <span :class="changeClass(changeReturnDayPct)" x-text="changePct(changeReturnDayPct) + ' today'"></span>
+                        <span :class="changeClass(changeReturnDayPct)" x-text="changePct(changeReturnDayPct) + ' 1D'"></span>
                     </span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCapitalData" x-cloak>
                     <span class="label">DIVIDENDS <span class="label-info" :data-tooltip="glossaryDef('income_dividends_forecast')">i</span></span>
                     <span class="text-bold" x-text="fmt(ledgerDividendReturn) + ' (' + fmt(totalDividends) + ')'"></span>
+                </div>
+            </div>
+
+            <!-- Row 3: Equity -->
+            <div class="portfolio-summary portfolio-summary-equity" x-show="filteredHoldings.length > 0" x-cloak>
+                <div class="portfolio-summary-item">
+                    <span class="label">EQUITY VALUE <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_value')">i</span></span>
+                    <span class="text-bold" x-text="fmt(equityValue)"></span>
+                </div>
+                <div class="portfolio-summary-item" x-show="currencyGainLoss != null && currencyGainLoss !== 0" x-cloak>
+                    <span class="label">CURRENCY GAIN/LOSS</span>
+                    <span class="text-bold" :class="gainClass(currencyGainLoss)" x-text="fmt(currencyGainLoss)"></span>
+                    <span class="text-muted" x-show="currencyGainLossPct != null" x-text="pct(currencyGainLossPct)"></span>
                 </div>
             </div>
 
@@ -181,7 +194,7 @@
                             <template x-for="h in filteredHoldings" :key="h.ticker">
                                 <tbody>
                                     <tr>
-                                        <td class="tool-name" x-text="h.ticker"></td>
+                                        <td class="tool-name"><a :href="'/stock/' + encodeURIComponent(h.ticker)" x-text="h.ticker"></a></td>
                                         <td x-text="h.name"></td>
                                         <td class="text-right" x-text="fmt(h.holding_value_market)"></td>
                                         <td class="text-right" x-text="pct(h.holding_weight_pct)"></td>
@@ -190,13 +203,41 @@
                                     </tr>
                                     <tr class="holding-movement-row" x-show="h.holding_value_market > 0">
                                         <td colspan="6" class="holding-movement-content text-right">
-                                            <span class="holding-detail-label">Trend:</span>
+                                            <span class="holding-detail-label">Stock Trend:</span>
                                             <span :class="trendArrowClass(h.trend_score)" x-text="trendArrow(h.trend_score)"></span>
                                             <span class="text-muted" x-text="h.trend_label || ''"></span>
                                             <span class="holding-detail-sep"></span>
                                             <span class="holding-detail-label">Daily Return:</span>
                                             <span :class="changeClass(holdingTodayChange(h))" x-text="fmtTodayChange(holdingTodayChange(h))"></span>
                                             <span class="text-muted" x-text="h.yesterday_price_change_pct != null ? ' / ' + changePct(h.yesterday_price_change_pct) : ''"></span>
+                                            <template x-if="h.original_currency && h.original_currency !== 'AUD'">
+                                                <span>
+                                                    <span class="holding-detail-sep"></span>
+                                                    <span class="holding-detail-label">Currency:</span>
+                                                    <span class="text-muted" x-text="h.original_currency"></span>
+                                                </span>
+                                            </template>
+                                            <template x-if="h.currency_gain_loss && h.currency_gain_loss !== 0">
+                                                <span>
+                                                    <span class="holding-detail-sep"></span>
+                                                    <span class="holding-detail-label">FX Gain/Loss:</span>
+                                                    <span :class="gainClass(h.currency_gain_loss)" x-text="fmt(h.currency_gain_loss)"></span>
+                                                </span>
+                                            </template>
+                                            <template x-if="h.dividend_received && h.dividend_received !== 0">
+                                                <span>
+                                                    <span class="holding-detail-sep"></span>
+                                                    <span class="holding-detail-label">Div Received:</span>
+                                                    <span x-text="fmt(h.dividend_received)"></span>
+                                                </span>
+                                            </template>
+                                            <template x-if="h.dividend_forecast && h.dividend_forecast !== 0">
+                                                <span>
+                                                    <span class="holding-detail-sep"></span>
+                                                    <span class="holding-detail-label">Div Forecast:</span>
+                                                    <span x-text="fmt(h.dividend_forecast)"></span>
+                                                </span>
+                                            </template>
                                         </td>
                                     </tr>
                                 </tbody>

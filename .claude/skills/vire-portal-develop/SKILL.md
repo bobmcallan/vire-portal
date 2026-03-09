@@ -173,6 +173,11 @@ For verify tasks:
 For docs tasks: update README.md and affected skill files.
 
 Only message teammates for blocking issues or questions. Mark tasks via TaskUpdate.
+
+SHUTDOWN: When all your tasks are completed and no more work remains, send a message
+to "team-lead" confirming you are done, then wait. When you receive a shutdown_request,
+you MUST immediately call the shutdown_response tool with approve: true and the request_id
+from the message. Do not ignore shutdown requests.
 ```
 
 **architect:**
@@ -206,6 +211,11 @@ For architecture review tasks:
 
 Send findings to "implementer" via SendMessage only if fixes are needed.
 Mark tasks via TaskUpdate.
+
+SHUTDOWN: When all your tasks are completed and no more work remains, send a message
+to "team-lead" confirming you are done, then wait. When you receive a shutdown_request,
+you MUST immediately call the shutdown_response tool with approve: true and the request_id
+from the message. Do not ignore shutdown requests.
 ```
 
 **reviewer:**
@@ -231,6 +241,11 @@ For docs review: check accuracy against implementation.
 
 Send findings to "implementer" via SendMessage only if fixes are needed.
 Mark tasks via TaskUpdate.
+
+SHUTDOWN: When all your tasks are completed and no more work remains, send a message
+to "team-lead" confirming you are done, then wait. When you receive a shutdown_request,
+you MUST immediately call the shutdown_response tool with approve: true and the request_id
+from the message. Do not ignore shutdown requests.
 ```
 
 **devils-advocate:**
@@ -257,6 +272,11 @@ Write stress tests where appropriate.
 
 Send findings to "implementer" via SendMessage only if fixes are needed.
 Mark tasks via TaskUpdate.
+
+SHUTDOWN: When all your tasks are completed and no more work remains, send a message
+to "team-lead" confirming you are done, then wait. When you receive a shutdown_request,
+you MUST immediately call the shutdown_response tool with approve: true and the request_id
+from the message. Do not ignore shutdown requests.
 ```
 
 **test-creator:**
@@ -285,6 +305,11 @@ Workflow:
 5. All tests must comply with test-common mandatory rules
 
 Only message teammates for blocking issues. Mark tasks via TaskUpdate.
+
+SHUTDOWN: When all your tasks are completed and no more work remains, send a message
+to "team-lead" confirming you are done, then wait. When you receive a shutdown_request,
+you MUST immediately call the shutdown_response tool with approve: true and the request_id
+from the message. Do not ignore shutdown requests.
 ```
 
 **test-executor:**
@@ -326,6 +351,11 @@ FEEDBACK LOOP (critical):
   Max 3 rounds, then document remaining failures.
 
 Mark tasks via TaskUpdate.
+
+SHUTDOWN: When all your tasks are completed and no more work remains, send a message
+to "team-lead" confirming you are done, then wait. When you receive a shutdown_request,
+you MUST immediately call the shutdown_response tool with approve: true and the request_id
+from the message. Do not ignore shutdown requests.
 ```
 
 ### Step 4: Coordinate

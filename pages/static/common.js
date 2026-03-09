@@ -250,6 +250,8 @@ function portfolioDashboard() {
         changeReturnWeekPct: null,
         changeReturnMonthPct: null,
         hasReturnPctChanges: false,
+        currencyGainLoss: null,
+        currencyGainLossPct: null,
         breadth: null,
         hasBreadth: false,
         watchlist: [],
@@ -360,6 +362,8 @@ function portfolioDashboard() {
             } else {
                 this.capitalInvested = 0; this.grossContributions = 0; this.hasCapitalData = false;
             }
+            this.currencyGainLoss = holdingsData.currency_gain_loss != null ? Number(holdingsData.currency_gain_loss) : null;
+            this.currencyGainLossPct = holdingsData.currency_gain_loss_pct != null ? Number(holdingsData.currency_gain_loss_pct) : null;
             this.breadth = holdingsData.breadth || this.computeBreadth();
             this.hasBreadth = this.breadth !== null;
         },
@@ -1188,6 +1192,50 @@ function cashTransactions() {
             const d = new Date(dateStr);
             if (isNaN(d.getTime())) return dateStr;
             return d.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
+        },
+    };
+}
+
+// Stock Detail component
+function stockDetail() {
+    return {
+        ticker: '',
+        holding: null,
+        portfolioName: '',
+
+        fmt(val) {
+            if (val == null) return '-';
+            return '$' + Number(val).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        },
+        pct(val) {
+            if (val == null) return '-';
+            return Number(val).toFixed(2) + '%';
+        },
+        gainClass(val) {
+            if (val == null || val === 0) return '';
+            return val > 0 ? 'gain-positive' : 'gain-negative';
+        },
+        trendArrow(score) {
+            if (score == null) return '';
+            if (score > 0) return '\u25B2';
+            if (score < 0) return '\u25BC';
+            return '\u25C6';
+        },
+        trendArrowClass(score) {
+            if (score == null) return '';
+            if (score > 0) return 'change-up';
+            if (score < 0) return 'change-down';
+            return 'change-neutral';
+        },
+
+        init() {
+            const ssrData = window.__VIRE_DATA__;
+            if (ssrData) {
+                this.ticker = ssrData.ticker || '';
+                this.holding = ssrData.holding || null;
+                this.portfolioName = ssrData.portfolioName || '';
+                window.__VIRE_DATA__ = null;
+            }
         },
     };
 }

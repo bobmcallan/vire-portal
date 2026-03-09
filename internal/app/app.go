@@ -47,6 +47,7 @@ type App struct {
 	AuthHandler            *handlers.AuthHandler
 	DashboardHandler       *handlers.DashboardHandler
 	StrategyHandler        *handlers.StrategyHandler
+	StockHandler           *handlers.StockHandler
 	CashHandler            *handlers.CashHandler
 	MCPPageHandler         *handlers.MCPPageHandler
 	ProfileHandler         *handlers.ProfileHandler
@@ -177,6 +178,14 @@ func (a *App) initHandlers() {
 	)
 	a.MobileDashboardHandler.SetAPIURL(a.Config.API.URL)
 
+	a.StockHandler = handlers.NewStockHandler(
+		a.Logger,
+		a.Config.IsDevMode(),
+		jwtSecret,
+		userLookup,
+	)
+	a.StockHandler.SetAPIURL(a.Config.API.URL)
+
 	a.StrategyHandler = handlers.NewStrategyHandler(
 		a.Logger,
 		a.Config.IsDevMode(),
@@ -211,6 +220,7 @@ func (a *App) initHandlers() {
 	}
 
 	a.PageHandler.SetProxyGetFn(cachedProxyGet)
+	a.StockHandler.SetProxyGetFn(cachedProxyGet)
 	a.StrategyHandler.SetProxyGetFn(cachedProxyGet)
 	a.CashHandler.SetProxyGetFn(cachedProxyGet)
 	a.DashboardHandler.SetProxyGetFn(cachedProxyGet)

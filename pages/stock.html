@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {{template "head.html" .}}
+    <title>VIRE STOCK — {{.Ticker}}</title>
+</head>
+
+<body>
+
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+
+    <main class="page" x-data="stockDetail()">
+        <div class="page-body">
+
+            <div class="stock-back-link">
+                <a href="/dashboard">&larr; DASHBOARD</a>
+            </div>
+
+            <h1 class="stock-ticker-heading" x-text="ticker"></h1>
+
+            <!-- Holding data from portfolio -->
+            <section class="panel-headed" x-show="holding" x-cloak>
+                <div class="panel-header">PORTFOLIO HOLDING</div>
+                <div class="panel-content">
+                    <div class="stock-detail-grid">
+                        <div class="stock-detail-field">
+                            <span class="label">NAME</span>
+                            <span x-text="holding?.name || '-'"></span>
+                        </div>
+                        <div class="stock-detail-field">
+                            <span class="label">VALUE</span>
+                            <span class="text-bold" x-text="fmt(holding?.holding_value_market)"></span>
+                        </div>
+                        <div class="stock-detail-field">
+                            <span class="label">WEIGHT</span>
+                            <span x-text="pct(holding?.holding_weight_pct)"></span>
+                        </div>
+                        <div class="stock-detail-field">
+                            <span class="label">RETURN $</span>
+                            <span :class="gainClass(holding?.holding_return_net)" x-text="fmt(holding?.holding_return_net)"></span>
+                        </div>
+                        <div class="stock-detail-field">
+                            <span class="label">RETURN %</span>
+                            <span :class="gainClass(holding?.holding_return_net_pct)" x-text="pct(holding?.holding_return_net_pct)"></span>
+                        </div>
+                        <div class="stock-detail-field">
+                            <span class="label">TREND</span>
+                            <span :class="trendArrowClass(holding?.trend_score)" x-text="trendArrow(holding?.trend_score)"></span>
+                            <span class="text-muted" x-text="holding?.trend_label || ''"></span>
+                        </div>
+                        <div class="stock-detail-field" x-show="holding?.original_currency && holding?.original_currency !== 'AUD'" x-cloak>
+                            <span class="label">CURRENCY</span>
+                            <span x-text="holding?.original_currency || ''"></span>
+                        </div>
+                        <div class="stock-detail-field" x-show="holding?.currency_gain_loss && holding?.currency_gain_loss !== 0" x-cloak>
+                            <span class="label">FX GAIN/LOSS</span>
+                            <span :class="gainClass(holding?.currency_gain_loss)" x-text="fmt(holding?.currency_gain_loss)"></span>
+                        </div>
+                        <div class="stock-detail-field" x-show="holding?.dividend_received && holding?.dividend_received !== 0" x-cloak>
+                            <span class="label">DIVIDENDS RECEIVED</span>
+                            <span x-text="fmt(holding?.dividend_received)"></span>
+                        </div>
+                        <div class="stock-detail-field" x-show="holding?.dividend_forecast && holding?.dividend_forecast !== 0" x-cloak>
+                            <span class="label">DIVIDEND FORECAST</span>
+                            <span x-text="fmt(holding?.dividend_forecast)"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- No holding state -->
+            <div class="info-banner" x-show="!holding" x-cloak>
+                <strong x-text="ticker"></strong> is not currently held in your portfolio.
+            </div>
+
+            <!-- Placeholder sections for future data -->
+            <section class="panel-headed stock-placeholder">
+                <div class="panel-header">TRADE HISTORY</div>
+                <div class="panel-content">
+                    <span class="text-muted">Trade history will be available in a future update.</span>
+                </div>
+            </section>
+
+            <section class="panel-headed stock-placeholder">
+                <div class="panel-header">PRICE CHART</div>
+                <div class="panel-content">
+                    <span class="text-muted">Price chart will be available in a future update.</span>
+                </div>
+            </section>
+
+            <section class="panel-headed stock-placeholder">
+                <div class="panel-header">FILINGS</div>
+                <div class="panel-content">
+                    <span class="text-muted">Company filings will be available in a future update.</span>
+                </div>
+            </section>
+
+            <section class="panel-headed stock-placeholder">
+                <div class="panel-header">STRATEGY ALIGNMENT</div>
+                <div class="panel-content">
+                    <span class="text-muted">Strategy alignment analysis will be available in a future update.</span>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    {{template "footer.html" .}}
+
+    <script>
+    window.__VIRE_DATA__ = {
+        holding: {{.HoldingJSON}},
+        portfolioName: {{.PortfolioNameJSON}},
+        ticker: {{.TickerJSON}}
+    };
+    </script>
+
+</body>
+
+</html>
