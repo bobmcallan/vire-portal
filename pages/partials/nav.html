@@ -23,7 +23,7 @@
                 <div x-show="dropdownOpen" x-cloak class="nav-dropdown">
                     <a href="/profile">Profile</a>
                     <a href="/changelog">Changelog</a>
-                    {{if eq .UserRole "admin"}}<a href="/admin/users" class="nav-admin-item">Users *</a><a href="/admin/prompts" class="nav-admin-item">Prompts *</a>{{end}}
+                    {{if eq .UserRole "admin"}}<a href="/admin/users" class="nav-admin-item">Users *</a><a href="/admin/prompts" class="nav-admin-item">Prompts *</a><a href="/admin/gemini" class="nav-admin-item">Gemini *</a>{{end}}
                     <a href="/help">Help</a>
                     <form method="POST" action="/api/auth/logout">
                         <button type="submit" class="nav-dropdown-logout">Logout</button>
@@ -45,7 +45,7 @@
                 <a href="/mcp-info">MCP</a>
                 <a href="/help">Help</a>
                 <a href="/changelog">Changelog</a>
-                {{if eq .UserRole "admin"}}<a href="/admin/users" class="nav-admin-item">Users *</a><a href="/admin/prompts" class="nav-admin-item">Prompts *</a>{{end}}
+                {{if eq .UserRole "admin"}}<a href="/admin/users" class="nav-admin-item">Users *</a><a href="/admin/prompts" class="nav-admin-item">Prompts *</a><a href="/admin/gemini" class="nav-admin-item">Gemini *</a>{{end}}
                 <a href="/profile">Profile</a>
                 <form method="POST" action="/api/auth/logout">
                     <button type="submit" style="display:block;width:100%;padding:0.6rem 0;font-weight:700;font-size:0.8rem;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;color:#000;border:none;border-bottom:1px solid #888;background:none;cursor:pointer;text-align:left;font-family:'IBM Plex Mono',ui-monospace,monospace;">Logout</button>

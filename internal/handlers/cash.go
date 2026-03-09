@@ -76,7 +76,7 @@ func (h *CashHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	transactionsJSON = "null"
 	if h.proxyGetFn != nil && claims != nil && claims.Sub != "" {
 		if body, err := h.proxyGetFn("/api/portfolios", claims.Sub); err == nil {
-			portfoliosJSON = template.JS(body)
+			portfoliosJSON = SafeJS(body)
 			var pData struct {
 				Portfolios []struct {
 					Name string `json:"name"`
@@ -90,7 +90,7 @@ func (h *CashHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				if selected != "" {
 					if tBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/cash-transactions", claims.Sub); err == nil {
-						transactionsJSON = template.JS(tBody)
+						transactionsJSON = SafeJS(tBody)
 					}
 				}
 			}

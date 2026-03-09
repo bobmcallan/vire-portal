@@ -28,6 +28,7 @@ var allowedPages = map[string]string{
 	"docs":          "/docs",
 	"admin/users":   "/admin/users",
 	"admin/prompts": "/admin/prompts",
+	"admin/gemini":  "/admin/gemini",
 }
 
 // maxPageResponseSize limits loopback response body to 5MB.
@@ -44,7 +45,7 @@ func GetPageTool() mcp.Tool {
 	return mcp.NewTool("portal_get_page",
 		mcp.WithDescription("Fetch a rendered portal page as HTML. Returns the full HTML of the requested page as seen by the authenticated user. Use this to review page layout, content accuracy, and data rendering without requiring screenshots."),
 		mcp.WithString("page",
-			mcp.Description("Page to fetch. One of: dashboard, strategy, cash, glossary, changelog, help, mcp-info, profile, docs, admin/users, admin/prompts"),
+			mcp.Description("Page to fetch. One of: dashboard, strategy, cash, glossary, changelog, help, mcp-info, profile, docs, admin/users, admin/prompts, admin/gemini"),
 			mcp.Required(),
 		),
 	)
@@ -56,7 +57,7 @@ func GetPageToolHandler(portalBaseURL string, jwtSecret []byte) server.ToolHandl
 		page := r.GetString("page", "")
 		path, ok := allowedPages[page]
 		if !ok {
-			return errorResult(fmt.Sprintf("Error: %q is not a valid page. Choose one of: dashboard, strategy, cash, glossary, changelog, help, mcp-info, profile, docs, admin/users, admin/prompts", page)), nil
+			return errorResult(fmt.Sprintf("Error: %q is not a valid page. Choose one of: dashboard, strategy, cash, glossary, changelog, help, mcp-info, profile, docs, admin/users, admin/prompts, admin/gemini", page)), nil
 		}
 
 		uc, ok := GetUserContext(ctx)

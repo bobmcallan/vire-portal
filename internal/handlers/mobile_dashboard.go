@@ -95,7 +95,7 @@ func (h *MobileDashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		// 1. Fetch portfolio list
 		t1 := time.Now()
 		if body, err := h.proxyGetFn("/api/portfolios", claims.Sub); err == nil {
-			portfoliosJSON = template.JS(body)
+			portfoliosJSON = SafeJS(body)
 
 			if h.logger != nil {
 				h.logger.Info().Int64("duration_ms", time.Since(t1).Milliseconds()).Msg("mobile SSR: portfolios")
@@ -129,7 +129,7 @@ func (h *MobileDashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 				}
 				selectedPortfolio = selected
 				if b, err := json.Marshal(selected); err == nil {
-					selectedJSON = template.JS(b)
+					selectedJSON = SafeJS(b)
 				}
 				if selected != "" {
 					escapedName := url.PathEscape(selected)
@@ -141,7 +141,7 @@ func (h *MobileDashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 						defer wg.Done()
 						t2 := time.Now()
 						if pBody, err := h.proxyGetFn("/api/portfolios/"+escapedName, userID); err == nil {
-							portfolioJSON = template.JS(pBody)
+							portfolioJSON = SafeJS(pBody)
 							if h.logger != nil {
 								h.logger.Info().Int64("duration_ms", time.Since(t2).Milliseconds()).Str("portfolio", selected).Msg("mobile SSR: portfolio data")
 							}
@@ -154,7 +154,7 @@ func (h *MobileDashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 						defer wg.Done()
 						t3 := time.Now()
 						if tBody, err := h.proxyGetFn("/api/portfolios/"+escapedName+"/timeline", userID); err == nil {
-							timelineJSON = template.JS(tBody)
+							timelineJSON = SafeJS(tBody)
 							if h.logger != nil {
 								h.logger.Info().Int64("duration_ms", time.Since(t3).Milliseconds()).Str("portfolio", selected).Msg("mobile SSR: timeline")
 							}

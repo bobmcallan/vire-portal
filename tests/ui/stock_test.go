@@ -60,8 +60,8 @@ func TestStockPageLoad(t *testing.T) {
 		t.Error("back link to /dashboard not found")
 	}
 
-	// Verify placeholder sections exist
-	placeholders := []string{"TRADE HISTORY", "PRICE CHART", "FILINGS", "STRATEGY ALIGNMENT"}
+	// Verify placeholder sections still exist (Trade History and Strategy Alignment remain placeholders)
+	placeholders := []string{"TRADE HISTORY", "STRATEGY ALIGNMENT"}
 	for _, title := range placeholders {
 		found, err := commontest.EvalBool(ctx, `
 			(() => {
@@ -294,6 +294,195 @@ func TestStockPageRedirectsEmpty(t *testing.T) {
 	// Empty ticker should redirect to dashboard
 	if strings.HasSuffix(currentURL, "/stock/") {
 		t.Error("empty ticker should redirect away from /stock/")
+	}
+}
+
+func TestStockPriceChartSection(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/stock/BHP")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
+	takeScreenshot(t, ctx, "stock", "price-chart-section.png")
+
+	// Check for the STOCK PRICE TREND section (may be hidden if no candle data)
+	sectionExists, err := commontest.EvalBool(ctx, `
+		(() => {
+			const headers = document.querySelectorAll('.panel-header');
+			return Array.from(headers).some(h => h.textContent.includes('STOCK PRICE TREND'));
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking price chart section: %v", err)
+	}
+	if !sectionExists {
+		t.Skip("STOCK PRICE TREND section not found (no candle data available)")
+	}
+
+	// Verify the canvas element exists
+	canvasExists, err := commontest.EvalBool(ctx, `!!document.getElementById('stock-price-chart')`)
+	if err != nil {
+		t.Fatalf("error checking chart canvas: %v", err)
+	}
+	if !canvasExists {
+		t.Error("stock-price-chart canvas not found")
+	}
+
+	// Verify SMA toggle controls exist
+	toggleCount, err := elementCount(ctx, ".growth-chart-controls .chart-toggle-label")
+	if err != nil {
+		t.Fatalf("error counting SMA toggles: %v", err)
+	}
+	if toggleCount < 3 {
+		t.Errorf("SMA toggle count = %d, want >= 3 (SMA 20, SMA 50, SMA 200)", toggleCount)
+	}
+}
+
+func TestStockFilingsSection(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/stock/BHP")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
+	takeScreenshot(t, ctx, "stock", "filings-section.png")
+
+	// Check for the FILINGS TIMELINE section
+	sectionExists, err := commontest.EvalBool(ctx, `
+		(() => {
+			const headers = document.querySelectorAll('.panel-header');
+			return Array.from(headers).some(h => h.textContent.includes('FILINGS TIMELINE'));
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking filings section: %v", err)
+	}
+	if !sectionExists {
+		t.Skip("FILINGS TIMELINE section not found (no filing data available)")
+	}
+
+	// Verify table headers
+	headersCorrect, err := commontest.EvalBool(ctx, `
+		(() => {
+			const sections = document.querySelectorAll('.panel-headed');
+			for (const sec of sections) {
+				const header = sec.querySelector('.panel-header');
+				if (header && header.textContent.includes('FILINGS TIMELINE')) {
+					const ths = sec.querySelectorAll('.tool-table thead th');
+					if (ths.length >= 3) {
+						return ths[0].textContent.includes('Date') &&
+							ths[1].textContent.includes('Headline') &&
+							ths[2].textContent.includes('Type');
+					}
+				}
+			}
+			return false;
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking filings table headers: %v", err)
+	}
+	if !headersCorrect {
+		t.Error("filings table headers do not match expected: Date, Headline, Type")
+	}
+
+	// Verify filing rows have clickable elements
+	filingRowCount, err := elementCount(ctx, ".filing-row")
+	if err != nil {
+		t.Fatalf("error counting filing rows: %v", err)
+	}
+	if filingRowCount == 0 {
+		t.Error("no filing rows found despite section being visible")
+	}
+}
+
+func TestStockNewsSection(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/stock/BHP")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
+	takeScreenshot(t, ctx, "stock", "news-section.png")
+
+	// Check for the NEWS & SENTIMENT section
+	sectionExists, err := commontest.EvalBool(ctx, `
+		(() => {
+			const headers = document.querySelectorAll('.panel-header');
+			return Array.from(headers).some(h => h.textContent.includes('NEWS') && h.textContent.includes('SENTIMENT'));
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking news section: %v", err)
+	}
+	if !sectionExists {
+		t.Skip("NEWS & SENTIMENT section not found (no news data available)")
+	}
+
+	// Verify sentiment badge exists
+	sentimentExists, err := commontest.EvalBool(ctx, `!!document.querySelector('.sentiment-badge')`)
+	if err != nil {
+		t.Fatalf("error checking sentiment badge: %v", err)
+	}
+	if !sentimentExists {
+		t.Error("sentiment badge not found in NEWS & SENTIMENT section")
+	}
+}
+
+func TestStockCompanyOverview(t *testing.T) {
+	ctx, cancel := newBrowser(t)
+	defer cancel()
+
+	err := loginAndNavigate(ctx, serverURL()+"/stock/BHP")
+	if err != nil {
+		t.Fatalf("login and navigate failed: %v", err)
+	}
+
+	_ = chromedp.Run(ctx, chromedp.Sleep(2*time.Second))
+
+	takeScreenshot(t, ctx, "stock", "company-overview.png")
+
+	// Check for the COMPANY OVERVIEW section
+	sectionExists, err := commontest.EvalBool(ctx, `
+		(() => {
+			const headers = document.querySelectorAll('.panel-header');
+			return Array.from(headers).some(h => h.textContent.includes('COMPANY OVERVIEW'));
+		})()
+	`)
+	if err != nil {
+		t.Fatalf("error checking company overview section: %v", err)
+	}
+	if !sectionExists {
+		t.Skip("COMPANY OVERVIEW section not found (no fundamentals/timeline data available)")
+	}
+
+	// Check for fundamentals grid if present
+	fundamentalsExists, err := commontest.EvalBool(ctx, `!!document.querySelector('.fundamentals-grid')`)
+	if err != nil {
+		t.Fatalf("error checking fundamentals grid: %v", err)
+	}
+
+	// Check for company events if present
+	eventsExists, err := commontest.EvalBool(ctx, `!!document.querySelector('.company-event')`)
+	if err != nil {
+		t.Fatalf("error checking company events: %v", err)
+	}
+
+	if !fundamentalsExists && !eventsExists {
+		t.Error("COMPANY OVERVIEW section visible but neither fundamentals grid nor company events found")
 	}
 }
 

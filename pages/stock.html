@@ -74,7 +74,175 @@
                 <strong x-text="ticker"></strong> is not currently held in your portfolio.
             </div>
 
-            <!-- Placeholder sections for future data -->
+            <!-- Stock Price Trend -->
+            <section class="panel-headed stock-price-chart-section" x-show="detail && detail.candles && detail.candles.length > 0" x-cloak>
+                <div class="panel-header">
+                    STOCK PRICE TREND
+                    <template x-if="detail && detail.signals && detail.signals.trend">
+                        <span class="stock-trend-badge" :class="'trend-' + (detail.signals.trend || '').toLowerCase()" x-text="detail.signals.trend"></span>
+                    </template>
+                </div>
+                <div class="panel-content">
+                    <div x-show="detail && detail.signals && detail.signals.trend_description" class="text-muted text-sm mb" x-text="detail ? (detail.signals || {}).trend_description : ''"></div>
+                    <div class="growth-chart-controls">
+                        <label class="chart-toggle-label">
+                            <input type="checkbox" x-model="showSMA20"> SMA 20
+                        </label>
+                        <label class="chart-toggle-label">
+                            <input type="checkbox" x-model="showSMA50"> SMA 50
+                        </label>
+                        <label class="chart-toggle-label">
+                            <input type="checkbox" x-model="showSMA200"> SMA 200
+                        </label>
+                    </div>
+                    <div class="growth-chart-scroll">
+                        <div class="growth-chart-canvas-sizer">
+                            <canvas id="stock-price-chart" style="width:100%;height:100%;"></canvas>
+                        </div>
+                    </div>
+                    <div x-show="detail && detail.signals && detail.signals.technical && detail.signals.technical.rsi != null" class="stock-rsi-value mt">
+                        <span class="label">RSI</span>
+                        <span class="text-bold" x-text="detail && detail.signals && detail.signals.technical ? Number(detail.signals.technical.rsi).toFixed(1) : '-'"></span>
+                        <span class="text-muted text-sm" x-text="detail && detail.signals && detail.signals.technical ? detail.signals.technical.rsi_signal || '' : ''"></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Filings Timeline -->
+            <section class="panel-headed" x-show="detail && detail.filing_summaries && detail.filing_summaries.length > 0" x-cloak>
+                <div class="panel-header">FILINGS TIMELINE</div>
+                <div class="panel-content">
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Headline</th>
+                                    <th>Type</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(filing, idx) in (detail ? detail.filing_summaries : [])" :key="idx">
+                                    <tr>
+                                        <td>
+                                            <div class="filing-row" @click="toggleFiling(idx)">
+                                                <span x-text="fmtDate(filing.date)"></span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="filing-row" @click="toggleFiling(idx)">
+                                                <span x-text="filing.headline"></span>
+                                            </div>
+                                            <div x-show="expandedFilings[idx]" x-cloak class="filing-key-facts">
+                                                <template x-if="filing.key_facts && filing.key_facts.length > 0">
+                                                    <ul>
+                                                        <template x-for="fact in filing.key_facts" :key="fact">
+                                                            <li x-text="fact"></li>
+                                                        </template>
+                                                    </ul>
+                                                </template>
+                                            </div>
+                                        </td>
+                                        <td x-text="filing.type || ''"></td>
+                                        <td>
+                                            <span x-show="filing.price_sensitive" class="filing-price-sensitive badge badge-filled">PS</span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- News & Sentiment -->
+            <section class="panel-headed" x-show="detail && detail.news_intelligence" x-cloak>
+                <div class="panel-header">NEWS &amp; SENTIMENT</div>
+                <div class="panel-content">
+                    <div x-show="detail && detail.news_intelligence && detail.news_intelligence.overall_sentiment" class="mb">
+                        <span class="label">SENTIMENT</span>
+                        <span class="sentiment-badge" :class="sentimentClass(detail && detail.news_intelligence ? detail.news_intelligence.overall_sentiment : '')" x-text="detail && detail.news_intelligence ? detail.news_intelligence.overall_sentiment : ''"></span>
+                    </div>
+                    <p x-show="detail && detail.news_intelligence && detail.news_intelligence.summary" class="text-sm mb" x-text="detail && detail.news_intelligence ? detail.news_intelligence.summary : ''"></p>
+                    <template x-if="detail && detail.news_intelligence && detail.news_intelligence.articles && detail.news_intelligence.articles.length > 0">
+                        <div>
+                            <template x-for="article in detail.news_intelligence.articles" :key="article.title">
+                                <div class="panel" style="padding:1rem;margin-bottom:0.75rem;">
+                                    <div class="text-bold text-sm">
+                                        <a :href="article.url" target="_blank" rel="noopener" x-text="article.title"></a>
+                                    </div>
+                                    <div class="text-muted text-sm">
+                                        <span x-text="article.source || ''"></span>
+                                        <span x-show="article.credibility" class="credibility-badge" :class="credibilityClass(article.credibility)" x-text="article.credibility"></span>
+                                    </div>
+                                    <p class="text-sm" x-text="article.summary || ''"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
+            <!-- Company Overview -->
+            <section class="panel-headed" x-show="detail && (detail.fundamentals || detail.company_timeline)" x-cloak>
+                <div class="panel-header">COMPANY OVERVIEW</div>
+                <div class="panel-content">
+                    <div x-show="detail && detail.company_timeline && detail.company_timeline.business_model" class="mb">
+                        <span class="label">BUSINESS MODEL</span>
+                        <p class="text-sm" x-text="detail && detail.company_timeline ? detail.company_timeline.business_model : ''"></p>
+                    </div>
+                    <template x-if="detail && detail.company_timeline && detail.company_timeline.key_events && detail.company_timeline.key_events.length > 0">
+                        <div class="mb">
+                            <span class="label">KEY EVENTS</span>
+                            <template x-for="evt in detail.company_timeline.key_events" :key="evt.date + evt.event">
+                                <div class="company-event">
+                                    <span class="text-muted text-sm" x-text="fmtDate(evt.date)"></span>
+                                    <span class="text-bold text-sm" x-text="evt.event"></span>
+                                    <span class="text-sm" x-text="evt.detail || ''"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <template x-if="detail && detail.fundamentals">
+                        <div>
+                            <span class="label">FUNDAMENTALS</span>
+                            <div class="fundamentals-grid">
+                                <div class="stock-detail-field" x-show="detail.fundamentals.market_cap">
+                                    <span class="label">MARKET CAP</span>
+                                    <span x-text="fmtMarketCap(detail.fundamentals.market_cap)"></span>
+                                </div>
+                                <div class="stock-detail-field" x-show="detail.fundamentals.pe_ratio != null">
+                                    <span class="label">P/E RATIO</span>
+                                    <span x-text="detail.fundamentals.pe_ratio != null ? Number(detail.fundamentals.pe_ratio).toFixed(2) : '-'"></span>
+                                </div>
+                                <div class="stock-detail-field" x-show="detail.fundamentals.dividend_yield != null">
+                                    <span class="label">DIVIDEND YIELD</span>
+                                    <span x-text="detail.fundamentals.dividend_yield != null ? Number(detail.fundamentals.dividend_yield).toFixed(2) + '%' : '-'"></span>
+                                </div>
+                                <div class="stock-detail-field" x-show="detail.fundamentals.sector">
+                                    <span class="label">SECTOR</span>
+                                    <span x-text="detail.fundamentals.sector || '-'"></span>
+                                </div>
+                                <div class="stock-detail-field" x-show="detail.fundamentals.industry">
+                                    <span class="label">INDUSTRY</span>
+                                    <span x-text="detail.fundamentals.industry || '-'"></span>
+                                </div>
+                                <div class="stock-detail-field" x-show="detail.fundamentals.beta != null">
+                                    <span class="label">BETA</span>
+                                    <span x-text="detail.fundamentals.beta != null ? Number(detail.fundamentals.beta).toFixed(2) : '-'"></span>
+                                </div>
+                                <div class="stock-detail-field" x-show="detail.fundamentals.eps != null">
+                                    <span class="label">EPS</span>
+                                    <span x-text="detail.fundamentals.eps != null ? '$' + Number(detail.fundamentals.eps).toFixed(2) : '-'"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
+            <!-- Trade History (placeholder) -->
             <section class="panel-headed stock-placeholder">
                 <div class="panel-header">TRADE HISTORY</div>
                 <div class="panel-content">
@@ -82,20 +250,7 @@
                 </div>
             </section>
 
-            <section class="panel-headed stock-placeholder">
-                <div class="panel-header">PRICE CHART</div>
-                <div class="panel-content">
-                    <span class="text-muted">Price chart will be available in a future update.</span>
-                </div>
-            </section>
-
-            <section class="panel-headed stock-placeholder">
-                <div class="panel-header">FILINGS</div>
-                <div class="panel-content">
-                    <span class="text-muted">Company filings will be available in a future update.</span>
-                </div>
-            </section>
-
+            <!-- Strategy Alignment (placeholder) -->
             <section class="panel-headed stock-placeholder">
                 <div class="panel-header">STRATEGY ALIGNMENT</div>
                 <div class="panel-content">
@@ -112,7 +267,8 @@
     window.__VIRE_DATA__ = {
         holding: {{.HoldingJSON}},
         portfolioName: {{.PortfolioNameJSON}},
-        ticker: {{.TickerJSON}}
+        ticker: {{.TickerJSON}},
+        stockDetail: {{.StockDetailJSON}}
     };
     </script>
 

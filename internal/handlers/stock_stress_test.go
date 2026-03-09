@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -599,6 +600,476 @@ func TestStockStress_ScriptInjectionInHoldingName(t *testing.T) {
 	// Check that the raw </script> tag does NOT appear literally in the page.
 	if strings.Contains(body, `</script><script>alert("xss")</script>`) {
 		t.Error("script-breaking payload in holding name appears unescaped -- XSS vulnerability")
+	}
+}
+
+func TestStockStress_StockDetailJSONEscaping(t *testing.T) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			// Return JSON with script-breaking content via json.Marshal
+			// json.Marshal escapes < as \u003c — this is the safe path
+			return json.Marshal(map[string]interface{}{
+				"fundamentals": map[string]interface{}{
+					"sector": `</script><script>alert("xss")</script>`,
+				},
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "EVIL.AX", "name": "Test"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/EVIL.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if strings.Contains(body, `</script><script>alert("xss")</script>`) {
+		t.Error("XSS payload in stock detail JSON appears unescaped")
+	}
+}
+
+func TestStockStress_StockDetailXSSRawBytes(t *testing.T) {
+	// SafeJS escapes </script in raw API response bytes, preventing XSS
+	// even if the upstream API returns hand-crafted JSON with literal
+	// </script> tags.
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	// Simulate raw bytes with literal </script> — SafeJS must escape this
+	rawXSS := `{"fundamentals":{"sector":"</script><script>alert('xss')</script>"}}`
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return []byte(rawXSS), nil
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Test"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// SafeJS should escape </script to <\/script
+	if strings.Contains(body, `<script>alert('xss')</script>`) {
+		t.Error("SECURITY: raw API bytes with </script> broke out of JSON hydration block — SafeJS not applied")
+	}
+}
+
+func TestStockStress_StockDetailXSSInFilingHeadlines(t *testing.T) {
+	// Filing headlines come from API — test XSS in filing data
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return json.Marshal(map[string]interface{}{
+				"filing_summaries": []map[string]interface{}{
+					{
+						"date":            "2026-03-01",
+						"headline":        `<img src=x onerror=alert(1)>`,
+						"type":            `"><script>alert(2)</script>`,
+						"price_sensitive": true,
+						"key_facts":       []string{`<svg onload=alert(3)>`, "Normal fact"},
+					},
+				},
+				"news_intelligence": map[string]interface{}{
+					"overall_sentiment": `"><script>alert(4)</script>`,
+					"summary":           `<img src=x onerror=alert(5)>`,
+					"articles": []map[string]interface{}{
+						{
+							"title":       `<script>alert(6)</script>`,
+							"url":         `javascript:alert(7)`,
+							"source":      `"><script>alert(8)</script>`,
+							"credibility": `high" onmouseover="alert(9)`,
+							"summary":     `<svg/onload=alert(10)>`,
+						},
+					},
+				},
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Test"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// json.Marshal escapes < to \u003c in the hydration block.
+	// Alpine x-text sets textContent (not innerHTML) so it's safe.
+	// Verify that literal HTML tags don't appear unescaped outside the JSON string.
+	if strings.Contains(body, `<script>alert(`) {
+		t.Error("SECURITY: XSS in filing/news data — script tag not escaped")
+	}
+	// Note: onerror=alert may appear inside JSON string values within the
+	// <script> hydration block. This is safe because:
+	// 1. It's inside a JavaScript string literal (JSON value)
+	// 2. Alpine renders via x-text (textContent), not innerHTML
+	// We only check for < > which would break out of JSON context.
+	if strings.Contains(body, `<img src=x onerror`) {
+		t.Error("SECURITY: XSS in filing/news data — img tag not escaped by json.Marshal")
+	}
+	if strings.Contains(body, `<svg/onload`) {
+		t.Error("SECURITY: XSS in filing/news data — svg tag not escaped by json.Marshal")
+	}
+}
+
+func TestStockStress_StockDetailNullSections(t *testing.T) {
+	// All detail sections null — page must render without crash
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return []byte(`{"candles":null,"filing_summaries":null,"news_intelligence":null,"fundamentals":null,"company_timeline":null,"signals":null}`), nil
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Test"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with null detail sections, got %d", w.Code)
+	}
+}
+
+func TestStockStress_StockDetailAPIError(t *testing.T) {
+	// Detail API errors but portfolio/holding succeeds — graceful degradation
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return nil, fmt.Errorf("service unavailable")
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Commonwealth Bank"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with detail API error, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// Holding should still be rendered
+	if !strings.Contains(body, "Commonwealth Bank") {
+		t.Error("expected holding data even when detail API fails")
+	}
+	// StockDetailJSON should be null
+	if !strings.Contains(body, "stockDetail: null") {
+		t.Error("expected stockDetail: null when detail API errors")
+	}
+	// Internal error should not leak
+	if strings.Contains(body, "service unavailable") {
+		t.Error("SECURITY: internal error details leaked into HTML")
+	}
+}
+
+func TestStockStress_StockDetailNoPortfolio(t *testing.T) {
+	// When selected portfolio is empty, detail should not be fetched
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	detailCalled := false
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []interface{}{},
+				"default":    "",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			detailCalled = true
+			return []byte(`{"candles":[]}`), nil
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	if detailCalled {
+		t.Error("stock detail API should not be called when no portfolio is selected")
+	}
+}
+
+func TestStockStress_StockDetailLargePayload(t *testing.T) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	// Generate a large candles array
+	candles := make([]map[string]interface{}, 5000)
+	for i := range candles {
+		candles[i] = map[string]interface{}{
+			"date":  "2026-01-01",
+			"open":  100.0 + float64(i),
+			"high":  101.0 + float64(i),
+			"low":   99.0 + float64(i),
+			"close": 100.5 + float64(i),
+		}
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return json.Marshal(map[string]interface{}{
+				"candles": candles,
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Commonwealth Bank"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with large payload, got %d", w.Code)
+	}
+}
+
+func TestStockStress_StockDetailLargeFilings(t *testing.T) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	// Generate many filings with many key_facts each
+	filings := make([]map[string]interface{}, 200)
+	for i := range filings {
+		facts := make([]string, 20)
+		for j := range facts {
+			facts[j] = fmt.Sprintf("Key fact %d for filing %d with a moderately long description to test memory usage", j, i)
+		}
+		filings[i] = map[string]interface{}{
+			"date":            fmt.Sprintf("2026-01-%02d", (i%28)+1),
+			"headline":        fmt.Sprintf("Filing headline number %d with details", i),
+			"type":            "Annual Report",
+			"price_sensitive": i%3 == 0,
+			"key_facts":       facts,
+		}
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return json.Marshal(map[string]interface{}{
+				"filing_summaries": filings,
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Commonwealth Bank"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with large filings, got %d", w.Code)
+	}
+}
+
+func TestStockStress_TickerInjectionInDetailPath(t *testing.T) {
+	// Verify ticker is URL-escaped in the detail API path
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	var capturedPath string
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			capturedPath = path
+			return []byte(`{"candles":[]}`), nil
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "../../../etc/passwd", "name": "Evil"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	// Use a path-traversal ticker
+	req := httptest.NewRequest("GET", "/stock/..%2F..%2F..%2Fetc%2Fpasswd", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	// The ticker should be URL-escaped in the API path
+	if capturedPath != "" && strings.Contains(capturedPath, "../") {
+		t.Error("SECURITY: path traversal in ticker not escaped in detail API path")
 	}
 }
 

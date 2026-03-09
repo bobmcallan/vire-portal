@@ -157,7 +157,7 @@ func (h *AdminPromptsHandler) serveEdit(w http.ResponseWriter, r *http.Request, 
 	var promptJSON template.JS
 	if prompt != nil {
 		b, _ := json.Marshal(prompt)
-		promptJSON = template.JS(b)
+		promptJSON = SafeJS(b)
 	}
 
 	data := map[string]interface{}{

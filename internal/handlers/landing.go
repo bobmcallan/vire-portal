@@ -278,7 +278,7 @@ func (h *PageHandler) ServeChangelogPage() http.HandlerFunc {
 					Items json.RawMessage `json:"items"`
 				}
 				if json.Unmarshal(body, &resp) == nil && resp.Items != nil {
-					entriesJSON = template.JS(resp.Items)
+					entriesJSON = SafeJS(resp.Items)
 				}
 			}
 		}
@@ -323,7 +323,7 @@ func (h *PageHandler) ServeHelpPage() http.HandlerFunc {
 				}
 				if json.Unmarshal(body, &resp) == nil {
 					if resp.Items != nil {
-						feedbackJSON = template.JS(resp.Items)
+						feedbackJSON = SafeJS(resp.Items)
 					}
 					feedbackTotal = resp.Total
 				}

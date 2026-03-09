@@ -58,6 +58,7 @@ type App struct {
 	OAuthServer            *auth.OAuthServer
 	AdminUsersHandler      *handlers.AdminUsersHandler
 	AdminPromptsHandler    *handlers.AdminPromptsHandler
+	AdminGeminiHandler     *handlers.AdminGeminiHandler
 	WSStatusHandler        *handlers.WSStatusHandler
 }
 
@@ -261,6 +262,15 @@ func (a *App) initHandlers() {
 		serviceUserID,
 	)
 	a.AdminUsersHandler.SetAPIURL(a.Config.API.URL)
+
+	a.AdminGeminiHandler = handlers.NewAdminGeminiHandler(
+		a.Logger,
+		a.Config.IsDevMode(),
+		jwtSecret,
+		userLookup,
+	)
+	a.AdminGeminiHandler.SetAPIURL(a.Config.API.URL)
+	a.AdminGeminiHandler.SetProxyGetFn(cachedProxyGet)
 
 	a.AdminPromptsHandler = handlers.NewAdminPromptsHandler(
 		a.Logger,

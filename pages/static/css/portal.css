@@ -1892,3 +1892,109 @@ code {
 .stock-placeholder {
     opacity: 0.5;
 }
+
+.stock-price-chart-section .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.stock-trend-badge {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid #fff;
+}
+
+.trend-bullish, .trend-uptrend { background: #2d8a4e; color: #fff; border-color: #2d8a4e; }
+.trend-bearish, .trend-downtrend { background: #a33; color: #fff; border-color: #a33; }
+.trend-neutral, .trend-sideways { background: #888; color: #fff; border-color: #888; }
+
+.stock-rsi-value {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filing-row {
+    cursor: pointer;
+}
+
+.filing-row:hover {
+    text-decoration: underline;
+}
+
+.filing-key-facts {
+    padding: 0.5rem 0 0.25rem 1rem;
+    font-size: 0.8125rem;
+    color: #555;
+}
+
+.filing-key-facts ul {
+    margin: 0;
+    padding-left: 1rem;
+}
+
+.filing-key-facts li {
+    margin-bottom: 0.25rem;
+}
+
+.filing-price-sensitive {
+    font-size: 0.625rem;
+}
+
+.sentiment-badge {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid #000;
+}
+
+.sentiment-positive { background: #2d8a4e; color: #fff; border-color: #2d8a4e; }
+.sentiment-negative { background: #a33; color: #fff; border-color: #a33; }
+.sentiment-neutral { background: #888; color: #fff; border-color: #888; }
+
+.credibility-badge {
+    display: inline-block;
+    padding: 0.05rem 0.3rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid #888;
+    margin-left: 0.5rem;
+}
+
+.credibility-high { border-color: #2d8a4e; color: #2d8a4e; }
+.credibility-medium { border-color: #888; color: #888; }
+.credibility-low { border-color: #a33; color: #a33; }
+
+.company-event {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.company-event:last-child {
+    border-bottom: none;
+}
+
+.fundamentals-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+@media (min-width: 48rem) {
+    .fundamentals-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{template "head.html" .}}
+    <title>VIRE GEMINI USAGE</title>
+</head>
+<body>
+    {{if .LoggedIn}}{{template "nav.html" .}}{{end}}
+    <main class="page" x-data="geminiUsage()">
+        <div class="page-body">
+
+            <h1 class="section-title">GEMINI USAGE</h1>
+
+            <!-- Period tabs -->
+            <div class="tabs">
+                <button class="tab" :class="period === 'day' && 'active'" @click="switchPeriod('day')">Day</button>
+                <button class="tab" :class="period === 'week' && 'active'" @click="switchPeriod('week')">Week</button>
+                <button class="tab" :class="period === 'month' && 'active'" @click="switchPeriod('month')">Month</button>
+            </div>
+
+            <!-- Loading state -->
+            <div x-show="loading" x-cloak class="info-banner">Loading usage data...</div>
+
+            <!-- Error state -->
+            <div x-show="error" x-cloak class="warning-banner" x-text="error"></div>
+
+            <!-- No data state -->
+            <div x-show="!loading && !error && !usage" x-cloak class="info-banner">No usage data available.</div>
+
+            <!-- Headline stats -->
+            <section class="panel-headed" x-show="usage" x-cloak>
+                <div class="panel-header">SUMMARY</div>
+                <div class="panel-content">
+                    <div class="stock-detail-grid">
+                        <div class="stock-detail-field">
+                            <span class="label">TOTAL CALLS</span>
+                            <span class="text-bold" x-text="usage ? fmtTokens(usage.total_calls) : '-'"></span>
+                        </div>
+                        <div class="stock-detail-field">
+                            <span class="label">PROMPT TOKENS</span>
+                            <span x-text="usage ? fmtTokens(usage.total_prompt_tokens) : '-'"></span>
+                        </div>
+                        <div class="stock-detail-field">
+                            <span class="label">OUTPUT TOKENS</span>
+                            <span x-text="usage ? fmtTokens(usage.total_output_tokens) : '-'"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- By job type -->
+            <section class="panel-headed" x-show="usage && usage.by_job_type && usage.by_job_type.length > 0" x-cloak>
+                <div class="panel-header">BY JOB TYPE</div>
+                <div class="panel-content">
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead>
+                                <tr>
+                                    <th>Job Type</th>
+                                    <th class="text-right">Calls</th>
+                                    <th class="text-right">Prompt Tokens</th>
+                                    <th class="text-right">Output Tokens</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="row in (usage ? usage.by_job_type : [])" :key="row.job_type">
+                                    <tr>
+                                        <td class="tool-name" x-text="row.job_type"></td>
+                                        <td class="text-right" x-text="fmtTokens(row.calls)"></td>
+                                        <td class="text-right" x-text="fmtTokens(row.prompt_tokens)"></td>
+                                        <td class="text-right" x-text="fmtTokens(row.output_tokens)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- By model -->
+            <section class="panel-headed" x-show="usage && usage.by_model && usage.by_model.length > 0" x-cloak>
+                <div class="panel-header">BY MODEL</div>
+                <div class="panel-content">
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead>
+                                <tr>
+                                    <th>Model</th>
+                                    <th class="text-right">Calls</th>
+                                    <th class="text-right">Prompt Tokens</th>
+                                    <th class="text-right">Output Tokens</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="row in (usage ? usage.by_model : [])" :key="row.model">
+                                    <tr>
+                                        <td class="tool-name" x-text="row.model"></td>
+                                        <td class="text-right" x-text="fmtTokens(row.calls)"></td>
+                                        <td class="text-right" x-text="fmtTokens(row.prompt_tokens)"></td>
+                                        <td class="text-right" x-text="fmtTokens(row.output_tokens)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- By day -->
+            <section class="panel-headed" x-show="usage && usage.by_day && usage.by_day.length > 0" x-cloak>
+                <div class="panel-header">BY DAY</div>
+                <div class="panel-content">
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th class="text-right">Calls</th>
+                                    <th class="text-right">Prompt Tokens</th>
+                                    <th class="text-right">Output Tokens</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="row in (usage ? usage.by_day : [])" :key="row.date">
+                                    <tr>
+                                        <td x-text="row.date"></td>
+                                        <td class="text-right" x-text="fmtTokens(row.calls)"></td>
+                                        <td class="text-right" x-text="fmtTokens(row.prompt_tokens)"></td>
+                                        <td class="text-right" x-text="fmtTokens(row.output_tokens)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent calls -->
+            <section class="panel-headed" x-show="usage && usage.recent_calls && usage.recent_calls.length > 0" x-cloak>
+                <div class="panel-header">RECENT CALLS</div>
+                <div class="panel-content">
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Job Type</th>
+                                    <th>Model</th>
+                                    <th class="text-right">Prompt</th>
+                                    <th class="text-right">Output</th>
+                                    <th class="text-right">Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="call in (usage ? usage.recent_calls : [])" :key="call.timestamp">
+                                    <tr>
+                                        <td x-text="fmtTimestamp(call.timestamp)"></td>
+                                        <td x-text="call.job_type"></td>
+                                        <td x-text="call.model"></td>
+                                        <td class="text-right" x-text="fmtTokens(call.prompt_tokens)"></td>
+                                        <td class="text-right" x-text="fmtTokens(call.output_tokens)"></td>
+                                        <td class="text-right" x-text="fmtDuration(call.duration_ms)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+    {{template "footer.html" .}}
+
+    <script>
+    window.__VIRE_DATA__ = {
+        usage: {{.UsageJSON}}
+    };
+    </script>
+</body>
+</html>

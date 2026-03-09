@@ -77,7 +77,7 @@ func (h *StrategyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	planJSON = "null"
 	if h.proxyGetFn != nil && claims != nil && claims.Sub != "" {
 		if body, err := h.proxyGetFn("/api/portfolios", claims.Sub); err == nil {
-			portfoliosJSON = template.JS(body)
+			portfoliosJSON = SafeJS(body)
 			var pData struct {
 				Portfolios []struct {
 					Name string `json:"name"`
@@ -91,10 +91,10 @@ func (h *StrategyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				if selected != "" {
 					if sBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/strategy", claims.Sub); err == nil {
-						strategyJSON = template.JS(sBody)
+						strategyJSON = SafeJS(sBody)
 					}
 					if pBody, err := h.proxyGetFn("/api/portfolios/"+url.PathEscape(selected)+"/plan", claims.Sub); err == nil {
-						planJSON = template.JS(pBody)
+						planJSON = SafeJS(pBody)
 					}
 				}
 			}

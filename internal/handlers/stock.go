@@ -76,10 +76,12 @@ func (h *StockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var holdingJSON, portfolioNameJSON, tickerJSON template.JS
+	var stockDetailJSON template.JS = "null"
 	holdingJSON = "null"
 	portfolioNameJSON = "null"
 	tickerJSON = template.JS(`"` + template.JSEscapeString(ticker) + `"`)
 
+	var selected string
 	if h.proxyGetFn != nil && claims != nil && claims.Sub != "" {
 		if body, err := h.proxyGetFn("/api/portfolios", claims.Sub); err == nil {
 			var pData struct {
@@ -89,7 +91,7 @@ func (h *StockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Default string `json:"default"`
 			}
 			if json.Unmarshal(body, &pData) == nil {
-				selected := pData.Default
+				selected = pData.Default
 				if selected == "" && len(pData.Portfolios) > 0 {
 					selected = pData.Portfolios[0].Name
 				}
@@ -105,7 +107,7 @@ func (h *StockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 									Ticker string `json:"ticker"`
 								}
 								if json.Unmarshal(raw, &hold) == nil && strings.EqualFold(hold.Ticker, ticker) {
-									holdingJSON = template.JS(raw)
+									holdingJSON = SafeJS(raw)
 									break
 								}
 							}
@@ -113,6 +115,14 @@ func (h *StockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+		}
+	}
+
+	// Fetch stock detail data (candles, filings, news, fundamentals)
+	if h.proxyGetFn != nil && claims != nil && claims.Sub != "" && selected != "" {
+		path := "/api/portfolios/" + url.PathEscape(selected) + "/stock/" + url.PathEscape(ticker) + "/detail"
+		if body, err := h.proxyGetFn(path, claims.Sub); err == nil {
+			stockDetailJSON = SafeJS(body)
 		}
 	}
 
@@ -127,6 +137,7 @@ func (h *StockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"HoldingJSON":       holdingJSON,
 		"PortfolioNameJSON": portfolioNameJSON,
 		"TickerJSON":        tickerJSON,
+		"StockDetailJSON":   stockDetailJSON,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "stock.html", data); err != nil {

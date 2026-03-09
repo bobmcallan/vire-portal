@@ -252,6 +252,7 @@ function portfolioDashboard() {
         hasReturnPctChanges: false,
         currencyGainLoss: null,
         currencyGainLossPct: null,
+        hasCurrencyData: false,
         breadth: null,
         hasBreadth: false,
         watchlist: [],
@@ -364,6 +365,7 @@ function portfolioDashboard() {
             }
             this.currencyGainLoss = holdingsData.currency_gain_loss != null ? Number(holdingsData.currency_gain_loss) : null;
             this.currencyGainLossPct = holdingsData.currency_gain_loss_pct != null ? Number(holdingsData.currency_gain_loss_pct) : null;
+            this.hasCurrencyData = this.currencyGainLoss != null;
             this.breadth = holdingsData.breadth || this.computeBreadth();
             this.hasBreadth = this.breadth !== null;
         },
@@ -1202,6 +1204,12 @@ function stockDetail() {
         ticker: '',
         holding: null,
         portfolioName: '',
+        detail: null,
+        showSMA20: true,
+        showSMA50: true,
+        showSMA200: false,
+        expandedFilings: {},
+        priceChart: null,
 
         fmt(val) {
             if (val == null) return '-';
@@ -1227,6 +1235,114 @@ function stockDetail() {
             if (score < 0) return 'change-down';
             return 'change-neutral';
         },
+        toggleFiling(index) {
+            this.expandedFilings[index] = !this.expandedFilings[index];
+        },
+        sentimentClass(s) {
+            if (!s) return '';
+            const lower = s.toLowerCase();
+            if (lower === 'positive' || lower === 'bullish') return 'sentiment-positive';
+            if (lower === 'negative' || lower === 'bearish') return 'sentiment-negative';
+            return 'sentiment-neutral';
+        },
+        credibilityClass(c) {
+            if (!c) return '';
+            const lower = c.toLowerCase();
+            if (lower === 'high') return 'credibility-high';
+            if (lower === 'low') return 'credibility-low';
+            return 'credibility-medium';
+        },
+        fmtMarketCap(val) {
+            if (val == null) return '-';
+            const num = Number(val);
+            if (num >= 1e12) return '$' + (num / 1e12).toFixed(2) + 'T';
+            if (num >= 1e9) return '$' + (num / 1e9).toFixed(2) + 'B';
+            if (num >= 1e6) return '$' + (num / 1e6).toFixed(2) + 'M';
+            return '$' + num.toLocaleString('en-AU');
+        },
+        fmtDate(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            if (isNaN(d)) return dateStr;
+            return d.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
+        },
+
+        renderPriceChart() {
+            this.destroyPriceChart();
+            const canvas = document.getElementById('stock-price-chart');
+            if (!canvas || !this.detail || !this.detail.candles || this.detail.candles.length === 0) return;
+            if (typeof Chart === 'undefined') return;
+
+            const candles = this.detail.candles;
+            const labels = candles.map(c => c.date || '');
+            const closeData = candles.map(c => c.close);
+
+            const datasets = [{
+                label: 'Close',
+                data: closeData,
+                borderColor: '#000',
+                borderWidth: 1.5,
+                pointRadius: 0,
+                fill: false,
+            }];
+
+            const signals = this.detail.signals || {};
+            const price = signals.price || {};
+
+            if (this.showSMA20 && price.sma_20) {
+                datasets.push({
+                    label: 'SMA 20',
+                    data: price.sma_20,
+                    borderColor: '#2d8a4e',
+                    borderWidth: 1,
+                    borderDash: [4, 2],
+                    pointRadius: 0,
+                    fill: false,
+                });
+            }
+            if (this.showSMA50 && price.sma_50) {
+                datasets.push({
+                    label: 'SMA 50',
+                    data: price.sma_50,
+                    borderColor: '#d97706',
+                    borderWidth: 1,
+                    borderDash: [4, 2],
+                    pointRadius: 0,
+                    fill: false,
+                });
+            }
+            if (this.showSMA200 && price.sma_200) {
+                datasets.push({
+                    label: 'SMA 200',
+                    data: price.sma_200,
+                    borderColor: '#c53030',
+                    borderWidth: 1,
+                    borderDash: [4, 2],
+                    pointRadius: 0,
+                    fill: false,
+                });
+            }
+
+            this.priceChart = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10, family: "'IBM Plex Mono', monospace" } } } },
+                    scales: {
+                        x: { display: true, ticks: { maxTicksLimit: 8, font: { size: 9, family: "'IBM Plex Mono', monospace" } }, grid: { display: false } },
+                        y: { display: true, ticks: { font: { size: 9, family: "'IBM Plex Mono', monospace" } }, grid: { color: '#eee' } },
+                    },
+                },
+            });
+        },
+        destroyPriceChart() {
+            if (this.priceChart) {
+                this.priceChart.destroy();
+                this.priceChart = null;
+            }
+        },
 
         init() {
             const ssrData = window.__VIRE_DATA__;
@@ -1234,8 +1350,15 @@ function stockDetail() {
                 this.ticker = ssrData.ticker || '';
                 this.holding = ssrData.holding || null;
                 this.portfolioName = ssrData.portfolioName || '';
+                this.detail = ssrData.stockDetail || null;
                 window.__VIRE_DATA__ = null;
             }
+            this.$nextTick(() => { if (this.detail) this.renderPriceChart(); });
+
+            // Watch SMA toggles to re-render chart
+            this.$watch('showSMA20', () => this.renderPriceChart());
+            this.$watch('showSMA50', () => this.renderPriceChart());
+            this.$watch('showSMA200', () => this.renderPriceChart());
         },
     };
 }
@@ -1402,5 +1525,66 @@ function promptEditor() {
                 setTimeout(() => { this.message = ''; }, 5000);
             }
         }
+    };
+}
+
+// Gemini Usage component
+function geminiUsage() {
+    return {
+        period: 'week',
+        usage: null,
+        loading: false,
+        error: '',
+
+        init() {
+            const ssrData = window.__VIRE_DATA__;
+            if (ssrData && ssrData.usage) {
+                this.usage = ssrData.usage;
+                window.__VIRE_DATA__ = null;
+                return;
+            }
+            this.loadUsage();
+        },
+
+        async loadUsage() {
+            this.loading = true;
+            this.error = '';
+            try {
+                const res = await vireStore.fetch('/api/admin/gemini/usage?period=' + encodeURIComponent(this.period));
+                if (!res.ok) {
+                    this.error = 'Failed to load usage data (HTTP ' + res.status + ')';
+                    this.loading = false;
+                    return;
+                }
+                this.usage = await res.json();
+            } catch (e) {
+                this.error = 'Network error loading usage data';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async switchPeriod(p) {
+            if (p === this.period) return;
+            this.period = p;
+            await this.loadUsage();
+        },
+
+        fmtTokens(n) {
+            if (n == null) return '-';
+            return Number(n).toLocaleString('en-AU');
+        },
+
+        fmtDuration(ms) {
+            if (ms == null) return '-';
+            return (Number(ms) / 1000).toFixed(2) + 's';
+        },
+
+        fmtTimestamp(ts) {
+            if (!ts) return '-';
+            const d = new Date(ts);
+            if (isNaN(d)) return ts;
+            return d.toLocaleString('en-AU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        },
     };
 }
