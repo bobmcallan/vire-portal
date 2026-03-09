@@ -1025,6 +1025,142 @@ code {
 .verdict-watch { color: #b58a1b; }
 .verdict-fail { color: #a33; }
 
+/* Compliance widget */
+.compliance-widget {
+    margin-bottom: 1.5rem;
+    border: 2px solid #000;
+}
+
+.compliance-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.compliance-state-clean {
+    background: #2d8a4e;
+    color: #fff;
+}
+
+.compliance-state-issues {
+    background: #a33;
+    color: #fff;
+}
+
+.compliance-state-dirty {
+    background: #b58a1b;
+    color: #fff;
+}
+
+.compliance-state-never {
+    background: #888;
+    color: #fff;
+}
+
+.compliance-status {
+    flex: 1;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.compliance-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-compliance-run,
+.btn-compliance-toggle {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.4);
+    padding: 0.2rem 0.6rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+.btn-compliance-run:hover,
+.btn-compliance-toggle:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.btn-compliance-run:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.compliance-findings {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #ddd;
+}
+
+.compliance-finding {
+    padding: 0.4rem 0;
+    font-size: 0.8125rem;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+}
+
+.compliance-finding:last-of-type {
+    border-bottom: none;
+}
+
+.compliance-severity {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.compliance-BREACH .compliance-severity,
+.compliance-breach .compliance-severity {
+    background: #a33;
+    color: #fff;
+}
+
+.compliance-WARNING .compliance-severity,
+.compliance-warning .compliance-severity {
+    background: #b58a1b;
+    color: #fff;
+}
+
+.compliance-INFO .compliance-severity,
+.compliance-info .compliance-severity {
+    background: #888;
+    color: #fff;
+}
+
+.compliance-ticker {
+    font-weight: 700;
+    font-size: 0.8125rem;
+    flex-shrink: 0;
+}
+
+.compliance-message {
+    color: #333;
+}
+
+.compliance-disclaimer {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #eee;
+    font-size: 0.6875rem;
+    color: #888;
+    font-style: italic;
+}
+
 .portfolio-loading-overlay {
     position: absolute;
     top: 0;

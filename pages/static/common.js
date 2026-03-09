@@ -257,6 +257,9 @@ function portfolioDashboard() {
         hasBreadth: false,
         watchlist: [],
         glossary: {},
+        complianceReport: null,
+        complianceExpanded: false,
+        complianceRunning: false,
         refreshing: false,
         growthData: [],
         hasGrowthData: false,
@@ -295,6 +298,43 @@ function portfolioDashboard() {
         gainClass(val) {
             if (val == null || val === 0) return '';
             return val > 0 ? 'gain-positive' : 'gain-negative';
+        },
+
+        get complianceState() {
+            if (!this.complianceReport) return 'never';
+            if (this.complianceReport.dirty) return 'dirty';
+            const s = this.complianceReport.summary;
+            if (s && (s.breach_count > 0 || s.warning_count > 0)) return 'issues';
+            return 'clean';
+        },
+        get complianceStatusText() {
+            const r = this.complianceReport;
+            if (!r) return 'No review yet';
+            const time = this._fmtComplianceTime(r.generated_at);
+            if (r.dirty) return 'Prices moved since last review';
+            const s = r.summary;
+            if (!s || (s.breach_count === 0 && s.warning_count === 0)) return 'Reviewed ' + time + ' \u2014 no issues';
+            const parts = [];
+            if (s.breach_count > 0) parts.push(s.breach_count + ' breach' + (s.breach_count > 1 ? 'es' : ''));
+            if (s.warning_count > 0) parts.push(s.warning_count + ' warning' + (s.warning_count > 1 ? 's' : ''));
+            return 'Reviewed ' + time + ' \u2014 ' + parts.join(', ');
+        },
+        get complianceHeaderClass() {
+            return 'compliance-state-' + this.complianceState;
+        },
+        get complianceShowRun() {
+            return this.complianceState === 'never' || this.complianceState === 'dirty';
+        },
+        get complianceHasFindings() {
+            const r = this.complianceReport;
+            return r && r.findings && r.findings.length > 0;
+        },
+        get complianceFindings() {
+            if (!this.complianceReport || !this.complianceReport.findings) return [];
+            return this.complianceReport.findings;
+        },
+        get complianceDisclaimer() {
+            return this.complianceReport?.disclaimer || '';
         },
 
         _getPortfolioFromURL() {
@@ -405,6 +445,9 @@ function portfolioDashboard() {
                     }
                     if (ssrData.watchlist) {
                         this.watchlist = ssrData.watchlist.items || [];
+                    }
+                    if (ssrData.compliance) {
+                        this._applyComplianceData(ssrData.compliance);
                     }
                     if (ssrData.glossary) {
                         const map = {};
@@ -536,9 +579,10 @@ function portfolioDashboard() {
                     this.hasBreadth = false;
                 }
                 console.log(`[dashboard] fetch /api/portfolios/${this.selected}: ${(performance.now() - lpStart).toFixed(0)}ms`);
-                // Fetch growth history and watchlist (non-blocking, non-fatal)
+                // Fetch growth history, watchlist, and compliance (non-blocking, non-fatal)
                 this.fetchGrowthData();
                 this.fetchWatchlist();
+                this.fetchCompliance();
             } catch (e) {
                 debugError('portfolioDashboard', 'loadPortfolio failed', e);
             } finally {
@@ -601,6 +645,49 @@ function portfolioDashboard() {
             } catch (e) {
                 debugLog('portfolioDashboard', 'watchlist fetch failed', e);
                 this.watchlist = [];
+            }
+        },
+
+        _fmtComplianceTime(isoStr) {
+            if (!isoStr) return '';
+            const d = new Date(isoStr);
+            if (isNaN(d.getTime())) return '';
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        },
+
+        _applyComplianceData(data) {
+            this.complianceReport = data?.report || null;
+        },
+
+        async fetchCompliance() {
+            try {
+                const res = await vireStore.fetch('/api/compliance/latest?portfolio_name=' + encodeURIComponent(this.selected));
+                if (res.ok) {
+                    const data = await res.json();
+                    this._applyComplianceData(data);
+                }
+            } catch (e) {
+                console.warn('[dashboard] compliance fetch failed:', e);
+            }
+        },
+
+        async runComplianceReview() {
+            this.complianceRunning = true;
+            try {
+                const res = await vireStore.fetch('/api/compliance/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ portfolio_name: this.selected, force_refresh: true })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this._applyComplianceData(data);
+                    this.complianceExpanded = true;
+                }
+            } catch (e) {
+                console.warn('[dashboard] compliance run failed:', e);
+            } finally {
+                this.complianceRunning = false;
             }
         },
 
@@ -897,9 +984,10 @@ function portfolioDashboard() {
                     const data = await res.json();
                     this._applyPortfolioData(data);
                 }
-                // Re-fetch growth data and watchlist with force refresh
+                // Re-fetch growth data, watchlist, and compliance with force refresh
                 this.fetchGrowthData(true);
                 this.fetchWatchlist();
+                this.fetchCompliance();
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Portfolio refreshed' } }));
             } catch (e) {
                 debugError('portfolioDashboard', 'refreshPortfolio failed', e);

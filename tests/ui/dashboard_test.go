@@ -1381,6 +1381,64 @@ func TestDashboard(t *testing.T) {
 		}
 	})
 
+	// --- Compliance widget tests ---
+
+	t.Run("ComplianceWidgetVisible", func(t *testing.T) {
+		takeScreenshot(t, ctx, "dashboard", "compliance-widget.png")
+		exists, err := commontest.Exists(ctx, `.compliance-widget`)
+		if err != nil {
+			t.Fatalf("error checking compliance widget: %v", err)
+		}
+		if !exists {
+			t.Skip("compliance widget not visible (compliance may not be configured)")
+		}
+	})
+
+	t.Run("ComplianceWidgetState", func(t *testing.T) {
+		takeScreenshot(t, ctx, "dashboard", "compliance-state.png")
+		exists, err := commontest.Exists(ctx, `.compliance-header`)
+		if err != nil {
+			t.Fatalf("error checking compliance header: %v", err)
+		}
+		if !exists {
+			t.Skip("compliance header not found")
+		}
+		hasState, err := commontest.EvalBool(ctx, `
+			(() => {
+				const el = document.querySelector('.compliance-header');
+				if (!el) return false;
+				return el.classList.contains('compliance-state-clean') ||
+				       el.classList.contains('compliance-state-issues') ||
+				       el.classList.contains('compliance-state-dirty') ||
+				       el.classList.contains('compliance-state-never');
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking compliance state: %v", err)
+		}
+		if !hasState {
+			t.Error("compliance header missing state class")
+		}
+	})
+
+	t.Run("ComplianceNoTemplateMarkers", func(t *testing.T) {
+		takeScreenshot(t, ctx, "dashboard", "compliance-no-markers.png")
+		hasMarker, err := commontest.EvalBool(ctx, `
+			(() => {
+				const el = document.querySelector('.compliance-widget');
+				if (!el) return false;
+				const text = el.textContent;
+				return text.includes('{{') || text.includes('<no value>');
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking template markers: %v", err)
+		}
+		if hasMarker {
+			t.Error("raw template markers found in compliance widget")
+		}
+	})
+
 	// --- Interactive tests LAST (these modify page state) ---
 
 	t.Run("ShowClosedCheckbox", func(t *testing.T) {

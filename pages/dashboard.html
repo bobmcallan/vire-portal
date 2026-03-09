@@ -161,6 +161,31 @@
                 </div>
             </div>
 
+            <!-- Compliance widget -->
+            <section class="compliance-widget" x-show="!loading && !portfolioLoading" x-cloak>
+                <div class="compliance-header" :class="complianceHeaderClass">
+                    <span class="compliance-title">COMPLIANCE</span>
+                    <span class="compliance-status" x-text="complianceStatusText"></span>
+                    <span class="compliance-actions">
+                        <button class="btn-compliance-run" x-show="complianceShowRun" @click="runComplianceReview()" :disabled="complianceRunning">
+                            <span x-show="!complianceRunning">Run Review</span>
+                            <span x-show="complianceRunning">Reviewing...</span>
+                        </button>
+                        <button class="btn-compliance-toggle" x-show="complianceHasFindings" @click="complianceExpanded = !complianceExpanded" x-text="complianceExpanded ? 'Hide' : 'View'"></button>
+                    </span>
+                </div>
+                <div class="compliance-findings" x-show="complianceExpanded && complianceHasFindings" x-cloak>
+                    <template x-for="f in complianceFindings" :key="f.message">
+                        <div class="compliance-finding" :class="'compliance-' + f.severity.toLowerCase()">
+                            <span class="compliance-severity" x-text="f.severity"></span>
+                            <span class="compliance-ticker" x-show="f.ticker" x-text="f.ticker"></span>
+                            <span class="compliance-message" x-text="f.message"></span>
+                        </div>
+                    </template>
+                    <div class="compliance-disclaimer" x-text="complianceDisclaimer"></div>
+                </div>
+            </section>
+
             <!-- Holdings table -->
             <section class="panel-headed" x-show="holdings.length > 0" x-cloak>
                 <div class="panel-header">HOLDINGS</div>
@@ -265,6 +290,7 @@
         timeline: {{.TimelineJSON}},
         watchlist: {{.WatchlistJSON}},
         glossary: {{.GlossaryJSON}},
+        compliance: {{.ComplianceJSON}},
         selectedPortfolio: {{.SelectedJSON}}
     };
     </script>

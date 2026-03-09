@@ -93,12 +93,13 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var portfoliosJSON, portfolioJSON, timelineJSON, watchlistJSON, glossaryJSON, selectedJSON template.JS
+	var portfoliosJSON, portfolioJSON, timelineJSON, watchlistJSON, glossaryJSON, complianceJSON, selectedJSON template.JS
 	portfoliosJSON = "null"
 	portfolioJSON = "null"
 	timelineJSON = "null"
 	watchlistJSON = "null"
 	glossaryJSON = "null"
+	complianceJSON = "null"
 	selectedJSON = `""`
 	selectedPortfolio := ""
 
@@ -153,7 +154,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					escapedName := url.PathEscape(selected)
 					userID := claims.Sub
 					var wg sync.WaitGroup
-					wg.Add(4)
+					wg.Add(5)
 
 					go func() {
 						defer wg.Done()
@@ -207,6 +208,19 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						}
 					}()
 
+					go func() {
+						defer wg.Done()
+						tc := time.Now()
+						if cBody, err := h.proxyGetFn("/api/compliance/latest?portfolio_name="+escapedName, userID); err == nil {
+							complianceJSON = SafeJS(cBody)
+							if h.logger != nil {
+								h.logger.Info().Int64("duration_ms", time.Since(tc).Milliseconds()).Str("portfolio", selected).Msg("dashboard SSR: compliance")
+							}
+						} else if h.logger != nil {
+							h.logger.Warn().Int64("duration_ms", time.Since(tc).Milliseconds()).Str("portfolio", selected).Str("error", err.Error()).Msg("dashboard SSR: compliance failed")
+						}
+					}()
+
 					wg.Wait()
 				}
 			}
@@ -232,6 +246,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"TimelineJSON":      timelineJSON,
 		"WatchlistJSON":     watchlistJSON,
 		"GlossaryJSON":      glossaryJSON,
+		"ComplianceJSON":    complianceJSON,
 		"SelectedPortfolio": selectedPortfolio,
 		"SelectedJSON":      selectedJSON,
 	}

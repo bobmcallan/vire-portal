@@ -2319,3 +2319,208 @@ func TestDashboardSSR_StressEmptySubClaim(t *testing.T) {
 
 	// Either redirect (invalid auth) or render with null SSR data — but never call proxyGetFn
 }
+
+// =============================================================================
+// Dashboard Compliance SSR Stress Tests
+// =============================================================================
+
+func TestDashboardHandler_StressComplianceSSR(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return []byte(`{"portfolios":[{"name":"Test"}],"default":"Test"}`), nil
+		}
+		if strings.Contains(path, "/api/compliance/latest") {
+			return []byte(`{"report":{"portfolio_name":"Test","generated_at":"2026-03-09T08:45:58Z","dirty":false,"summary":{"breach_count":1,"warning_count":2,"info_count":3},"findings":[{"severity":"BREACH","ticker":"SXE","message":"test finding"}]}}`), nil
+		}
+		if path == "/api/glossary" {
+			return []byte(`{"categories":[]}`), nil
+		}
+		return []byte(`{"holdings":[]}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "compliance:") {
+		t.Error("expected compliance key in __VIRE_DATA__ block")
+	}
+	if strings.Contains(body, "compliance: null") || strings.Contains(body, "compliance:null") {
+		t.Error("compliance should not be null when proxyGetFn returns data")
+	}
+}
+
+func TestDashboardHandler_StressComplianceNull(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return []byte(`{"portfolios":[{"name":"Test"}],"default":"Test"}`), nil
+		}
+		if strings.Contains(path, "/api/compliance/latest") {
+			return nil, fmt.Errorf("compliance unavailable")
+		}
+		if path == "/api/glossary" {
+			return []byte(`{"categories":[]}`), nil
+		}
+		return []byte(`{"holdings":[]}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 even when compliance fails, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `compliance:null`) && !strings.Contains(body, `"compliance":null`) && !strings.Contains(body, `compliance: null`) {
+		// Check for the null value in the hydration block
+		if !strings.Contains(body, "compliance") {
+			t.Error("expected compliance key in page output")
+		}
+	}
+}
+
+func TestDashboardHandler_StressComplianceXSS(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]interface{}{{"name": "Test"}},
+				"default":    "Test",
+			})
+		}
+		if strings.Contains(path, "/api/compliance/latest") {
+			return json.Marshal(map[string]interface{}{
+				"report": map[string]interface{}{
+					"portfolio_name": "Test",
+					"generated_at":   "2026-03-09T08:00:00Z",
+					"dirty":          false,
+					"summary":        map[string]interface{}{"breach_count": 1, "warning_count": 0, "info_count": 0},
+					"findings": []map[string]interface{}{
+						{"severity": "BREACH", "ticker": "XSS", "message": "<script>alert('xss')</script>"},
+					},
+				},
+			})
+		}
+		if path == "/api/glossary" {
+			return []byte(`{"categories":[]}`), nil
+		}
+		return []byte(`{"holdings":[]}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, "<script>alert") {
+		t.Error("SECURITY: raw <script> tag found in response body — SafeJS should escape it")
+	}
+}
+
+func TestDashboardHandler_StressComplianceEmptyReport(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return []byte(`{"portfolios":[{"name":"Test"}],"default":"Test"}`), nil
+		}
+		if strings.Contains(path, "/api/compliance/latest") {
+			return []byte(`{"report":null}`), nil
+		}
+		if path == "/api/glossary" {
+			return []byte(`{"categories":[]}`), nil
+		}
+		return []byte(`{"holdings":[]}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with null report, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "compliance-widget") {
+		t.Error("compliance widget HTML should be present even with null report")
+	}
+}
+
+func TestDashboardHandler_StressComplianceParallelFetch(t *testing.T) {
+	var mu sync.Mutex
+	fetchTimes := make(map[string]time.Time)
+
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+	handler.SetProxyGetFn(func(path, userID string) ([]byte, error) {
+		now := time.Now()
+		mu.Lock()
+		fetchTimes[path] = now
+		mu.Unlock()
+
+		// Simulate 50ms latency for parallel endpoints
+		if path != "/api/portfolios" {
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		if path == "/api/portfolios" {
+			return []byte(`{"portfolios":[{"name":"Test"}],"default":"Test"}`), nil
+		}
+		if strings.Contains(path, "/api/compliance/latest") {
+			return []byte(`{"report":null}`), nil
+		}
+		if path == "/api/glossary" {
+			return []byte(`{"categories":[]}`), nil
+		}
+		return []byte(`{"holdings":[]}`), nil
+	})
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	start := time.Now()
+	handler.ServeHTTP(w, req)
+	elapsed := time.Since(start)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// 5 parallel fetches at 50ms each should complete in ~50ms (not 250ms)
+	// Allow generous margin for CI: 200ms total (portfolios sequential + parallel batch)
+	if elapsed > 200*time.Millisecond {
+		t.Errorf("parallel fetch took %v — fetches may not be running in parallel", elapsed)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Verify compliance endpoint was called
+	found := false
+	for path := range fetchTimes {
+		if strings.Contains(path, "compliance") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("compliance endpoint was not called during SSR fetch")
+	}
+}
