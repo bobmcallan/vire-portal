@@ -24,46 +24,43 @@
                 <div class="panel-header">PORTFOLIO HOLDING</div>
                 <div class="panel-content">
                     <div class="stock-detail-grid">
+                        <!-- Row 1: Core position -->
                         <div class="stock-detail-field">
                             <span class="label">NAME</span>
                             <span x-text="holding?.name || '-'"></span>
                         </div>
                         <div class="stock-detail-field">
                             <span class="label">VALUE</span>
-                            <span class="text-bold" x-text="fmt(holding?.holding_value_market)"></span>
+                            <span class="text-bold" x-text="fmt(position?.holding_value_market ?? holding?.holding_value_market)"></span>
+                            <span class="gain-breakdown" x-show="isForeignCurrency()" x-cloak x-text="'Local: $' + Number(position?.local_value || 0).toLocaleString('en-AU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + holdingCurrency()"></span>
                         </div>
                         <div class="stock-detail-field">
                             <span class="label">WEIGHT</span>
                             <span x-text="pct(holding?.holding_weight_pct)"></span>
                         </div>
+                        <!-- Row 2: Returns breakdown -->
                         <div class="stock-detail-field">
-                            <span class="label">RETURN $</span>
-                            <span :class="gainClass(holding?.holding_return_net)" x-text="fmt(holding?.holding_return_net)"></span>
+                            <span class="label">CAPITAL RETURN</span>
+                            <span :class="gainClass(position?.holding_return_net ?? holding?.holding_return_net)" x-text="fmt(position?.holding_return_net ?? holding?.holding_return_net)"></span>
+                            <span class="gain-breakdown" x-text="'realized: ' + fmt(position?.realized_return) + ' / unrealized: ' + fmt(position?.unrealized_return)"></span>
                         </div>
                         <div class="stock-detail-field">
                             <span class="label">RETURN %</span>
-                            <span :class="gainClass(holding?.holding_return_net_pct)" x-text="pct(holding?.holding_return_net_pct)"></span>
+                            <span :class="gainClass(position?.holding_return_net_pct ?? holding?.holding_return_net_pct)" x-text="pct(position?.holding_return_net_pct ?? holding?.holding_return_net_pct)"></span>
                         </div>
                         <div class="stock-detail-field">
                             <span class="label">TREND</span>
                             <span :class="trendArrowClass(holding?.trend_score)" x-text="trendArrow(holding?.trend_score)"></span>
                             <span class="text-muted" x-text="holding?.trend_label || ''"></span>
                         </div>
-                        <div class="stock-detail-field" x-show="holding?.original_currency && holding?.original_currency !== 'AUD'" x-cloak>
-                            <span class="label">CURRENCY</span>
-                            <span x-text="holding?.original_currency || ''"></span>
+                        <!-- Row 3: Dividends & Currency -->
+                        <div class="stock-detail-field" x-show="dividendDisplay()" x-cloak>
+                            <span class="label">DIVIDENDS</span>
+                            <span x-text="dividendDisplay()"></span>
                         </div>
-                        <div class="stock-detail-field" x-show="holding?.currency_gain_loss && holding?.currency_gain_loss !== 0" x-cloak>
-                            <span class="label">FX GAIN/LOSS</span>
-                            <span :class="gainClass(holding?.currency_gain_loss)" x-text="fmt(holding?.currency_gain_loss)"></span>
-                        </div>
-                        <div class="stock-detail-field" x-show="holding?.dividend_received && holding?.dividend_received !== 0" x-cloak>
-                            <span class="label">DIVIDENDS RECEIVED</span>
-                            <span x-text="fmt(holding?.dividend_received)"></span>
-                        </div>
-                        <div class="stock-detail-field" x-show="holding?.dividend_forecast && holding?.dividend_forecast !== 0" x-cloak>
-                            <span class="label">DIVIDEND FORECAST</span>
-                            <span x-text="fmt(holding?.dividend_forecast)"></span>
+                        <div class="stock-detail-field" x-show="isForeignCurrency() && (position?.currency_gain_loss || holding?.currency_gain_loss)" x-cloak>
+                            <span class="label">CURRENCY GAIN/LOSS</span>
+                            <span :class="gainClass(position?.currency_gain_loss ?? holding?.currency_gain_loss)" x-text="fmt(position?.currency_gain_loss ?? holding?.currency_gain_loss)"></span>
                         </div>
                     </div>
                 </div>
@@ -73,6 +70,45 @@
             <div class="info-banner" x-show="!holding" x-cloak>
                 <strong x-text="ticker"></strong> is not currently held in your portfolio.
             </div>
+
+            <!-- Position Walk -->
+            <section class="panel-headed" x-show="hasWalkData" x-cloak>
+                <div class="panel-header">POSITION WALK</div>
+                <div class="panel-content">
+                    <div class="walk-chart-scroll">
+                        <div class="walk-chart-sizer">
+                            <canvas id="walkChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Trade History -->
+            <section class="panel-headed" x-show="hasTrades" x-cloak>
+                <div class="panel-header">TRADE HISTORY</div>
+                <div class="panel-content">
+                    <div class="trade-summary">
+                        <span>Avg Cost: <strong x-text="fmt(position?.holding_cost_avg)"></strong></span>
+                        <span>Breakeven: <strong x-text="fmt(position?.true_breakeven_price)"></strong></span>
+                        <span>Units: <strong x-text="position?.units"></strong></span>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="tool-table">
+                            <thead><tr><th>Date</th><th>Type</th><th class="text-right">Units</th><th class="text-right">Price</th><th class="text-right">Fees</th><th class="text-right">Value</th></tr></thead>
+                            <template x-for="t in trades" :key="t.id">
+                                <tbody><tr>
+                                    <td x-text="fmtDate(t.date)"></td>
+                                    <td><span class="trade-type-badge" :class="t.type === 'Buy' ? 'trade-buy' : 'trade-sell'" x-text="t.type"></span></td>
+                                    <td class="text-right" x-text="t.units.toLocaleString()"></td>
+                                    <td class="text-right" x-text="'$' + Number(t.price).toFixed(4)"></td>
+                                    <td class="text-right" x-text="fmt(t.fees)"></td>
+                                    <td class="text-right" x-text="fmt(t.value)"></td>
+                                </tr></tbody>
+                            </template>
+                        </table>
+                    </div>
+                </div>
+            </section>
 
             <!-- Stock Price Trend -->
             <section class="panel-headed stock-price-chart-section" x-show="detail && detail.candles && detail.candles.length > 0" x-cloak>
@@ -156,34 +192,6 @@
                 </div>
             </section>
 
-            <!-- News & Sentiment -->
-            <section class="panel-headed" x-show="detail && detail.news_intelligence" x-cloak>
-                <div class="panel-header">NEWS &amp; SENTIMENT</div>
-                <div class="panel-content">
-                    <div x-show="detail && detail.news_intelligence && detail.news_intelligence.overall_sentiment" class="mb">
-                        <span class="label">SENTIMENT</span>
-                        <span class="sentiment-badge" :class="sentimentClass(detail && detail.news_intelligence ? detail.news_intelligence.overall_sentiment : '')" x-text="detail && detail.news_intelligence ? detail.news_intelligence.overall_sentiment : ''"></span>
-                    </div>
-                    <p x-show="detail && detail.news_intelligence && detail.news_intelligence.summary" class="text-sm mb" x-text="detail && detail.news_intelligence ? detail.news_intelligence.summary : ''"></p>
-                    <template x-if="detail && detail.news_intelligence && detail.news_intelligence.articles && detail.news_intelligence.articles.length > 0">
-                        <div>
-                            <template x-for="article in detail.news_intelligence.articles" :key="article.title">
-                                <div class="panel" style="padding:1rem;margin-bottom:0.75rem;">
-                                    <div class="text-bold text-sm">
-                                        <a :href="article.url" target="_blank" rel="noopener" x-text="article.title"></a>
-                                    </div>
-                                    <div class="text-muted text-sm">
-                                        <span x-text="article.source || ''"></span>
-                                        <span x-show="article.credibility" class="credibility-badge" :class="credibilityClass(article.credibility)" x-text="article.credibility"></span>
-                                    </div>
-                                    <p class="text-sm" x-text="article.summary || ''"></p>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
-                </div>
-            </section>
-
             <!-- Company Overview -->
             <section class="panel-headed" x-show="detail && (detail.fundamentals || detail.company_timeline)" x-cloak>
                 <div class="panel-header">COMPANY OVERVIEW</div>
@@ -239,14 +247,6 @@
                             </div>
                         </div>
                     </template>
-                </div>
-            </section>
-
-            <!-- Trade History (placeholder) -->
-            <section class="panel-headed stock-placeholder">
-                <div class="panel-header">TRADE HISTORY</div>
-                <div class="panel-content">
-                    <span class="text-muted">Trade history will be available in a future update.</span>
                 </div>
             </section>
 

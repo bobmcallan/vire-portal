@@ -1073,6 +1073,789 @@ func TestStockStress_TickerInjectionInDetailPath(t *testing.T) {
 	}
 }
 
+// --- Template structure (new sections) ---
+
+func TestStockStress_WalkChartNullTimeline(t *testing.T) {
+	// When position_timeline is null/empty, POSITION WALK section should be guarded by x-show
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return json.Marshal(map[string]interface{}{
+				"position":          map[string]interface{}{"units": 100},
+				"trades":            []interface{}{},
+				"position_timeline": nil,
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Commonwealth Bank"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// The template must have x-show="hasWalkData" guard on POSITION WALK
+	if !strings.Contains(body, "POSITION WALK") {
+		t.Error("POSITION WALK section not found in template")
+	}
+	if !strings.Contains(body, "hasWalkData") {
+		t.Error("POSITION WALK section missing hasWalkData x-show guard")
+	}
+}
+
+func TestStockStress_TradeHistoryNullTrades(t *testing.T) {
+	// When trades is null/empty, TRADE HISTORY section should be guarded by x-show
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return json.Marshal(map[string]interface{}{
+				"position": map[string]interface{}{"units": 100},
+				"trades":   nil,
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Commonwealth Bank"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// TRADE HISTORY must have x-show="hasTrades" guard (no longer a placeholder)
+	if !strings.Contains(body, "TRADE HISTORY") {
+		t.Error("TRADE HISTORY section not found in template")
+	}
+	if !strings.Contains(body, "hasTrades") {
+		t.Error("TRADE HISTORY section missing hasTrades x-show guard")
+	}
+}
+
+func TestStockStress_DividendDisplayBothZero(t *testing.T) {
+	// When both dividend_received and dividend_forecast are 0, dividend row should be hidden
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return json.Marshal(map[string]interface{}{
+				"position": map[string]interface{}{
+					"units":              100,
+					"dividend_received":  0,
+					"dividend_forecast":  0,
+					"original_currency":  "AUD",
+					"currency_gain_loss": 0,
+				},
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Commonwealth Bank"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// Template must have dividendDisplay() guard
+	if !strings.Contains(body, "dividendDisplay") {
+		t.Error("DIVIDENDS section missing dividendDisplay() guard")
+	}
+}
+
+func TestStockStress_CurrencyGainLossAUDHolding(t *testing.T) {
+	// For AUD holdings, CURRENCY GAIN/LOSS should be hidden
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return json.Marshal(map[string]interface{}{
+				"position": map[string]interface{}{
+					"units":             100,
+					"original_currency": "AUD",
+				},
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{
+						"ticker":            "CBA.AX",
+						"name":              "Commonwealth Bank",
+						"original_currency": "AUD",
+					},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// Template should use isForeignCurrency() guard for currency gain/loss
+	if !strings.Contains(body, "isForeignCurrency") {
+		t.Error("CURRENCY GAIN/LOSS section missing isForeignCurrency() guard")
+	}
+}
+
+func TestStockStress_NewsRemovedFromTemplate(t *testing.T) {
+	// NEWS & SENTIMENT section must be completely removed from the template
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return json.Marshal(map[string]interface{}{
+				"news_intelligence": map[string]interface{}{
+					"overall_sentiment": "Positive",
+					"summary":           "Test summary",
+				},
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Commonwealth Bank"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// NEWS & SENTIMENT section must NOT appear in the rendered template
+	if strings.Contains(body, "NEWS") && strings.Contains(body, "SENTIMENT") {
+		t.Error("NEWS & SENTIMENT section should be removed from template but still present")
+	}
+	if strings.Contains(body, "sentiment-badge") {
+		t.Error("sentiment-badge class should be removed from template")
+	}
+	if strings.Contains(body, "credibility-badge") {
+		t.Error("credibility-badge class should be removed from template")
+	}
+}
+
+// --- Devils-advocate: deeper adversarial stress tests ---
+
+// stockDetailProxy is a helper that creates a proxyGetFn returning given holding + detail.
+func stockDetailProxy(holding map[string]interface{}, detail map[string]interface{}) func(string, string) ([]byte, error) {
+	return func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			if detail == nil {
+				return []byte("null"), nil
+			}
+			return json.Marshal(detail)
+		}
+		if strings.Contains(path, "/api/portfolios/Main") && !strings.Contains(path, "/stock/") {
+			holdings := []map[string]interface{}{}
+			if holding != nil {
+				holdings = append(holdings, holding)
+			}
+			return json.Marshal(map[string]interface{}{"holdings": holdings})
+		}
+		return []byte("null"), nil
+	}
+}
+
+func TestStockStress_XSSInTradeData(t *testing.T) {
+	// Trade type field with script-breaking payload must be escaped by SafeJS
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	holding := map[string]interface{}{"ticker": "CBA.AX", "name": "Test"}
+	detail := map[string]interface{}{
+		"trades": []map[string]interface{}{
+			{
+				"id":    "t1",
+				"date":  "2026-01-15",
+				"type":  `</script><script>alert('xss')</script>`,
+				"units": 100,
+				"price": 50.0,
+				"fees":  10.0,
+				"value": 5010.0,
+			},
+		},
+		"position": map[string]interface{}{
+			"units":                100,
+			"holding_cost_avg":     50.10,
+			"true_breakeven_price": 49.50,
+		},
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(holding, detail))
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if strings.Contains(body, `<script>alert('xss')</script>`) {
+		t.Error("SECURITY: XSS in trade type not escaped in hydration JSON")
+	}
+}
+
+func TestStockStress_XSSInPositionTimelineDate(t *testing.T) {
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	holding := map[string]interface{}{"ticker": "CBA.AX", "name": "Test"}
+	detail := map[string]interface{}{
+		"position_timeline": []map[string]interface{}{
+			{
+				"date":         `</script><script>alert(1)</script>`,
+				"market_value": 1000.0,
+				"cost_basis":   900.0,
+			},
+		},
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(holding, detail))
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if strings.Contains(body, `<script>alert(1)</script>`) {
+		t.Error("SECURITY: XSS in position_timeline date not escaped")
+	}
+}
+
+func TestStockStress_PositionAllNullFields(t *testing.T) {
+	// Position with every field null — Alpine optional chaining must handle this
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	holding := map[string]interface{}{"ticker": "CBA.AX", "name": "Commonwealth Bank"}
+	detail := map[string]interface{}{
+		"position": map[string]interface{}{
+			"units":                  nil,
+			"holding_cost_avg":       nil,
+			"true_breakeven_price":   nil,
+			"realized_return":        nil,
+			"unrealized_return":      nil,
+			"holding_return_net_pct": nil,
+			"dividend_received":      nil,
+			"dividend_forecast":      nil,
+			"currency_gain_loss":     nil,
+			"original_currency":      nil,
+			"holding_value_market":   nil,
+		},
+		"trades":            nil,
+		"position_timeline": nil,
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(holding, detail))
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with all-null position, got %d", w.Code)
+	}
+}
+
+func TestStockStress_PositionKeyMissing(t *testing.T) {
+	// detail has no position/trades/position_timeline keys at all
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	holding := map[string]interface{}{"ticker": "CBA.AX", "name": "Commonwealth Bank"}
+	detail := map[string]interface{}{
+		"candles": []interface{}{},
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(holding, detail))
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with missing position key, got %d", w.Code)
+	}
+}
+
+func TestStockStress_EmptyTimeline(t *testing.T) {
+	// Empty array (not null) — hasWalkData should be false
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	holding := map[string]interface{}{"ticker": "CBA.AX", "name": "Commonwealth Bank"}
+	detail := map[string]interface{}{
+		"position_timeline": []interface{}{},
+		"trades":            []interface{}{},
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(holding, detail))
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with empty timeline, got %d", w.Code)
+	}
+}
+
+func TestStockStress_TradeHistoryPlaceholderGone(t *testing.T) {
+	// The old placeholder text must be removed after implementation
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(nil, nil))
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if strings.Contains(body, "Trade history will be available in a future update") {
+		t.Error("old TRADE HISTORY placeholder text should be replaced with real trade table")
+	}
+}
+
+func TestStockStress_WalkChartCanvasPresent(t *testing.T) {
+	// POSITION WALK section must include a walkChart canvas
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	holding := map[string]interface{}{"ticker": "CBA.AX", "name": "Commonwealth Bank"}
+	detail := map[string]interface{}{
+		"position_timeline": []map[string]interface{}{
+			{"date": "2026-01-01", "market_value": 1000, "cost_basis": 900},
+		},
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(holding, detail))
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, `id="walkChart"`) {
+		t.Error("expected walkChart canvas element in template")
+	}
+}
+
+func TestStockStress_CurrencyGainLossUSDHolding(t *testing.T) {
+	// USD holding must have currency_gain_loss in hydration JSON
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	holding := map[string]interface{}{
+		"ticker":               "AAPL",
+		"name":                 "Apple Inc",
+		"holding_value_market": 15000.0,
+		"original_currency":    "USD",
+		"currency_gain_loss":   -250.50,
+	}
+	detail := map[string]interface{}{
+		"position": map[string]interface{}{
+			"original_currency":  "USD",
+			"currency_gain_loss": -250.50,
+			"realized_return":    500.0,
+			"unrealized_return":  700.0,
+		},
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(holding, detail))
+
+	req := httptest.NewRequest("GET", "/stock/AAPL", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "-250.5") {
+		t.Error("expected currency_gain_loss value in hydration JSON for USD holding")
+	}
+}
+
+func TestStockStress_GainBreakdownFieldsPresent(t *testing.T) {
+	// Verify realized/unrealized return fields survive in hydration JSON
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	holding := map[string]interface{}{
+		"ticker":             "CBA.AX",
+		"name":               "Commonwealth Bank",
+		"holding_return_net": 1500.0,
+	}
+	detail := map[string]interface{}{
+		"position": map[string]interface{}{
+			"realized_return":   500.0,
+			"unrealized_return": 1000.0,
+		},
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(holding, detail))
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "realized_return") {
+		t.Error("expected realized_return in hydration JSON for gain breakdown")
+	}
+	if !strings.Contains(body, "unrealized_return") {
+		t.Error("expected unrealized_return in hydration JSON for gain breakdown")
+	}
+}
+
+func TestStockStress_LargeTradeHistoryAndTimeline(t *testing.T) {
+	// 500 trades + 500 timeline points — no crash or timeout
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	trades := make([]map[string]interface{}, 500)
+	for i := range trades {
+		tradeType := "Buy"
+		if i%3 == 0 {
+			tradeType = "Sell"
+		}
+		trades[i] = map[string]interface{}{
+			"id":    fmt.Sprintf("t%d", i),
+			"date":  fmt.Sprintf("2025-%02d-%02d", (i%12)+1, (i%28)+1),
+			"type":  tradeType,
+			"units": 10 + i,
+			"price": 50.0 + float64(i)*0.5,
+			"fees":  9.95,
+			"value": float64(10+i) * (50.0 + float64(i)*0.5),
+		}
+	}
+	timeline := make([]map[string]interface{}, 500)
+	for i := range timeline {
+		timeline[i] = map[string]interface{}{
+			"date":         fmt.Sprintf("2025-%02d-%02d", (i%12)+1, (i%28)+1),
+			"market_value": 10000.0 + float64(i)*100,
+			"cost_basis":   9000.0 + float64(i)*80,
+		}
+	}
+
+	holding := map[string]interface{}{"ticker": "CBA.AX", "name": "Commonwealth Bank"}
+	detail := map[string]interface{}{
+		"trades":            trades,
+		"position_timeline": timeline,
+		"position":          map[string]interface{}{"units": 5000},
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(holding, detail))
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with large trade/timeline, got %d", w.Code)
+	}
+}
+
+func TestStockStress_NoHoldingButDetailExists(t *testing.T) {
+	// Stock not in portfolio but detail has data (e.g. watchlisted)
+	// holding is null, position/trades/timeline should still render
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	detail := map[string]interface{}{
+		"candles":           []map[string]interface{}{{"date": "2026-01-01", "close": 100.0}},
+		"position":          nil,
+		"trades":            nil,
+		"position_timeline": nil,
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(nil, detail))
+
+	req := httptest.NewRequest("GET", "/stock/UNKNOWN", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "holding: null") {
+		t.Error("expected null holding for stock not in portfolio")
+	}
+	// Should not contain error or panic traces
+	if strings.Contains(body, "runtime error") {
+		t.Error("runtime error in response body")
+	}
+}
+
+func TestStockStress_FullTradeDataRenders(t *testing.T) {
+	// Full trade data with mixed Buy/Sell should render cleanly
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	holding := map[string]interface{}{"ticker": "CBA.AX", "name": "Commonwealth Bank"}
+	detail := map[string]interface{}{
+		"position": map[string]interface{}{
+			"units":                200,
+			"holding_cost_avg":     95.50,
+			"true_breakeven_price": 93.20,
+			"realized_return":      500.0,
+			"unrealized_return":    1200.0,
+		},
+		"trades": []map[string]interface{}{
+			{"id": "t1", "date": "2025-06-15", "type": "Buy", "units": 100, "price": 90.0, "fees": 9.95, "value": 9009.95},
+			{"id": "t2", "date": "2025-09-20", "type": "Buy", "units": 50, "price": 95.0, "fees": 9.95, "value": 4759.95},
+			{"id": "t3", "date": "2026-01-10", "type": "Sell", "units": 20, "price": 105.0, "fees": 9.95, "value": 2090.05},
+		},
+		"position_timeline": []map[string]interface{}{
+			{"date": "2025-06-15", "market_value": 9000, "cost_basis": 9010, "net_return": -10},
+			{"date": "2025-09-20", "market_value": 14250, "cost_basis": 13770, "net_return": 480},
+			{"date": "2026-01-10", "market_value": 13650, "cost_basis": 11670, "net_return": 1980},
+		},
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(stockDetailProxy(holding, detail))
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// Trade IDs and timeline values must be in hydration JSON
+	if !strings.Contains(body, `"t1"`) || !strings.Contains(body, `"t3"`) {
+		t.Error("expected trade IDs in hydration JSON")
+	}
+	if !strings.Contains(body, "9000") || !strings.Contains(body, "1980") {
+		t.Error("expected position_timeline data in hydration JSON")
+	}
+}
+
+func TestStockStress_XSSRawBytesInTradeField(t *testing.T) {
+	// Simulate a raw API response (not json.Marshal) with literal </script> in trade data
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+
+	rawXSS := `{"trades":[{"id":"t1","date":"2026-01-01","type":"</script><script>alert('xss')</script>","units":1,"price":1,"fees":0,"value":1}]}`
+
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return []byte(rawXSS), nil
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Test"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	// SafeJS must escape </script to <\/script
+	if strings.Contains(body, `<script>alert('xss')</script>`) {
+		t.Error("SECURITY: raw API bytes with </script> in trade data broke out of JSON hydration")
+	}
+}
+
 func TestStockStress_NilUserLookupFn(t *testing.T) {
 	// userLookupFn is nil — should not panic
 	handler := NewStockHandler(nil, true, []byte(testJWTSecret), nil)

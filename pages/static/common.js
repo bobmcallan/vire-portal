@@ -1210,6 +1210,12 @@ function stockDetail() {
         showSMA200: false,
         expandedFilings: {},
         priceChart: null,
+        trades: [],
+        position: null,
+        positionTimeline: [],
+        walkChart: null,
+        hasWalkData: false,
+        hasTrades: false,
 
         fmt(val) {
             if (val == null) return '-';
@@ -1238,19 +1244,17 @@ function stockDetail() {
         toggleFiling(index) {
             this.expandedFilings[index] = !this.expandedFilings[index];
         },
-        sentimentClass(s) {
-            if (!s) return '';
-            const lower = s.toLowerCase();
-            if (lower === 'positive' || lower === 'bullish') return 'sentiment-positive';
-            if (lower === 'negative' || lower === 'bearish') return 'sentiment-negative';
-            return 'sentiment-neutral';
+        holdingCurrency() {
+            return this.position?.original_currency || this.holding?.original_currency || 'AUD';
         },
-        credibilityClass(c) {
-            if (!c) return '';
-            const lower = c.toLowerCase();
-            if (lower === 'high') return 'credibility-high';
-            if (lower === 'low') return 'credibility-low';
-            return 'credibility-medium';
+        isForeignCurrency() {
+            return this.holdingCurrency() !== 'AUD';
+        },
+        dividendDisplay() {
+            const recv = this.position?.dividend_received || this.holding?.dividend_received || 0;
+            const fcast = this.position?.dividend_forecast || this.holding?.dividend_forecast || 0;
+            if (recv === 0 && fcast === 0) return null;
+            return this.fmt(recv) + ' received / ' + this.fmt(fcast) + ' forecast';
         },
         fmtMarketCap(val) {
             if (val == null) return '-';
@@ -1344,6 +1348,54 @@ function stockDetail() {
             }
         },
 
+        renderWalkChart() {
+            const ctx = document.getElementById('walkChart');
+            if (!ctx) return;
+            if (this.walkChart) { this.walkChart.destroy(); }
+            if (typeof Chart === 'undefined') return;
+
+            const labels = this.positionTimeline.map(p => this.fmtDate(p.date));
+            const marketValues = this.positionTimeline.map(p => p.market_value);
+            const costBases = this.positionTimeline.map(p => p.cost_basis);
+
+            const buyPoints = [];
+            const sellPoints = [];
+            for (const t of this.trades) {
+                const dateStr = this.fmtDate(t.date);
+                const idx = labels.indexOf(dateStr);
+                if (idx >= 0) {
+                    const point = { x: dateStr, y: marketValues[idx] };
+                    if (t.type === 'Buy') buyPoints.push(point);
+                    else sellPoints.push(point);
+                }
+            }
+
+            this.walkChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Market Value', data: marketValues, borderColor: '#000', borderWidth: 2, pointRadius: 0, fill: false },
+                        { label: 'Cost Basis', data: costBases, borderColor: '#888', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, fill: false },
+                        { label: 'Buy', data: buyPoints, type: 'scatter', pointRadius: 6, pointStyle: 'triangle', backgroundColor: '#16a34a', borderColor: '#16a34a' },
+                        { label: 'Sell', data: sellPoints, type: 'scatter', pointRadius: 6, pointStyle: 'triangle', rotation: 180, backgroundColor: '#dc2626', borderColor: '#dc2626' },
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10, family: "'IBM Plex Mono', monospace" } } } },
+                    scales: {
+                        x: { display: true, ticks: { maxTicksLimit: 8, font: { size: 9, family: "'IBM Plex Mono', monospace" } }, grid: { display: false } },
+                        y: { display: true, ticks: { font: { size: 9, family: "'IBM Plex Mono', monospace" } }, grid: { color: '#eee' } },
+                    },
+                },
+            });
+        },
+        destroyWalkChart() {
+            if (this.walkChart) { this.walkChart.destroy(); this.walkChart = null; }
+        },
+
         init() {
             const ssrData = window.__VIRE_DATA__;
             if (ssrData) {
@@ -1353,7 +1405,19 @@ function stockDetail() {
                 this.detail = ssrData.stockDetail || null;
                 window.__VIRE_DATA__ = null;
             }
-            this.$nextTick(() => { if (this.detail) this.renderPriceChart(); });
+            if (this.detail) {
+                this.position = this.detail.position || null;
+                this.trades = this.detail.trades || [];
+                this.positionTimeline = this.detail.position_timeline || [];
+                this.hasWalkData = this.positionTimeline.length > 0;
+                this.hasTrades = this.trades.length > 0;
+            }
+            this.$nextTick(() => {
+                if (this.detail) {
+                    this.renderPriceChart();
+                    if (this.hasWalkData) this.renderWalkChart();
+                }
+            });
 
             // Watch SMA toggles to re-render chart
             this.$watch('showSMA20', () => this.renderPriceChart());
