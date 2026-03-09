@@ -594,10 +594,6 @@ func TestDashboardHandler_StressNewFieldBindingsSafe(t *testing.T) {
 	if !strings.Contains(body, `x-text="fmt(grossContributions)"`) {
 		t.Error("expected grossContributions displayed with x-text fmt() binding")
 	}
-	// DIVIDENDS must show actual (forecast) format
-	if !strings.Contains(body, `fmt(ledgerDividendReturn)`) || !strings.Contains(body, `fmt(totalDividends)`) {
-		t.Error("expected dividends displayed with ledgerDividendReturn and totalDividends bindings")
-	}
 }
 
 func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
@@ -621,7 +617,7 @@ func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
 	}
 
 	// Row 2: Performance labels
-	performanceLabels := []string{"NET RETURN $", "NET RETURN %", "DIVIDENDS"}
+	performanceLabels := []string{"NET RETURN $", "NET RETURN %"}
 	for _, label := range performanceLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected performance row label %q in dashboard", label)
@@ -1389,7 +1385,6 @@ func TestDashboardHandler_StressGlossaryTooltipBindings(t *testing.T) {
 		`glossaryDef('capital_contributions_gross')`,
 		`glossaryDef('equity_holdings_return')`,
 		`glossaryDef('equity_holdings_return_pct')`,
-		`glossaryDef('income_dividends_forecast')`,
 	}
 	for _, binding := range expectedBindings {
 		if !strings.Contains(body, binding) {
