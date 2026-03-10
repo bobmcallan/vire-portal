@@ -2505,3 +2505,389 @@ func TestDashboardHandler_StressComplianceParallelFetch(t *testing.T) {
 		t.Error("compliance endpoint was not called during SSR fetch")
 	}
 }
+
+// --- Dashboard: 1D Column ---
+
+func TestDashboardHandler_Stress1DColumnHeader(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, `<th class="text-right">1D</th>`) {
+		t.Error("desktop holdings table missing 1D column header")
+	}
+}
+
+func TestDashboardHandler_Stress1DColspanMatchesColumns(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// 7 columns: Ticker, Name, Value, Weight%, Return $, Return %, 1D
+	if !strings.Contains(body, `colspan="7"`) {
+		t.Error("movement row colspan does not match column count (expected 7)")
+	}
+	if strings.Contains(body, `colspan="6"`) {
+		t.Error("stale colspan=6 found — should be 7 after adding 1D column")
+	}
+}
+
+func TestDashboardHandler_Stress1DBindingInHoldingRow(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, "holdingDailyPct(h)") {
+		t.Error("desktop holding row missing holdingDailyPct binding")
+	}
+}
+
+func TestDashboardHandler_Stress1DUsesXText(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// The 1D column must use x-text for changePct, not x-html
+	if !strings.Contains(body, `x-text="holdingDailyPct(h) != null ? changePct(holdingDailyPct(h))`) {
+		t.Error("1D column does not use x-text with changePct binding")
+	}
+}
+
+func TestDashboardHandler_StressMobile1DChangeSpan(t *testing.T) {
+	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/mobile", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, "mobile-holding-1d") {
+		t.Error("mobile holding card missing 1D change span")
+	}
+	if !strings.Contains(body, `changePct(holdingDailyPct(h))`) {
+		t.Error("mobile 1D span missing changePct binding")
+	}
+}
+
+func TestDashboardHandler_StressMobileFontSizeOverrides(t *testing.T) {
+	// Read the CSS file and verify mobile font size overrides exist
+	cssPath := FindPagesDir() + "/static/css/portal.css"
+	cssBytes, err := os.ReadFile(cssPath)
+	if err != nil {
+		t.Fatalf("failed to read CSS file: %v", err)
+	}
+	css := string(cssBytes)
+
+	checks := []struct {
+		selector string
+		snippet  string
+	}{
+		{".mobile-dashboard .label", ".mobile-dashboard .label"},
+		{".mobile-synced", ".mobile-synced"},
+		{".mobile-today-change", ".mobile-today-change"},
+		{".mobile-holding-ticker", ".mobile-holding-ticker"},
+		{".mobile-holding-name", ".mobile-holding-name"},
+		{".mobile-holding-right", ".mobile-holding-right"},
+		{".mobile-holding-1d", ".mobile-holding-1d"},
+		{".mobile-full-link", ".mobile-full-link"},
+	}
+
+	for _, c := range checks {
+		if !strings.Contains(css, c.snippet) {
+			t.Errorf("CSS missing font size override for %s", c.selector)
+		}
+	}
+
+	// Verify none of the mobile font sizes are smaller than 1rem
+	smallFontSizes := []string{"font-size: 0.6875rem", "font-size: 0.75rem", "font-size: 0.8125rem"}
+	for _, sz := range smallFontSizes {
+		// Check within mobile-specific rules (rough check)
+		idx := strings.Index(css, ".mobile-synced")
+		if idx > 0 {
+			mobileCss := css[idx:]
+			// Only check up to UTILITIES section
+			endIdx := strings.Index(mobileCss, "UTILITIES")
+			if endIdx > 0 {
+				mobileCss = mobileCss[:endIdx]
+			}
+			if strings.Contains(mobileCss, sz) {
+				t.Errorf("mobile CSS still contains small %s", sz)
+			}
+		}
+	}
+}
+
+// --- Devils-advocate: 1D Column Adversarial Tests ---
+
+func TestDashboardHandler_Stress1DColumnNoXHTML(t *testing.T) {
+	// SECURITY: the 1D column must NEVER use x-html — that would allow XSS
+	// if holdingDailyPct ever returned attacker-controlled data.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Find the 1D column cell — it contains holdingDailyPct
+	// Ensure there is NO x-html binding near holdingDailyPct
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "holdingDailyPct") && strings.Contains(line, "x-html") {
+			t.Errorf("SECURITY: line %d uses x-html with holdingDailyPct — XSS risk: %s", i+1, truncStr(line, 120))
+		}
+	}
+}
+
+func TestDashboardHandler_Stress1DFooterColumnCount(t *testing.T) {
+	// The footer total row must have exactly as many <td> elements as the header has <th>.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Find the holdings table — bounded by HOLDINGS header and the next section
+	headerStart := strings.Index(body, `<div class="panel-header">HOLDINGS</div>`)
+	if headerStart < 0 {
+		t.Fatal("HOLDINGS section not found")
+	}
+	// Limit to just the holdings section (before WATCHLIST)
+	holdingsHTML := body[headerStart:]
+	watchlistIdx := strings.Index(holdingsHTML, "WATCHLIST")
+	if watchlistIdx > 0 {
+		holdingsHTML = holdingsHTML[:watchlistIdx]
+	}
+
+	theadStart := strings.Index(holdingsHTML, "<thead>")
+	theadEnd := strings.Index(holdingsHTML, "</thead>")
+	if theadStart < 0 || theadEnd < 0 {
+		t.Fatal("thead not found in holdings table")
+	}
+	thead := holdingsHTML[theadStart:theadEnd]
+	// Count <th> and <th  but not <thead
+	thCount := strings.Count(thead, "<th>") + strings.Count(thead, "<th ")
+
+	// Count <td> in the footer total row
+	tfootStart := strings.Index(holdingsHTML, "<tfoot")
+	tfootEnd := strings.Index(holdingsHTML, "</tfoot>")
+	if tfootStart < 0 || tfootEnd < 0 {
+		t.Fatal("tfoot not found in holdings table")
+	}
+	tfoot := holdingsHTML[tfootStart:tfootEnd]
+	tdCount := strings.Count(tfoot, "<td")
+
+	if thCount != tdCount {
+		t.Errorf("column count mismatch: header has %d <th>, footer has %d <td>", thCount, tdCount)
+	}
+}
+
+func TestDashboardHandler_Stress1DNullGuardPresent(t *testing.T) {
+	// The desktop 1D cell must guard against null holdingDailyPct
+	// to show '-' instead of 'NaN%' or crashing.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Must contain the null check pattern
+	if !strings.Contains(body, `holdingDailyPct(h) != null`) {
+		t.Error("desktop 1D column missing null guard — will show NaN for holdings without yesterday_close_price")
+	}
+	// Must show '-' as fallback
+	if !strings.Contains(body, `: '-'`) {
+		t.Error("desktop 1D column missing '-' fallback for null holdingDailyPct")
+	}
+}
+
+func TestDashboardHandler_StressMobile1DNullHidesSpan(t *testing.T) {
+	// Mobile 1D must return empty string when holdingDailyPct is null
+	// so the span collapses and doesn't waste vertical space.
+	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/mobile", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Mobile must use empty string fallback, not '-'
+	if !strings.Contains(body, `holdingDailyPct(h) != null`) {
+		t.Error("mobile 1D span missing null guard")
+	}
+	if !strings.Contains(body, `: ''`) {
+		t.Error("mobile 1D span should return empty string (not '-') when holdingDailyPct is null")
+	}
+}
+
+func TestDashboardHandler_StressMobile1DNoXHTML(t *testing.T) {
+	// SECURITY: mobile 1D span must use x-text not x-html.
+	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/mobile", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "mobile-holding-1d") && strings.Contains(line, "x-html") {
+			t.Errorf("SECURITY: mobile line %d uses x-html for 1D span — XSS risk: %s", i+1, truncStr(line, 120))
+		}
+	}
+}
+
+func TestDashboardHandler_Stress1DChangeClassBinding(t *testing.T) {
+	// The 1D column must use changeClass() for coloring, not gainClass().
+	// changeClass returns change-up/down/neutral; gainClass returns gain-positive/negative.
+	// Using the wrong class function means colors won't apply.
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// Find the 1D <td> — the one with holdingDailyPct in x-text
+	lines := strings.Split(body, "\n")
+	found := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, `x-text="holdingDailyPct(h)`) && strings.Contains(trimmed, "changePct") {
+			found = true
+			if !strings.Contains(trimmed, `changeClass(holdingDailyPct(h))`) {
+				t.Error("1D column uses wrong class function — must use changeClass(holdingDailyPct(h))")
+			}
+			if strings.Contains(trimmed, "gainClass") {
+				t.Error("1D column incorrectly uses gainClass — should use changeClass for daily changes")
+			}
+		}
+	}
+	if !found {
+		t.Error("could not find 1D column binding in holdings table")
+	}
+}
+
+func TestDashboardHandler_StressBreadthCSSSpecificityIntact(t *testing.T) {
+	// The breadth segment CSS was changed to .breadth-segment.breadth-rising for specificity.
+	// The tbody.breadth-rising rules (holding row border) must NOT have been altered.
+	cssPath := FindPagesDir() + "/static/css/portal.css"
+	cssBytes, err := os.ReadFile(cssPath)
+	if err != nil {
+		t.Fatalf("failed to read CSS file: %v", err)
+	}
+	css := string(cssBytes)
+
+	// Breadth segment rules must use compound selector
+	segments := []string{
+		".breadth-segment.breadth-rising",
+		".breadth-segment.breadth-flat",
+		".breadth-segment.breadth-falling",
+	}
+	for _, s := range segments {
+		if !strings.Contains(css, s) {
+			t.Errorf("CSS missing compound selector %s for breadth segment", s)
+		}
+	}
+
+	// tbody.breadth-* rules must still exist for holding row borders
+	tbodyRules := []string{
+		"tbody.breadth-rising",
+		"tbody.breadth-flat",
+		"tbody.breadth-falling",
+	}
+	for _, r := range tbodyRules {
+		if !strings.Contains(css, r) {
+			t.Errorf("CSS missing %s rule — holding row border colors broken", r)
+		}
+	}
+}
+
+func TestDashboardHandler_StressMobilePerfItemFontSize(t *testing.T) {
+	// The mobile-perf-item .text-bold should be 1.25rem per spec.
+	cssPath := FindPagesDir() + "/static/css/portal.css"
+	cssBytes, err := os.ReadFile(cssPath)
+	if err != nil {
+		t.Fatalf("failed to read CSS file: %v", err)
+	}
+	css := string(cssBytes)
+
+	if !strings.Contains(css, ".mobile-perf-item .text-bold") {
+		t.Error("CSS missing .mobile-perf-item .text-bold rule")
+	}
+}
+
+func TestDashboardHandler_StressMobileLabelFontScope(t *testing.T) {
+	// The .mobile-dashboard .label rule must be scoped to mobile-dashboard
+	// to avoid affecting desktop .label elements.
+	cssPath := FindPagesDir() + "/static/css/portal.css"
+	cssBytes, err := os.ReadFile(cssPath)
+	if err != nil {
+		t.Fatalf("failed to read CSS file: %v", err)
+	}
+	css := string(cssBytes)
+
+	if !strings.Contains(css, ".mobile-dashboard .label") {
+		t.Error("CSS missing scoped .mobile-dashboard .label rule — risks overriding desktop labels")
+	}
+	// Verify it's NOT just ".label { font-size: 1rem }" unscoped in mobile section
+	idx := strings.Index(css, ".mobile-dashboard .label")
+	if idx > 0 {
+		// Get the rule block (next ~100 chars)
+		end := idx + 100
+		if end > len(css) {
+			end = len(css)
+		}
+		ruleBlock := css[idx:end]
+		if !strings.Contains(ruleBlock, "font-size") {
+			t.Error(".mobile-dashboard .label rule exists but has no font-size declaration")
+		}
+	}
+}

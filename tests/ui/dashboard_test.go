@@ -309,19 +309,19 @@ func TestDashboard(t *testing.T) {
 			t.Error("Return $ and Return % column headers not found in holdings table")
 		}
 
-		// 3. Verify return values are displayed in table rows (not empty) — last TWO cells are return columns
+		// 3. Verify return values are displayed in table rows (not empty) — Return $ (col 5) and Return % (col 6) columns
 		var gainInfo string
 		err = chromedp.Run(ctx, chromedp.Evaluate(`
 			(() => {
-				const rows = document.querySelectorAll('.tool-table tbody tr');
+				const rows = document.querySelectorAll('.tool-table tbody tr.holding-row-clickable');
 				if (rows.length === 0) return 'no-rows';
-				// Last two cells in each row are Return $ and Return %
+				// Return $ is column index 4, Return % is column index 5 (0-based)
 				const gainCells = [];
 				for (const r of rows) {
 					const cells = r.querySelectorAll('td');
-					if (cells.length >= 2) {
-						gainCells.push(cells[cells.length - 2]);
-						gainCells.push(cells[cells.length - 1]);
+					if (cells.length >= 6) {
+						gainCells.push(cells[4]);
+						gainCells.push(cells[5]);
 					}
 				}
 				const empty = gainCells.filter(c => !c.textContent.trim() || c.textContent.trim() === '');
@@ -1378,6 +1378,115 @@ func TestDashboard(t *testing.T) {
 		}
 		if clickableRows < 1 {
 			t.Skip("no clickable holding rows found (no holdings data)")
+		}
+	})
+
+	t.Run("OneDayColumn", func(t *testing.T) {
+		takeScreenshot(t, ctx, "dashboard", "one-day-column.png")
+
+		visible, err := isVisible(ctx, ".tool-table")
+		if err != nil {
+			t.Fatalf("error checking holdings table visibility: %v", err)
+		}
+		if !visible {
+			t.Skip("holdings table not visible (no portfolio data available)")
+		}
+
+		// Verify 1D column header exists
+		headerExists, err := commontest.EvalBool(ctx, `
+			(() => {
+				const ths = document.querySelectorAll('.tool-table th');
+				const headers = Array.from(ths).map(th => th.textContent.trim());
+				return headers.includes('1D');
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking 1D header: %v", err)
+		}
+		if !headerExists {
+			t.Error("1D column header not found in holdings table")
+		}
+
+		// Verify 1D header has text-right class
+		headerAligned, err := commontest.EvalBool(ctx, `
+			(() => {
+				const ths = document.querySelectorAll('.tool-table th');
+				for (const th of ths) {
+					if (th.textContent.trim() === '1D') return th.classList.contains('text-right');
+				}
+				return false;
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking 1D header alignment: %v", err)
+		}
+		if !headerAligned {
+			t.Error("1D column header does not have text-right class")
+		}
+
+		// Verify holding rows have 7 columns (Ticker, Name, Value, Weight%, Return $, Return %, 1D)
+		colCount, err := commontest.EvalBool(ctx, `
+			(() => {
+				const row = document.querySelector('.tool-table tbody tr.holding-row-clickable');
+				if (!row) return false;
+				return row.querySelectorAll('td').length === 7;
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking column count: %v", err)
+		}
+		if !colCount {
+			t.Error("holding rows should have 7 columns (including 1D)")
+		}
+
+		// Verify 1D cell uses x-text binding (not x-html) via changeClass
+		dailyCellHasClass, err := commontest.EvalBool(ctx, `
+			(() => {
+				const row = document.querySelector('.tool-table tbody tr.holding-row-clickable');
+				if (!row) return false;
+				const cells = row.querySelectorAll('td');
+				const lastCell = cells[cells.length - 1];
+				// Should have change-up, change-down, or change-neutral class, or text content '-'
+				const cls = lastCell.className;
+				const text = lastCell.textContent.trim();
+				return cls.includes('change-up') || cls.includes('change-down') || cls.includes('change-neutral') || text === '-';
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking 1D cell class: %v", err)
+		}
+		if !dailyCellHasClass {
+			t.Error("1D cell should have a change color class or show '-' for null data")
+		}
+
+		// Verify colspan on movement row matches column count (7)
+		colspanCorrect, err := commontest.EvalBool(ctx, `
+			(() => {
+				const td = document.querySelector('.holding-movement-content');
+				if (!td) return true; // no movement rows visible, skip
+				return td.getAttribute('colspan') === '7';
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking colspan: %v", err)
+		}
+		if !colspanCorrect {
+			t.Error("holding-movement-content colspan should be 7")
+		}
+
+		// Verify footer total row has 7 cells
+		footerColCount, err := commontest.EvalBool(ctx, `
+			(() => {
+				const row = document.querySelector('.holdings-total-row');
+				if (!row) return true; // no footer visible, skip
+				return row.querySelectorAll('td').length === 7;
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking footer column count: %v", err)
+		}
+		if !footerColCount {
+			t.Error("footer total row should have 7 cells to match header")
 		}
 	})
 

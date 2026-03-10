@@ -102,6 +102,8 @@
                         <div class="mobile-holding-right">
                             <span class="text-bold" x-text="fmt(h.holding_value_market)"></span>
                             <span :class="gainClass(h.holding_return_net_pct)" x-text="pct(h.holding_return_net_pct)"></span>
+                            <span class="mobile-holding-1d" :class="changeClass(holdingDailyPct(h))"
+                                  x-text="holdingDailyPct(h) != null ? changePct(holdingDailyPct(h)) + ' 1D' : ''"></span>
                         </div>
                     </div>
                 </template>

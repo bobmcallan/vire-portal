@@ -82,6 +82,69 @@ func TestMobileDashboard(t *testing.T) {
 		}
 	})
 
+	t.Run("HoldingOneDayChange", func(t *testing.T) {
+		_ = chromedp.Run(ctx, chromedp.Sleep(1*time.Second))
+		takeScreenshot(t, ctx, "mobile", "holding-1d-change.png")
+
+		exists, err := commontest.Exists(ctx, `.mobile-holding-card`)
+		if err != nil {
+			t.Fatalf("error checking holding cards: %v", err)
+		}
+		if !exists {
+			t.Skip("no holding cards visible (test account may have no holdings)")
+		}
+
+		// Verify .mobile-holding-1d span exists in holding cards
+		oneDayExists, err := commontest.Exists(ctx, `.mobile-holding-card .mobile-holding-1d`)
+		if err != nil {
+			t.Fatalf("error checking 1D span: %v", err)
+		}
+		if !oneDayExists {
+			t.Skip("mobile-holding-1d span not found (holdings may have no daily data)")
+		}
+
+		// Verify 1D span uses changeClass (change-up, change-down, or change-neutral)
+		hasColorClass, err := commontest.EvalBool(ctx, `
+			(() => {
+				const spans = document.querySelectorAll('.mobile-holding-card .mobile-holding-1d');
+				if (spans.length === 0) return false;
+				for (const s of spans) {
+					const text = s.textContent.trim();
+					if (!text) continue; // empty means null daily data, skip
+					const cls = s.className;
+					if (!cls.includes('change-up') && !cls.includes('change-down') && !cls.includes('change-neutral')) return false;
+				}
+				return true;
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking 1D color classes: %v", err)
+		}
+		if !hasColorClass {
+			t.Error("mobile 1D spans with text should have change color classes")
+		}
+
+		// Verify 1D text ends with " 1D" suffix when present
+		hasSuffix, err := commontest.EvalBool(ctx, `
+			(() => {
+				const spans = document.querySelectorAll('.mobile-holding-card .mobile-holding-1d');
+				if (spans.length === 0) return false;
+				for (const s of spans) {
+					const text = s.textContent.trim();
+					if (!text) continue; // empty means null daily data
+					if (!text.endsWith('1D')) return false;
+				}
+				return true;
+			})()
+		`)
+		if err != nil {
+			t.Fatalf("error checking 1D suffix: %v", err)
+		}
+		if !hasSuffix {
+			t.Error("mobile 1D text should end with '1D' suffix")
+		}
+	})
+
 	t.Run("FullDashboardLink", func(t *testing.T) {
 		takeScreenshot(t, ctx, "mobile", "full-dashboard-link.png")
 

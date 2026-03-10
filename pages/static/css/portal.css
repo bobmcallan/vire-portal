@@ -1305,9 +1305,9 @@ code {
     overflow: hidden;
 }
 
-.breadth-rising { background: #5a9e6f; }
-.breadth-flat { background: #aaa; }
-.breadth-falling { background: #c06060; }
+.breadth-segment.breadth-rising { background: #5a9e6f; }
+.breadth-segment.breadth-flat { background: #aaa; }
+.breadth-segment.breadth-falling { background: #c06060; }
 
 
 .breadth-counts {
@@ -1795,7 +1795,7 @@ tbody.breadth-falling td:last-child { border-right: 3px solid #c06060; }
 }
 
 .mobile-synced {
-    font-size: 0.6875rem;
+    font-size: 1rem;
     letter-spacing: 0.05em;
     margin-bottom: 0.75rem;
     text-align: right;
@@ -1817,7 +1817,7 @@ tbody.breadth-falling td:last-child { border-right: 3px solid #c06060; }
 .mobile-changes-row {
     display: flex;
     gap: 1rem;
-    font-size: 0.75rem;
+    font-size: 1rem;
     font-weight: 700;
     letter-spacing: 0.05em;
     margin-top: 0.5rem;
@@ -1838,7 +1838,7 @@ tbody.breadth-falling td:last-child { border-right: 3px solid #c06060; }
 }
 
 .mobile-today-change {
-    font-size: 0.6875rem;
+    font-size: 1rem;
     letter-spacing: 0.05em;
 }
 
@@ -1879,12 +1879,12 @@ tbody.breadth-falling td:last-child { border-right: 3px solid #c06060; }
 
 .mobile-holding-ticker {
     font-weight: 700;
-    font-size: 0.8125rem;
+    font-size: 1.125rem;
 }
 
 .mobile-holding-name {
-    font-size: 0.6875rem;
-    max-width: 10rem;
+    font-size: 1rem;
+    max-width: 14rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1895,7 +1895,7 @@ tbody.breadth-falling td:last-child { border-right: 3px solid #c06060; }
     flex-direction: column;
     align-items: flex-end;
     gap: 0.1rem;
-    font-size: 0.8125rem;
+    font-size: 1.125rem;
 }
 
 .mobile-holding-total {
@@ -1903,11 +1903,23 @@ tbody.breadth-falling td:last-child { border-right: 3px solid #c06060; }
     font-weight: 700;
 }
 
+.mobile-dashboard .label {
+    font-size: 1rem;
+}
+
+.mobile-perf-item .text-bold {
+    font-size: 1.25rem;
+}
+
+.mobile-holding-1d {
+    font-size: 1rem;
+}
+
 .mobile-full-link {
     text-align: center;
     padding: 1rem;
     font-weight: 700;
-    font-size: 0.8125rem;
+    font-size: 1rem;
     letter-spacing: 0.1em;
 }
 
