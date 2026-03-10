@@ -1082,6 +1082,12 @@ function portfolioDashboard() {
             if (abs >= 1000) return sign + '$' + (abs / 1000).toFixed(1) + 'K';
             return sign + '$' + abs.toFixed(0);
         },
+        holdingBreadthClass(h) {
+            const pct = this.holdingDailyPct(h);
+            if (pct !== null && pct > 0.5) return 'breadth-rising';
+            if (pct !== null && pct < -0.5) return 'breadth-falling';
+            return 'breadth-flat';
+        },
         holdingDailyPct(h) {
             if (h.current_price == null || h.yesterday_close_price == null || h.yesterday_close_price === 0) return null;
             return ((h.current_price - h.yesterday_close_price) / h.yesterday_close_price) * 100;
@@ -1391,8 +1397,11 @@ function stockDetail() {
             if (!canvas || !this.detail || !this.detail.candles || this.detail.candles.length === 0) return;
             if (typeof Chart === 'undefined') return;
 
-            const candles = this.detail.candles;
-            const labels = candles.map(c => c.date || '');
+            const candles = [...this.detail.candles].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            const labels = candles.map(c => {
+                const d = new Date(c.date);
+                return isNaN(d) ? (c.date || '') : d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+            });
             const closeData = candles.map(c => c.close);
 
             const datasets = [{

@@ -206,7 +206,7 @@
                                 </tr>
                             </thead>
                             <template x-for="h in filteredHoldings" :key="h.ticker">
-                                <tbody>
+                                <tbody :class="holdingBreadthClass(h)">
                                     <tr class="holding-row-clickable" @click="window.location.href='/stock/' + encodeURIComponent(h.ticker)" style="cursor:pointer;">
                                         <td class="tool-name"><a :href="'/stock/' + encodeURIComponent(h.ticker)" x-text="h.ticker" @click.stop></a></td>
                                         <td x-text="h.name"></td>
