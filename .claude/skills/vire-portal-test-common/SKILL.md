@@ -1,9 +1,9 @@
 ---
-name: test-common
+name: vire-portal-test-common
 description: Shared test infrastructure, mandatory rules, and helper patterns for vire-portal UI and unit tests. Read this before creating, reviewing, or executing any tests.
 ---
 
-# /test-common - Shared Test Infrastructure
+# /vire-portal-test-common - Shared Test Infrastructure
 
 Documentation for vire-portal's test infrastructure patterns and mandatory rules.
 
@@ -37,11 +37,11 @@ All test execution MUST produce results in:
 
 ```
 tests/logs/{YYYYMMDD-HHMMSS}/
-├── {suite}.log       # Full test output (REQUIRED)
-├── summary.md        # Pass/fail summary (REQUIRED)
-├── container.log     # Portal container logs (Docker mode)
-└── {suite}/          # Validation screenshots (REQUIRED, see Rule 4)
-    └── *.png         # One per test — visual proof of page state
+|-- {suite}.log       # Full test output (REQUIRED)
+|-- summary.md        # Pass/fail summary (REQUIRED)
+|-- container.log     # Portal container logs (Docker mode)
++-- {suite}/          # Validation screenshots (REQUIRED, see Rule 4)
+    +-- *.png         # One per test -- visual proof of page state
 ```
 
 This is achieved by running tests via `./scripts/ui-test.sh` which captures output via `tee` and generates `summary.md`. Container logs are collected automatically by `TestMain`.
@@ -93,12 +93,12 @@ Tests and test tooling MUST NEVER create files in the project root directory. Al
 
 ### Rule 7: test-execute Is Read-Only
 
-`/test-execute` MUST NEVER modify or update test files. Its role is:
+`/vire-portal-test-execute` MUST NEVER modify or update test files. Its role is:
 1. Validate test structure compliance (Rules 1-3) before running
 2. Execute the tests
 3. Report results and any structural non-compliance
 
-If structural issues are found, `/test-execute` documents them and advises using `/test-create-review` to fix.
+If structural issues are found, `/vire-portal-test-execute` documents them and advises using `/vire-portal-test-create` to fix.
 
 ### Rule 8: Alpine Pages Must Assert No JS Console Errors
 
@@ -127,13 +127,7 @@ func TestMyAlpinePage(t *testing.T) {
 }
 ```
 
-**Why this matters:** Alpine warnings such as `Duplicate key on x-for`, undefined reactive properties, and IntersectionObserver errors do NOT throw exceptions — they only appear in the browser console. Without explicit JS error collection, they are invisible to tests and slip through to production.
-
-**What to catch:**
-- `Alpine Warning: Duplicate key on x-for` — duplicate array IDs, usually from concurrent fetches
-- `Alpine Warning: ...` — any Alpine runtime warning
-- `Uncaught TypeError` / `Uncaught ReferenceError` — unhandled JS errors
-- Network errors logged to console
+**Why this matters:** Alpine warnings such as `Duplicate key on x-for`, undefined reactive properties, and IntersectionObserver errors do NOT throw exceptions -- they only appear in the browser console. Without explicit JS error collection, they are invisible to tests and slip through to production.
 
 **Scope:** All pages using `x-data` + `x-init` + any API `fetch()` call. Static Alpine bindings (e.g., hamburger toggle only) are exempt.
 
@@ -160,7 +154,7 @@ func TestMain(m *testing.M) {
 }
 ```
 
-Tests always run against Docker containers — there is no manual/local mode. This ensures the latest `vire-server:latest` image is always pulled and used.
+Tests always run against Docker containers -- there is no manual/local mode. This ensures the latest `vire-server:latest` image is always pulled and used.
 
 ## Key Components
 

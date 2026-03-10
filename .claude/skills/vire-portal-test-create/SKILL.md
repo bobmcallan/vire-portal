@@ -1,17 +1,17 @@
 ---
-name: test-create-review
+name: vire-portal-test-create
 description: Create new UI tests or review existing tests for compliance in vire-portal. Use when asked to write, create, review, audit, or fix UI tests.
 ---
 
-# /test-create-review - Create or Review UI Tests
+# /vire-portal-test-create - Create or Review UI Tests
 
 Create new UI tests or review existing tests for compliance. This skill consolidates test creation and compliance review into a single workflow.
 
-**Mandatory rules are defined in `/test-common`. Read them first.**
+**Mandatory rules are defined in `.claude/skills/vire-portal-test-common/SKILL.md`. Read them first.**
 
 ## Usage
 ```
-/test-create-review <action> [suite]
+/vire-portal-test-create <action> [suite]
 ```
 
 **Actions:**
@@ -20,14 +20,14 @@ Create new UI tests or review existing tests for compliance. This skill consolid
 - `audit` -- Review all tests without making changes (report only)
 
 **Examples:**
-- `/test-create-review create portfolio` -- Create portfolio UI tests
-- `/test-create-review review smoke` -- Review and fix smoke tests
-- `/test-create-review review` -- Review and fix all UI tests
-- `/test-create-review audit` -- Audit all tests for compliance (no changes)
+- `/vire-portal-test-create create portfolio` -- Create portfolio UI tests
+- `/vire-portal-test-create review smoke` -- Review and fix smoke tests
+- `/vire-portal-test-create review` -- Review and fix all UI tests
+- `/vire-portal-test-create audit` -- Audit all tests for compliance (no changes)
 
 ## Prerequisites
 
-Read `/test-common` for:
+Read `.claude/skills/vire-portal-test-common/SKILL.md` for:
 - **Mandatory Rules** (compliance requirements for all tests)
 - Test environment setup patterns
 - Key components and helpers
@@ -42,20 +42,30 @@ All UI tests live in `tests/ui/`:
 |-------|------|
 | smoke | `tests/ui/smoke_test.go` |
 | dashboard | `tests/ui/dashboard_test.go` |
+| mobile | `tests/ui/mobile_dashboard_test.go` |
+| stock | `tests/ui/stock_test.go` |
+| strategy | `tests/ui/strategy_test.go` |
+| cash | `tests/ui/cash_test.go` |
 | nav | `tests/ui/nav_test.go` |
 | auth | `tests/ui/auth_test.go` |
 | devauth | `tests/ui/dev_auth_test.go` |
 | mcp | `tests/ui/mcp_test.go` |
-| cash | `tests/ui/cash_test.go` |
+| profile | `tests/ui/profile_test.go` |
 | error | `tests/ui/error_test.go` |
 | glossary | `tests/ui/glossary_test.go` |
 | changelog | `tests/ui/changelog_test.go` |
-| profile | `tests/ui/profile_test.go` |
+| docs | `tests/ui/docs_test.go` |
+| status_ws | `tests/ui/status_ws_test.go` |
+| users | `tests/ui/users_test.go` |
+| prompts | `tests/ui/prompts_test.go` |
+| gemini | `tests/ui/gemini_test.go` |
 | *(new)* | `tests/ui/{name}_test.go` |
+
+Helpers: `tests/ui/ui_helpers_test.go`
 
 ### Step 2: For `create` -- Scaffold Using Template
 
-Create the test file using the template below. Ensure compliance with all mandatory rules from `/test-common`.
+Create the test file using the template below. Ensure compliance with all mandatory rules from `.claude/skills/vire-portal-test-common/SKILL.md`.
 
 ### Step 3: For `review` -- Check and Fix Compliance
 
@@ -94,7 +104,7 @@ Same checks as `review`, but do NOT modify any files. Output a compliance report
 - [ ] Rule 5: Using `t.Log` instead of `t.Fatal` for setup failures
 
 ## Recommendation
-Run `/test-create-review review [suite]` to fix.
+Run `/vire-portal-test-create review [suite]` to fix.
 ```
 
 ## UI Test Template
@@ -201,8 +211,8 @@ Before completing any create or review action:
 - [ ] Selectors match current HTML templates in `pages/`
 - [ ] Both success and error paths tested
 - [ ] Proper cleanup via `defer cancel()`
-- [ ] **Validation screenshot in every test** via `takeScreenshot(t, ctx, "suite", "name.png")` — placed after page load, before assertions
-- [ ] **JS error check for Alpine pages** — if page uses `x-data`+`x-init`+`fetch()`, at least one test uses `newJSErrorCollector` with 2s wait and asserts no errors (Rule 8)
+- [ ] **Validation screenshot in every test** via `takeScreenshot(t, ctx, "suite", "name.png")` -- placed after page load, before assertions
+- [ ] **JS error check for Alpine pages** -- if page uses `x-data`+`x-init`+`fetch()`, at least one test uses `newJSErrorCollector` with 2s wait and asserts no errors (Rule 8)
 - [ ] Module path is `github.com/bobmcallan/vire-portal`
 - [ ] Executable via `go test` without Claude
 - [ ] Uses helpers from `ui_helpers_test.go`

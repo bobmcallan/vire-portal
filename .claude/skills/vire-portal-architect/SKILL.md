@@ -7,7 +7,7 @@ description: Architectural guardrails for vire-portal code changes. Apply whenev
 
 These rules are derived from the actual vire-portal codebase patterns. Every rule references real code.
 
-## Rule 1: Data Ownership — vire-server Owns All Data
+## Rule 1: Data Ownership -- vire-server Owns All Data
 
 The portal is **stateless**. All user data, portfolio calculations, and business logic live in vire-server. The portal only renders and proxies.
 
@@ -24,11 +24,11 @@ capitalGainPct := (currentValue - costBasis) / costBasis * 100
 ```
 
 **Check for:**
-- Arithmetic on portfolio/financial data in `internal/handlers/` — calculations belong in vire-server
-- New fields derived from existing fields in handlers — fetch the computed value from the API instead
+- Arithmetic on portfolio/financial data in `internal/handlers/` -- calculations belong in vire-server
+- New fields derived from existing fields in handlers -- fetch the computed value from the API instead
 - Caching or storing user data locally (except `internal/cache/` response cache with TTL)
 
-## Rule 2: Handler Pattern — Struct + Dependency Injection
+## Rule 2: Handler Pattern -- Struct + Dependency Injection
 
 All handlers follow the same structure. New handlers must match it.
 
@@ -41,7 +41,7 @@ type XxxHandler struct {
     jwtSecret   []byte
     apiURL      string
     proxyGetFn  func(path, userID string) ([]byte, error)  // SSR data
-    userLookupFn func(userID string) (*models.User, error)  // user context
+    userLookupFn func(userID string) (*client.UserProfile, error)
 }
 
 func NewXxxHandler(logger *common.Logger, devMode bool, jwtSecret []byte) *XxxHandler {
@@ -63,17 +63,36 @@ if !loggedIn {
 }
 ```
 
+**Handler inventory** (17 handlers):
+- `DashboardHandler` -- Portfolio dashboard (5 parallel SSR fetches)
+- `MobileDashboardHandler` -- Mobile dashboard variant
+- `StockHandler` -- Per-stock detail (candles, filings, news, trades)
+- `StrategyHandler` -- Investment strategy and plan editor
+- `CashHandler` -- Cash transactions
+- `PageHandler` -- Generic pages (landing, help, changelog, glossary, docs, error)
+- `AuthHandler` -- OAuth flow, JWT issuance, logout
+- `ProfileHandler` -- User settings (timezone, Navexa key)
+- `AdminUsersHandler` -- Admin: user management
+- `AdminPromptsHandler` -- Admin: Gemini prompt templates
+- `AdminGeminiHandler` -- Admin: Gemini API usage stats
+- `MCPPageHandler` -- MCP info/documentation page
+- `HealthHandler` -- `GET /api/health`
+- `VersionHandler` -- `GET /api/version`
+- `ServerHealthHandler` -- `GET /api/server-health`
+- `WSStatusHandler` -- WebSocket status indicator
+- `MCPHandler` -- HTTP MCP endpoint (mcp-go StreamableHTTPServer)
+
 **Check for:**
 - Handlers accessing global state or singletons instead of injected dependencies
 - Missing `IsLoggedIn` check on protected routes
-- Direct HTTP calls to vire-server — use `proxyGetFn` or `VireClient` methods
-- Template loading at request time — templates are pre-loaded in `New*()` constructors
+- Direct HTTP calls to vire-server -- use `proxyGetFn` or `VireClient` methods
+- Template loading at request time -- templates are pre-loaded in `New*()` constructors
 
-## Rule 3: SSR Data Embedding — template.JS for Trusted Data
+## Rule 3: SSR Data Embedding -- template.JS for Trusted Data
 
 Pages use two SSR patterns. Choose the right one.
 
-**Pattern A — Pure SSR (static content, no Alpine interactivity needed):**
+**Pattern A -- Pure SSR (static content, no Alpine interactivity needed):**
 ```go
 // Handler builds template data directly
 data := map[string]interface{}{
@@ -83,7 +102,7 @@ h.templates.ExecuteTemplate(w, "glossary.html", data)
 ```
 Used by: `error.html`, `landing.html`, `glossary.html`
 
-**Pattern B — JSON Hydration (Alpine.js needs the data):**
+**Pattern B -- JSON Hydration (Alpine.js needs the data):**
 ```go
 // Handler marshals JSON, passes as template.JS
 jsonBytes, _ := json.Marshal(apiResponse)
@@ -100,12 +119,12 @@ Alpine reads on init, then cleans up:
 const d = window.__VIRE_DATA__;
 delete window.__VIRE_DATA__;
 ```
-Used by: `cash.html`, `strategy.html`, `changelog.html`, `help.html`
+Used by: `dashboard.html` (5 parallel fetches), `stock.html`, `cash.html`, `strategy.html`, `changelog.html`, `help.html`
 
-**Dashboard exception:** Dashboard remains client-side Alpine (no SSR) due to complexity.
+All SSR-capable pages have a client-side fetch fallback if `proxyGetFn` is nil or returns an error.
 
 **Check for:**
-- `template.JS` used with user-supplied input — only safe for trusted vire-server data
+- `template.JS` used with user-supplied input -- only safe for trusted vire-server data
 - Missing `delete window.__VIRE_DATA__` cleanup after Alpine reads it
 - New pages using client-side fetch when SSR would be simpler
 - `template.HTML` used where `template.JS` is needed (different escaping)
@@ -113,13 +132,13 @@ Used by: `cash.html`, `strategy.html`, `changelog.html`, `help.html`
 ## Rule 4: Template Safety
 
 Go's `html/template` auto-escapes HTML context. The portal uses:
-- `{{.Field}}` — auto-escaped (safe for user-visible text)
-- `template.JS` — for JSON in `<script>` blocks (bypasses HTML escaping)
-- Alpine.js `x-text` — safe (text-only, no HTML injection)
-- Alpine.js `x-html` — avoid unless rendering trusted server HTML
+- `{{.Field}}` -- auto-escaped (safe for user-visible text)
+- `template.JS` -- for JSON in `<script>` blocks (bypasses HTML escaping)
+- Alpine.js `x-text` -- safe (text-only, no HTML injection)
+- Alpine.js `x-html` -- avoid unless rendering trusted server HTML
 
 **Check for:**
-- `template.HTML` wrapping user input — XSS risk
+- `template.HTML` wrapping user input -- XSS risk
 - `x-html` binding with user-controlled content
 - Raw string concatenation in JavaScript with user data
 - Missing CSRF token in forms (`_csrf` cookie + hidden field)
@@ -136,8 +155,8 @@ Eight middleware layers wrap all requests (see `internal/server/middleware.go`).
 - Panic recovery
 
 **Check for:**
-- Routes that need CSRF exemption — add to skip list in `csrfMiddleware`
-- Routes needing larger body limits — update `maxBodySizeMiddleware`
+- Routes that need CSRF exemption -- add to skip list in `csrfMiddleware`
+- Routes needing larger body limits -- update `maxBodySizeMiddleware`
 - New middleware breaking the existing chain order
 
 ## Rule 6: API Client Pattern
@@ -145,20 +164,21 @@ Eight middleware layers wrap all requests (see `internal/server/middleware.go`).
 All communication with vire-server goes through `internal/client/vire_client.go`.
 
 **Existing methods:**
-- `GetUser(userID)` → GET /api/users/{id}
-- `SaveUser(userID, user)` → PUT /api/users/{id}
-- `ProxyGet(path, userID)` → GET /api/* with X-Vire-User-ID header
-- `AdminListUsers(userID)` → GET /api/admin/users
-- `ExchangeOAuth(provider, code, state)` → POST /api/auth/oauth
-- `RegisterService(serviceID, serviceKey)` → POST /api/services/register
+- `GetUser(userID)` -> GET /api/users/{id}
+- `SaveUser(userID, user)` -> PUT /api/users/{id}
+- `ProxyGet(path, userID)` -> GET /api/* with X-Vire-User-ID header
+- `AdminListUsers(userID)` -> GET /api/admin/users
+- `AdminListPrompts()`, `AdminGetPrompt()`, `AdminSetPrompt()`
+- `ExchangeOAuth(provider, code, state)` -> POST /api/auth/oauth
+- `RegisterService(serviceID, serviceKey)` -> POST /api/services/register
 
 **All methods inject these headers:**
-- `X-Vire-User-ID` — authenticated user's JWT sub claim
-- `X-Vire-Portfolios` — from config
-- `X-Vire-Display-Currency` — from config
+- `X-Vire-User-ID` -- authenticated user's JWT sub claim
+- `X-Vire-Portfolios` -- from config
+- `X-Vire-Display-Currency` -- from config
 
 **Check for:**
-- Direct `http.Get/Post` calls to vire-server URLs — use VireClient
+- Direct `http.Get/Post` calls to vire-server URLs -- use VireClient
 - Missing error handling on VireClient responses
 - New endpoints not following the response format: `{"status":"ok","data":{...}}`
 
@@ -166,33 +186,33 @@ All communication with vire-server goes through `internal/client/vire_client.go`
 
 | Context | Pattern |
 |---------|---------|
-| API endpoints | `WriteError(w, statusCode, "message")` → `{"status":"error","error":"..."}` |
+| API endpoints | `WriteError(w, statusCode, "message")` -> `{"status":"error","error":"..."}` |
 | Page handlers | `http.Redirect(w, r, "/error?reason=key", http.StatusFound)` |
 | Internal errors | `h.logger.Error().Str("handler", "name").Err(err).Msg("description")` |
 | Auth failures | Redirect to `/` (landing page) |
 
-Error page reason keys are an allowlist in `ServeErrorPage()` — adding a new reason requires updating the map.
+Error page reason keys are an allowlist in `ServeErrorPage()` -- adding a new reason requires updating the map.
 
 **Check for:**
 - `http.Error()` used for page handlers (should redirect to `/error?reason=`)
 - Missing structured logging on error paths
 - New error reasons not added to the allowlist map
 
-## Rule 8: Multi-Instance Safety — Design for N Portals
+## Rule 8: Multi-Instance Safety -- Design for N Portals
 
 Multiple vire-portal instances can run concurrently against the same vire-server (e.g. staging + production, or horizontal scaling). All code must be safe in this context.
 
 **Principles:**
-- **No local state as source of truth** — the portal is stateless; vire-server is the single source of truth for all data
-- **No instance-specific assumptions** — never assume "this is the only portal" when designing features
-- **In-memory caches are per-instance** — `internal/cache/` response cache is local to each instance; cache invalidation on one instance does not propagate to others. This is acceptable for short-TTL debounce caches (2s SSR cache) but NOT for long-lived data
-- **Service registration is per-instance** — each portal registers with its own `VIRE_PORTAL_ID` (defaults to hostname). Multiple portals register as separate service identities
-- **MCP sessions are stateless** — the MCP endpoint uses stateless HTTP (no sticky sessions required). Any portal instance can serve any MCP request
-- **Config is per-instance** — each portal reads its own env vars / config. Do not assume shared config across instances
+- **No local state as source of truth** -- the portal is stateless; vire-server is the single source of truth for all data
+- **No instance-specific assumptions** -- never assume "this is the only portal" when designing features
+- **In-memory caches are per-instance** -- `internal/cache/` response cache is local to each instance; cache invalidation on one instance does not propagate to others. This is acceptable for short-TTL debounce caches (2s SSR cache) but NOT for long-lived data
+- **Service registration is per-instance** -- each portal registers with its own `VIRE_PORTAL_ID` (defaults to hostname). Multiple portals register as separate service identities
+- **MCP sessions are stateless** -- the MCP endpoint uses stateless HTTP (no sticky sessions required). Any portal instance can serve any MCP request
+- **Config is per-instance** -- each portal reads its own env vars / config. Do not assume shared config across instances
 
 **Check for:**
 - In-memory state used as coordination mechanism between requests (use vire-server API instead)
 - Assumptions that cache invalidation reaches all consumers (it only affects the local instance)
 - Singleton patterns that break when multiple processes run (e.g. file locks, port bindings, global counters)
-- Background goroutines that assume exclusive ownership of a resource (e.g. "only one portal syncs admins" — all portals will run SyncAdmins independently)
+- Background goroutines that assume exclusive ownership of a resource (e.g. "only one portal syncs admins" -- all portals will run SyncAdmins independently)
 - Write-then-read patterns where a write to vire-server is immediately followed by a read that assumes the write has landed (eventual consistency across instances)

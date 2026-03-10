@@ -1,37 +1,39 @@
 ---
-name: test-execute
-description: Run vire-portal UI tests and report results. Use when asked to execute, run, or check tests. Read-only — never modifies test files.
+name: vire-portal-test-execute
+description: Run vire-portal UI tests and report results. Use when asked to execute, run, or check tests. Read-only -- never modifies test files.
 ---
 
-# /test-execute - Test Execution
+# /vire-portal-test-execute - Test Execution
 
 Run portal UI tests and report results.
 
-**Mandatory rules are defined in `/test-common`. Read them first.**
+**Mandatory rules are defined in `.claude/skills/vire-portal-test-common/SKILL.md`. Read them first.**
 
 **CRITICAL: This skill MUST NEVER modify or update test files. It is read-only.**
 
 ## Usage
 ```
-/test-execute [scope]
+/vire-portal-test-execute [scope]
 ```
 
 **Examples:**
-- `/test-execute` - Run smoke tests (default)
-- `/test-execute smoke` - Run smoke tests
-- `/test-execute dashboard` - Run dashboard tests
-- `/test-execute nav` - Run navigation tests
-- `/test-execute auth` - Run auth tests
-- `/test-execute devauth` - Run dev auth tests
-- `/test-execute mcp` - Run MCP tests
-- `/test-execute all` - Run all UI tests
-- `/test-execute TestSmokeLanding` - Run a specific test by name
+- `/vire-portal-test-execute` - Run smoke tests (default)
+- `/vire-portal-test-execute smoke` - Run smoke tests
+- `/vire-portal-test-execute dashboard` - Run dashboard tests
+- `/vire-portal-test-execute stock` - Run stock page tests
+- `/vire-portal-test-execute nav` - Run navigation tests
+- `/vire-portal-test-execute auth` - Run auth tests
+- `/vire-portal-test-execute devauth` - Run dev auth tests
+- `/vire-portal-test-execute mcp` - Run MCP tests
+- `/vire-portal-test-execute profile` - Run profile tests
+- `/vire-portal-test-execute all` - Run all UI tests
+- `/vire-portal-test-execute TestSmokeLanding` - Run a specific test by name
 
 ## Workflow
 
 ### Step 1: Validate Test Structure (Mandatory)
 
-Before executing any tests, validate structural compliance. Check each test file in scope against the mandatory rules from `/test-common`:
+Before executing any tests, validate structural compliance. Check each test file in scope against the mandatory rules from `.claude/skills/vire-portal-test-common/SKILL.md`:
 
 | # | Rule | What to Check |
 |---|------|---------------|
@@ -43,11 +45,11 @@ Before executing any tests, validate structural compliance. Check each test file
 
 **If non-compliant files are found:**
 1. Document each violation in the output report
-2. Advise the user to run `/test-create-review review` to fix
+2. Advise the user to run `/vire-portal-test-create review` to fix
 3. Still execute the tests (non-compliance does not block execution)
 4. **DO NOT modify the test files**
 
-**After execution — check test output for JS console warnings:**
+**After execution -- check test output for JS console warnings:**
 Even if all tests pass, scan the test log for lines containing `Alpine Warning` or `Uncaught`. These indicate runtime component bugs that tests didn't catch because the JS error collector wasn't set up. Report them as non-compliance (Rule 8) alongside the pass/fail results.
 
 ### Step 2: Determine Test Scope
@@ -58,6 +60,7 @@ Parse the argument to determine what to run:
 |----------|---------------|--------------|
 | *(none)* or `smoke` | `./scripts/ui-test.sh smoke` | `^TestSmoke` |
 | `dashboard` | `./scripts/ui-test.sh dashboard` | `^TestDashboard` |
+| `stock` | `./scripts/ui-test.sh stock` | `^TestStock` |
 | `nav` | `./scripts/ui-test.sh nav` | `^TestNav` |
 | `auth` | `./scripts/ui-test.sh auth` | `^TestAuth` |
 | `devauth` | `./scripts/ui-test.sh devauth` | `^TestDevAuth` |
@@ -83,7 +86,7 @@ go test -v ./tests/ui/... -run TestName -timeout 120s
 # Run all suites
 ./scripts/ui-test.sh all
 
-# Available suites: smoke, dashboard, nav, auth, devauth, mcp, profile, all
+# Available suites: smoke, dashboard, stock, nav, auth, devauth, mcp, profile, all
 ```
 
 ### Step 4: Read and Report Results
@@ -109,7 +112,7 @@ If tests fail:
 1. Read `{suite}.log` for failure details
 2. Check `*.png` screenshots for visual context
 3. Report the failures with details
-4. **DO NOT modify test files** -- advise using `/test-create-review` if tests need updating
+4. **DO NOT modify test files** -- advise using `/vire-portal-test-create` if tests need updating
 
 ## Notes
 
