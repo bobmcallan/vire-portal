@@ -83,6 +83,13 @@
                     <span class="label">NET EQUITY <span class="text-muted" x-text="currencyShort"></span> <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_value')">i</span></span>
                     <span class="text-bold" x-text="fmt(equityValue)"></span>
                 </div>
+                <div class="portfolio-summary-item" x-show="ledgerDividendReturn > 0 || totalDividends > 0" x-cloak>
+                    <span class="label">NET DIVIDENDS <span class="text-muted" x-text="currencyShort"></span> <span class="label-info" :data-tooltip="glossaryDef('income_dividends')">i</span></span>
+                    <span class="text-bold" x-text="fmt(ledgerDividendReturn)"></span>
+                    <span class="portfolio-dividend-forecast" x-show="totalDividends > 0" x-cloak>
+                        <span class="text-muted" x-text="fmt(totalDividends) + ' forecast'"></span>
+                    </span>
+                </div>
                 <div class="portfolio-summary-item">
                     <span class="label">NET RETURN <span class="text-muted" x-text="currencyShort"></span> <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_return')">i</span></span>
                     <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>

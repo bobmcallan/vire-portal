@@ -1223,6 +1223,12 @@ code {
     margin-top: 0.25rem;
 }
 
+.portfolio-dividend-forecast {
+    font-size: 0.6875rem;
+    letter-spacing: 0.05em;
+    margin-top: 0.15rem;
+}
+
 .label-info {
     display: inline-flex;
     align-items: center;
