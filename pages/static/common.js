@@ -287,9 +287,7 @@ function portfolioDashboard() {
         },
         get currencyShort() {
             const c = this.portfolioCurrency;
-            if (c === 'USD') return 'U';
-            if (c === 'AUD') return 'A';
-            return c ? c.charAt(0) : '';
+            return c ? '(' + c + ')' : '';
         },
         get totalCost() {
             return this.portfolioCost;
@@ -1080,33 +1078,38 @@ function portfolioDashboard() {
             if (abs >= 1000) return sign + '$' + (abs / 1000).toFixed(1) + 'K';
             return sign + '$' + abs.toFixed(0);
         },
+        holdingDailyPct(h) {
+            if (h.current_price == null || h.yesterday_close_price == null || h.yesterday_close_price === 0) return null;
+            return ((h.current_price - h.yesterday_close_price) / h.yesterday_close_price) * 100;
+        },
         computeBreadth() {
             const active = this.holdings.filter(h => h.holding_value_market > 0);
             if (active.length === 0) return null;
             let rising = 0, flat = 0, falling = 0;
             let risingWeight = 0, flatWeight = 0, fallingWeight = 0;
             let totalWeight = 0;
-            let weightedScore = 0;
+            let weightedPct = 0;
             let todayChange = 0;
             let todayValid = false;
             for (const h of active) {
                 const w = h.holding_value_market || 0;
-                const score = h.trend_score || 0;
+                const pct = this.holdingDailyPct(h);
                 totalWeight += w;
-                weightedScore += score * w;
-                if (score > 0.1) { rising++; risingWeight += w; }
-                else if (score < -0.1) { falling++; fallingWeight += w; }
+                if (pct !== null) weightedPct += pct * w;
+                // Classify by daily price change: >0.5% rising, <-0.5% falling, else flat
+                if (pct !== null && pct > 0.5) { rising++; risingWeight += w; }
+                else if (pct !== null && pct < -0.5) { falling++; fallingWeight += w; }
                 else { flat++; flatWeight += w; }
                 const tc = this.holdingTodayChange(h);
                 if (tc !== null) { todayChange += tc; todayValid = true; }
             }
-            const avg = totalWeight > 0 ? weightedScore / totalWeight : 0;
+            const avgPct = totalWeight > 0 ? weightedPct / totalWeight : 0;
             let trend_label;
-            if (avg > 0.3) trend_label = 'Uptrend';
-            else if (avg > 0.1) trend_label = 'Mixed-Up';
-            else if (avg > -0.1) trend_label = 'Mixed';
-            else if (avg > -0.3) trend_label = 'Mixed-Down';
-            else trend_label = 'Downtrend';
+            if (avgPct > 1.0) trend_label = 'Strong Up';
+            else if (avgPct > 0.25) trend_label = 'Rising';
+            else if (avgPct > -0.25) trend_label = 'Mixed';
+            else if (avgPct > -1.0) trend_label = 'Falling';
+            else trend_label = 'Strong Down';
             return {
                 rising_count: rising,
                 flat_count: flat,
@@ -1115,7 +1118,7 @@ function portfolioDashboard() {
                 flat_weight_pct: totalWeight > 0 ? (flatWeight / totalWeight) * 100 : 0,
                 falling_weight_pct: totalWeight > 0 ? (fallingWeight / totalWeight) * 100 : 0,
                 trend_label: trend_label,
-                trend_score: avg,
+                trend_score: avgPct,
                 today_change: todayValid ? todayChange : null,
             };
         },
@@ -1126,10 +1129,10 @@ function portfolioDashboard() {
             if (totalWeight === 0) return [];
 
             const segments = active.map(h => {
-                const score = h.trend_score || 0;
+                const pct = this.holdingDailyPct(h);
                 let status;
-                if (score > 0.1) status = 'rising';
-                else if (score < -0.1) status = 'falling';
+                if (pct !== null && pct > 0.5) status = 'rising';
+                else if (pct !== null && pct < -0.5) status = 'falling';
                 else status = 'flat';
                 return {
                     ticker: h.ticker,

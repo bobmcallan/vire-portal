@@ -1600,9 +1600,9 @@ func TestDashboardHandler_StressBreadthSegmentOrder(t *testing.T) {
 	if !strings.Contains(js, `falling: 0, flat: 1, rising: 2`) {
 		t.Error("breadthSegments must sort by status order { falling: 0, flat: 1, rising: 2 }")
 	}
-	// Must reference trend_score for classification
-	if !strings.Contains(js, "trend_score") {
-		t.Error("breadthSegments must reference trend_score for status classification")
+	// Must reference holdingDailyPct for classification (position daily return, not stock trend)
+	if !strings.Contains(js, "holdingDailyPct") {
+		t.Error("breadthSegments must reference holdingDailyPct for status classification")
 	}
 }
 
@@ -1617,8 +1617,8 @@ func TestDashboardHandler_StressBreadthSegmentsPropertyDeclared(t *testing.T) {
 	if !strings.Contains(js, "get breadthSegments()") {
 		t.Error("expected breadthSegments getter in common.js")
 	}
-	if !strings.Contains(js, "trend_score") {
-		t.Error("breadthSegments must reference trend_score for classification")
+	if !strings.Contains(js, "holdingDailyPct") {
+		t.Error("breadthSegments must reference holdingDailyPct for classification")
 	}
 	if !strings.Contains(js, "segments.sort") {
 		t.Error("breadthSegments must sort segments by status order")
