@@ -106,6 +106,16 @@
                                     <td class="text-right" :class="tradeRealisedPL(t) != null ? gainClass(tradeRealisedPL(t)) : ''" x-text="tradeRealisedPL(t) != null ? fmt(tradeRealisedPL(t)) : '-'"></td>
                                 </tr></tbody>
                             </template>
+                            <tfoot>
+                                <tr class="holdings-total-row">
+                                    <td colspan="2">TOTAL</td>
+                                    <td class="text-right" x-text="position?.units?.toLocaleString() || ''"></td>
+                                    <td></td>
+                                    <td class="text-right" x-text="fmt(tradeTotalFees())"></td>
+                                    <td class="text-right" x-text="fmt(tradeTotalValue())"></td>
+                                    <td class="text-right" :class="gainClass(position?.realized_return)" x-text="position?.realized_return != null ? fmt(position.realized_return) : '-'"></td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </div>

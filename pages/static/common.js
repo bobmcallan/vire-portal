@@ -366,8 +366,13 @@ function portfolioDashboard() {
             if (this.selected) {
                 const base = window.location.pathname.startsWith('/m') ? '/m/' : '/dashboard/';
                 const newPath = base + encodeURIComponent(this.selected);
-                if (window.location.pathname !== newPath) {
-                    history.replaceState(null, '', newPath);
+                const params = new URLSearchParams(window.location.search);
+                if (this.showClosed) params.set('closed', '1');
+                else params.delete('closed');
+                const qs = params.toString();
+                const full = newPath + (qs ? '?' + qs : '');
+                if (window.location.pathname + window.location.search !== full) {
+                    history.replaceState(null, '', full);
                 }
             }
         },
@@ -498,6 +503,11 @@ function portfolioDashboard() {
 
                     window.__VIRE_DATA__ = null;
                     this.loading = false;
+                    // Restore showClosed from URL param
+                    if (new URLSearchParams(window.location.search).get('closed') === '1') {
+                        this.showClosed = true;
+                        this.fetchClosedHoldings();
+                    }
                     this._updateURL();
                     console.log(`[dashboard] SSR hydration: ${(performance.now() - initStart).toFixed(0)}ms`);
 
@@ -519,6 +529,7 @@ function portfolioDashboard() {
                     // Set up watchers (same as client-side path)
                     this.$watch('showClosed', (val) => {
                         if (val) this.fetchClosedHoldings();
+                        this._updateURL();
                     });
                     this.$watch('showChartBreakdown', () => this.renderChart());
                     this.$watch('showMA20', () => this.renderChart());
@@ -554,8 +565,14 @@ function portfolioDashboard() {
                     this.selected = this.portfolios[0].name;
                 }
                 if (this.selected) await this.loadPortfolio();
+                // Restore showClosed from URL param
+                if (new URLSearchParams(window.location.search).get('closed') === '1') {
+                    this.showClosed = true;
+                    this.fetchClosedHoldings();
+                }
                 this.$watch('showClosed', (val) => {
                     if (val) this.fetchClosedHoldings();
+                    this._updateURL();
                 });
                 this.$watch('showChartBreakdown', () => this.renderChart());
                 this.$watch('showMA20', () => this.renderChart());
@@ -1423,6 +1440,12 @@ function stockDetail() {
             return d.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
         },
 
+        tradeTotalFees() {
+            return this.trades.reduce((sum, t) => sum + (Number(t.fees) || 0), 0);
+        },
+        tradeTotalValue() {
+            return this.trades.reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+        },
         tradeRealisedPL(t) {
             if (t.type !== 'Sell' || !this.position) return null;
             return t.value - (this.position.holding_cost_avg * t.units);
@@ -1448,8 +1471,9 @@ function stockDetail() {
                     const p = timeline[i];
                     if (p.trade_events) {
                         for (const te of p.trade_events) {
-                            const point = { x: labels[i], y: p.close_price };
-                            if (te.type === 'Buy') buyPoints.push(point);
+                            const bePct = p.breakeven_price ? ((p.close_price - p.breakeven_price) / p.breakeven_price * 100) : null;
+                            const point = { x: labels[i], y: p.close_price, _trade: te, _breakeven_pct: bePct, _date: p.date };
+                            if (te.type.toLowerCase() === 'buy') buyPoints.push(point);
                             else sellPoints.push(point);
                         }
                     }
@@ -1507,8 +1531,19 @@ function stockDetail() {
                             tooltip: {
                                 callbacks: {
                                     label: (ctx) => {
-                                        if (ctx.dataset.label === 'Buy' || ctx.dataset.label === 'Sell') {
-                                            return ctx.dataset.label;
+                                        const raw = ctx.raw;
+                                        if (raw && raw._trade) {
+                                            const te = raw._trade;
+                                            const label = te.type.charAt(0).toUpperCase() + te.type.slice(1);
+                                            const lines = [label + ' ' + (te.units || '') + ' @ $' + Number(te.price).toFixed(4)];
+                                            if (raw._breakeven_pct != null) {
+                                                const sign = raw._breakeven_pct >= 0 ? '+' : '';
+                                                lines.push('vs Breakeven: ' + sign + raw._breakeven_pct.toFixed(2) + '%');
+                                            }
+                                            if (te.realised_pnl != null) {
+                                                lines.push('Realised: $' + Number(te.realised_pnl).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }));
+                                            }
+                                            return lines;
                                         }
                                         return ctx.dataset.label + ': $' + Number(ctx.parsed.y).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                                     }
