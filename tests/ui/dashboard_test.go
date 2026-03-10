@@ -1381,8 +1381,8 @@ func TestDashboard(t *testing.T) {
 		}
 	})
 
-	t.Run("OneDayColumn", func(t *testing.T) {
-		takeScreenshot(t, ctx, "dashboard", "one-day-column.png")
+	t.Run("BreadthArrow", func(t *testing.T) {
+		takeScreenshot(t, ctx, "dashboard", "breadth-arrow.png")
 
 		visible, err := isVisible(ctx, ".tool-table")
 		if err != nil {
@@ -1392,101 +1392,65 @@ func TestDashboard(t *testing.T) {
 			t.Skip("holdings table not visible (no portfolio data available)")
 		}
 
-		// Verify 1D column header exists
-		headerExists, err := commontest.EvalBool(ctx, `
+		// Verify no 1D column header (removed)
+		no1D, err := commontest.EvalBool(ctx, `
 			(() => {
 				const ths = document.querySelectorAll('.tool-table th');
 				const headers = Array.from(ths).map(th => th.textContent.trim());
-				return headers.includes('1D');
+				return !headers.includes('1D');
 			})()
 		`)
 		if err != nil {
-			t.Fatalf("error checking 1D header: %v", err)
+			t.Fatalf("error checking 1D header absence: %v", err)
 		}
-		if !headerExists {
-			t.Error("1D column header not found in holdings table")
-		}
-
-		// Verify 1D header has text-right class
-		headerAligned, err := commontest.EvalBool(ctx, `
-			(() => {
-				const ths = document.querySelectorAll('.tool-table th');
-				for (const th of ths) {
-					if (th.textContent.trim() === '1D') return th.classList.contains('text-right');
-				}
-				return false;
-			})()
-		`)
-		if err != nil {
-			t.Fatalf("error checking 1D header alignment: %v", err)
-		}
-		if !headerAligned {
-			t.Error("1D column header does not have text-right class")
+		if !no1D {
+			t.Error("stale 1D column header still present — should be removed")
 		}
 
-		// Verify holding rows have 7 columns (Ticker, Name, Value, Weight%, Return $, Return %, 1D)
+		// Verify holding rows have 6 columns (Ticker, Name, Value, Weight%, Return $, Return %)
 		colCount, err := commontest.EvalBool(ctx, `
 			(() => {
 				const row = document.querySelector('.tool-table tbody tr.holding-row-clickable');
 				if (!row) return false;
-				return row.querySelectorAll('td').length === 7;
+				return row.querySelectorAll('td').length === 6;
 			})()
 		`)
 		if err != nil {
 			t.Fatalf("error checking column count: %v", err)
 		}
 		if !colCount {
-			t.Error("holding rows should have 7 columns (including 1D)")
+			t.Error("holding rows should have 6 columns")
 		}
 
-		// Verify 1D cell uses x-text binding (not x-html) via changeClass
-		dailyCellHasClass, err := commontest.EvalBool(ctx, `
+		// Verify breadth arrow exists in ticker cell
+		arrowExists, err := commontest.EvalBool(ctx, `
 			(() => {
-				const row = document.querySelector('.tool-table tbody tr.holding-row-clickable');
-				if (!row) return false;
-				const cells = row.querySelectorAll('td');
-				const lastCell = cells[cells.length - 1];
-				// Should have change-up, change-down, or change-neutral class, or text content '-'
-				const cls = lastCell.className;
-				const text = lastCell.textContent.trim();
-				return cls.includes('change-up') || cls.includes('change-down') || cls.includes('change-neutral') || text === '-';
+				const arrow = document.querySelector('.holding-breadth-arrow');
+				if (!arrow) return false;
+				const cls = arrow.className;
+				return cls.includes('breadth-rising') || cls.includes('breadth-flat') || cls.includes('breadth-falling');
 			})()
 		`)
 		if err != nil {
-			t.Fatalf("error checking 1D cell class: %v", err)
+			t.Fatalf("error checking breadth arrow: %v", err)
 		}
-		if !dailyCellHasClass {
-			t.Error("1D cell should have a change color class or show '-' for null data")
+		if !arrowExists {
+			t.Error("breadth arrow not found or missing breadth class in holdings table")
 		}
 
-		// Verify colspan on movement row matches column count (7)
+		// Verify colspan on movement row matches column count (6)
 		colspanCorrect, err := commontest.EvalBool(ctx, `
 			(() => {
 				const td = document.querySelector('.holding-movement-content');
 				if (!td) return true; // no movement rows visible, skip
-				return td.getAttribute('colspan') === '7';
+				return td.getAttribute('colspan') === '6';
 			})()
 		`)
 		if err != nil {
 			t.Fatalf("error checking colspan: %v", err)
 		}
 		if !colspanCorrect {
-			t.Error("holding-movement-content colspan should be 7")
-		}
-
-		// Verify footer total row has 7 cells
-		footerColCount, err := commontest.EvalBool(ctx, `
-			(() => {
-				const row = document.querySelector('.holdings-total-row');
-				if (!row) return true; // no footer visible, skip
-				return row.querySelectorAll('td').length === 7;
-			})()
-		`)
-		if err != nil {
-			t.Fatalf("error checking footer column count: %v", err)
-		}
-		if !footerColCount {
-			t.Error("footer total row should have 7 cells to match header")
+			t.Error("holding-movement-content colspan should be 6")
 		}
 	})
 

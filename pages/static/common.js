@@ -1088,6 +1088,12 @@ function portfolioDashboard() {
             if (pct !== null && pct < -0.5) return 'breadth-falling';
             return 'breadth-flat';
         },
+        holdingBreadthArrow(h) {
+            const pct = this.holdingDailyPct(h);
+            if (pct !== null && pct > 0.5) return '\u25B2';
+            if (pct !== null && pct < -0.5) return '\u25BC';
+            return '\u25C6';
+        },
         holdingDailyPct(h) {
             if (h.current_price == null || h.yesterday_close_price == null || h.yesterday_close_price === 0) return null;
             return ((h.current_price - h.yesterday_close_price) / h.yesterday_close_price) * 100;

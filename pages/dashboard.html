@@ -203,22 +203,23 @@
                                     <th class="text-right">Weight%</th>
                                     <th class="text-right">Return $</th>
                                     <th class="text-right">Return %</th>
-                                    <th class="text-right">1D</th>
                                 </tr>
                             </thead>
                             <template x-for="h in filteredHoldings" :key="h.ticker">
-                                <tbody :class="holdingBreadthClass(h)">
+                                <tbody>
                                     <tr class="holding-row-clickable" @click="window.location.href='/stock/' + encodeURIComponent(h.ticker)" style="cursor:pointer;">
-                                        <td class="tool-name"><a :href="'/stock/' + encodeURIComponent(h.ticker)" x-text="h.ticker" @click.stop></a></td>
+                                        <td class="tool-name">
+                                            <span class="holding-breadth-arrow" :class="holdingBreadthClass(h)" x-text="holdingBreadthArrow(h)"></span>
+                                            <a :href="'/stock/' + encodeURIComponent(h.ticker)" x-text="h.ticker" @click.stop></a>
+                                        </td>
                                         <td x-text="h.name"></td>
                                         <td class="text-right" x-text="fmt(h.holding_value_market)"></td>
                                         <td class="text-right" x-text="pct(h.holding_weight_pct)"></td>
                                         <td class="text-right" :class="gainClass(h.holding_return_net)" x-text="fmt(h.holding_return_net)"></td>
                                         <td class="text-right" :class="gainClass(h.holding_return_net_pct)" x-text="pct(h.holding_return_net_pct)"></td>
-                                        <td class="text-right" :class="changeClass(holdingDailyPct(h))" x-text="holdingDailyPct(h) != null ? changePct(holdingDailyPct(h)) : '-'"></td>
                                     </tr>
                                     <tr class="holding-movement-row" x-show="h.holding_value_market > 0">
-                                        <td colspan="7" class="holding-movement-content text-right">
+                                        <td colspan="6" class="holding-movement-content text-right">
                                             <span class="holding-detail-label">Stock Trend:</span>
                                             <span :class="trendArrowClass(h.trend_score)" x-text="trendArrow(h.trend_score)"></span>
                                             <span class="text-muted" x-text="h.trend_label || ''"></span>
@@ -238,7 +239,6 @@
                                     <td class="text-right"></td>
                                     <td class="text-right text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></td>
                                     <td class="text-right text-bold" :class="gainClass(totalGainPct)" x-text="pct(totalGainPct)"></td>
-                                    <td></td>
                                 </tr>
                             </tfoot>
                         </table>

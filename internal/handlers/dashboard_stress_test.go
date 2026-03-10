@@ -2506,9 +2506,9 @@ func TestDashboardHandler_StressComplianceParallelFetch(t *testing.T) {
 	}
 }
 
-// --- Dashboard: 1D Column ---
+// --- Dashboard: Breadth Arrow Indicator ---
 
-func TestDashboardHandler_Stress1DColumnHeader(t *testing.T) {
+func TestDashboardHandler_StressBreadthArrowPresent(t *testing.T) {
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -2519,12 +2519,15 @@ func TestDashboardHandler_Stress1DColumnHeader(t *testing.T) {
 
 	body := w.Body.String()
 
-	if !strings.Contains(body, `<th class="text-right">1D</th>`) {
-		t.Error("desktop holdings table missing 1D column header")
+	if !strings.Contains(body, "holding-breadth-arrow") {
+		t.Error("holdings table missing breadth arrow span")
+	}
+	if !strings.Contains(body, "holdingBreadthArrow(h)") {
+		t.Error("holdings table missing holdingBreadthArrow(h) binding")
 	}
 }
 
-func TestDashboardHandler_Stress1DColspanMatchesColumns(t *testing.T) {
+func TestDashboardHandler_StressBreadthArrowUsesXText(t *testing.T) {
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -2535,32 +2538,15 @@ func TestDashboardHandler_Stress1DColspanMatchesColumns(t *testing.T) {
 
 	body := w.Body.String()
 
-	// 7 columns: Ticker, Name, Value, Weight%, Return $, Return %, 1D
-	if !strings.Contains(body, `colspan="7"`) {
-		t.Error("movement row colspan does not match column count (expected 7)")
-	}
-	if strings.Contains(body, `colspan="6"`) {
-		t.Error("stale colspan=6 found — should be 7 after adding 1D column")
-	}
-}
-
-func TestDashboardHandler_Stress1DBindingInHoldingRow(t *testing.T) {
-	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
-
-	req := httptest.NewRequest("GET", "/dashboard", nil)
-	addAuthCookie(req, "test-user")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	body := w.Body.String()
-
-	if !strings.Contains(body, "holdingDailyPct(h)") {
-		t.Error("desktop holding row missing holdingDailyPct binding")
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "holding-breadth-arrow") && strings.Contains(line, "x-html") {
+			t.Errorf("SECURITY: line %d uses x-html for breadth arrow — XSS risk: %s", i+1, truncStr(line, 120))
+		}
 	}
 }
 
-func TestDashboardHandler_Stress1DUsesXText(t *testing.T) {
+func TestDashboardHandler_StressNo1DColumnHeader(t *testing.T) {
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -2571,9 +2557,28 @@ func TestDashboardHandler_Stress1DUsesXText(t *testing.T) {
 
 	body := w.Body.String()
 
-	// The 1D column must use x-text for changePct, not x-html
-	if !strings.Contains(body, `x-text="holdingDailyPct(h) != null ? changePct(holdingDailyPct(h))`) {
-		t.Error("1D column does not use x-text with changePct binding")
+	if strings.Contains(body, `<th class="text-right">1D</th>`) {
+		t.Error("stale 1D column header still present — should be removed")
+	}
+}
+
+func TestDashboardHandler_StressColspanMatchesColumns(t *testing.T) {
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// 6 columns: Ticker, Name, Value, Weight%, Return $, Return %
+	if !strings.Contains(body, `colspan="6"`) {
+		t.Error("movement row colspan does not match column count (expected 6)")
+	}
+	if strings.Contains(body, `colspan="7"`) {
+		t.Error("stale colspan=7 found — should be 6 after removing 1D column")
 	}
 }
 
@@ -2644,11 +2649,9 @@ func TestDashboardHandler_StressMobileFontSizeOverrides(t *testing.T) {
 	}
 }
 
-// --- Devils-advocate: 1D Column Adversarial Tests ---
+// --- Devils-advocate: Breadth Arrow Adversarial Tests ---
 
-func TestDashboardHandler_Stress1DColumnNoXHTML(t *testing.T) {
-	// SECURITY: the 1D column must NEVER use x-html — that would allow XSS
-	// if holdingDailyPct ever returned attacker-controlled data.
+func TestDashboardHandler_StressFooterColumnCount(t *testing.T) {
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -2659,34 +2662,10 @@ func TestDashboardHandler_Stress1DColumnNoXHTML(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Find the 1D column cell — it contains holdingDailyPct
-	// Ensure there is NO x-html binding near holdingDailyPct
-	lines := strings.Split(body, "\n")
-	for i, line := range lines {
-		if strings.Contains(line, "holdingDailyPct") && strings.Contains(line, "x-html") {
-			t.Errorf("SECURITY: line %d uses x-html with holdingDailyPct — XSS risk: %s", i+1, truncStr(line, 120))
-		}
-	}
-}
-
-func TestDashboardHandler_Stress1DFooterColumnCount(t *testing.T) {
-	// The footer total row must have exactly as many <td> elements as the header has <th>.
-	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
-
-	req := httptest.NewRequest("GET", "/dashboard", nil)
-	addAuthCookie(req, "test-user")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	body := w.Body.String()
-
-	// Find the holdings table — bounded by HOLDINGS header and the next section
 	headerStart := strings.Index(body, `<div class="panel-header">HOLDINGS</div>`)
 	if headerStart < 0 {
 		t.Fatal("HOLDINGS section not found")
 	}
-	// Limit to just the holdings section (before WATCHLIST)
 	holdingsHTML := body[headerStart:]
 	watchlistIdx := strings.Index(holdingsHTML, "WATCHLIST")
 	if watchlistIdx > 0 {
@@ -2699,10 +2678,8 @@ func TestDashboardHandler_Stress1DFooterColumnCount(t *testing.T) {
 		t.Fatal("thead not found in holdings table")
 	}
 	thead := holdingsHTML[theadStart:theadEnd]
-	// Count <th> and <th  but not <thead
 	thCount := strings.Count(thead, "<th>") + strings.Count(thead, "<th ")
 
-	// Count <td> in the footer total row
 	tfootStart := strings.Index(holdingsHTML, "<tfoot")
 	tfootEnd := strings.Index(holdingsHTML, "</tfoot>")
 	if tfootStart < 0 || tfootEnd < 0 {
@@ -2716,102 +2693,36 @@ func TestDashboardHandler_Stress1DFooterColumnCount(t *testing.T) {
 	}
 }
 
-func TestDashboardHandler_Stress1DNullGuardPresent(t *testing.T) {
-	// The desktop 1D cell must guard against null holdingDailyPct
-	// to show '-' instead of 'NaN%' or crashing.
-	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
-
-	req := httptest.NewRequest("GET", "/dashboard", nil)
-	addAuthCookie(req, "test-user")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	body := w.Body.String()
-
-	// Must contain the null check pattern
-	if !strings.Contains(body, `holdingDailyPct(h) != null`) {
-		t.Error("desktop 1D column missing null guard — will show NaN for holdings without yesterday_close_price")
+func TestDashboardHandler_StressNoTbodyBreadthBorderCSS(t *testing.T) {
+	cssPath := FindPagesDir() + "/static/css/portal.css"
+	cssBytes, err := os.ReadFile(cssPath)
+	if err != nil {
+		t.Fatalf("failed to read CSS file: %v", err)
 	}
-	// Must show '-' as fallback
-	if !strings.Contains(body, `: '-'`) {
-		t.Error("desktop 1D column missing '-' fallback for null holdingDailyPct")
+	css := string(cssBytes)
+
+	if strings.Contains(css, "tbody.breadth-rising") {
+		t.Error("stale tbody.breadth-rising CSS rule still present — should use .holding-breadth-arrow instead")
 	}
 }
 
-func TestDashboardHandler_StressMobile1DNullHidesSpan(t *testing.T) {
-	// Mobile 1D must return empty string when holdingDailyPct is null
-	// so the span collapses and doesn't waste vertical space.
-	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
-
-	req := httptest.NewRequest("GET", "/mobile", nil)
-	addAuthCookie(req, "test-user")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	body := w.Body.String()
-
-	// Mobile must use empty string fallback, not '-'
-	if !strings.Contains(body, `holdingDailyPct(h) != null`) {
-		t.Error("mobile 1D span missing null guard")
+func TestDashboardHandler_StressBreadthArrowCSS(t *testing.T) {
+	cssPath := FindPagesDir() + "/static/css/portal.css"
+	cssBytes, err := os.ReadFile(cssPath)
+	if err != nil {
+		t.Fatalf("failed to read CSS file: %v", err)
 	}
-	if !strings.Contains(body, `: ''`) {
-		t.Error("mobile 1D span should return empty string (not '-') when holdingDailyPct is null")
+	css := string(cssBytes)
+
+	arrowRules := []string{
+		".holding-breadth-arrow.breadth-rising",
+		".holding-breadth-arrow.breadth-flat",
+		".holding-breadth-arrow.breadth-falling",
 	}
-}
-
-func TestDashboardHandler_StressMobile1DNoXHTML(t *testing.T) {
-	// SECURITY: mobile 1D span must use x-text not x-html.
-	handler := NewMobileDashboardHandler(nil, true, []byte(testJWTSecret), nil)
-
-	req := httptest.NewRequest("GET", "/mobile", nil)
-	addAuthCookie(req, "test-user")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	body := w.Body.String()
-
-	lines := strings.Split(body, "\n")
-	for i, line := range lines {
-		if strings.Contains(line, "mobile-holding-1d") && strings.Contains(line, "x-html") {
-			t.Errorf("SECURITY: mobile line %d uses x-html for 1D span — XSS risk: %s", i+1, truncStr(line, 120))
+	for _, r := range arrowRules {
+		if !strings.Contains(css, r) {
+			t.Errorf("CSS missing %s rule for breadth arrow coloring", r)
 		}
-	}
-}
-
-func TestDashboardHandler_Stress1DChangeClassBinding(t *testing.T) {
-	// The 1D column must use changeClass() for coloring, not gainClass().
-	// changeClass returns change-up/down/neutral; gainClass returns gain-positive/negative.
-	// Using the wrong class function means colors won't apply.
-	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
-
-	req := httptest.NewRequest("GET", "/dashboard", nil)
-	addAuthCookie(req, "test-user")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	body := w.Body.String()
-
-	// Find the 1D <td> — the one with holdingDailyPct in x-text
-	lines := strings.Split(body, "\n")
-	found := false
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.Contains(trimmed, `x-text="holdingDailyPct(h)`) && strings.Contains(trimmed, "changePct") {
-			found = true
-			if !strings.Contains(trimmed, `changeClass(holdingDailyPct(h))`) {
-				t.Error("1D column uses wrong class function — must use changeClass(holdingDailyPct(h))")
-			}
-			if strings.Contains(trimmed, "gainClass") {
-				t.Error("1D column incorrectly uses gainClass — should use changeClass for daily changes")
-			}
-		}
-	}
-	if !found {
-		t.Error("could not find 1D column binding in holdings table")
 	}
 }
 
@@ -2837,15 +2748,15 @@ func TestDashboardHandler_StressBreadthCSSSpecificityIntact(t *testing.T) {
 		}
 	}
 
-	// tbody.breadth-* rules must still exist for holding row borders
-	tbodyRules := []string{
-		"tbody.breadth-rising",
-		"tbody.breadth-flat",
-		"tbody.breadth-falling",
+	// .holding-breadth-arrow rules must exist for arrow coloring
+	arrowRules := []string{
+		".holding-breadth-arrow.breadth-rising",
+		".holding-breadth-arrow.breadth-flat",
+		".holding-breadth-arrow.breadth-falling",
 	}
-	for _, r := range tbodyRules {
+	for _, r := range arrowRules {
 		if !strings.Contains(css, r) {
-			t.Errorf("CSS missing %s rule — holding row border colors broken", r)
+			t.Errorf("CSS missing %s rule — breadth arrow colors broken", r)
 		}
 	}
 }
