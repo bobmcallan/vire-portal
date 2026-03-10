@@ -189,6 +189,20 @@
                     </template>
                     <div class="compliance-disclaimer" x-text="complianceDisclaimer"></div>
                 </div>
+                <div class="compliance-bug-indicator" x-show="isAdmin && complianceHasBugs" x-cloak>
+                    <span class="text-muted" x-text="complianceBugFindings.length + ' data quality issue' + (complianceBugFindings.length !== 1 ? 's' : '')"></span>
+                    <button class="btn-compliance-toggle" @click="bugFindingsExpanded = !bugFindingsExpanded" x-text="bugFindingsExpanded ? 'Hide' : 'View'"></button>
+                </div>
+                <div class="compliance-bug-section" x-show="isAdmin && bugFindingsExpanded && complianceHasBugs" x-cloak>
+                    <div class="compliance-bug-title">DATA QUALITY ISSUES (ADMIN)</div>
+                    <template x-for="f in complianceBugFindings" :key="f.message">
+                        <div class="compliance-finding compliance-bug">
+                            <span class="compliance-severity">BUG</span>
+                            <span class="compliance-ticker" x-show="f.ticker" x-text="f.ticker"></span>
+                            <span class="compliance-message" x-text="f.message"></span>
+                        </div>
+                    </template>
+                </div>
             </section>
 
             <!-- Holdings table -->
@@ -299,7 +313,8 @@
         watchlist: {{.WatchlistJSON}},
         glossary: {{.GlossaryJSON}},
         compliance: {{.ComplianceJSON}},
-        selectedPortfolio: {{.SelectedJSON}}
+        selectedPortfolio: {{.SelectedJSON}},
+        userRole: {{.UserRoleJSON}}
     };
     </script>
 

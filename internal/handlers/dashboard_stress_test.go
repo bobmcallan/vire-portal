@@ -11,7 +11,19 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/bobmcallan/vire-portal/internal/client"
 )
+
+// readStaticFile reads a file from pages/static/ relative to the test directory.
+func readStaticFile(t *testing.T, relPath string) string {
+	t.Helper()
+	data, err := os.ReadFile("../../pages/static/" + relPath)
+	if err != nil {
+		t.Fatalf("failed to read static file %s: %v", relPath, err)
+	}
+	return string(data)
+}
 
 // buildUnsignedJWT creates an unsigned JWT for testing with empty secret.
 func buildUnsignedJWT(sub string) string {
@@ -2800,5 +2812,202 @@ func TestDashboardHandler_StressMobileLabelFontScope(t *testing.T) {
 		if !strings.Contains(ruleBlock, "font-size") {
 			t.Error(".mobile-dashboard .label rule exists but has no font-size declaration")
 		}
+	}
+}
+
+// =============================================================================
+// BUG Severity & UserRole Security Stress Tests
+// =============================================================================
+
+func TestDashboardStress_UserRoleXSSInSSRData(t *testing.T) {
+	// UserRole is rendered inside a <script> block as userRole: "{{.UserRole}}"
+	// Go's html/template applies JS-context escaping inside <script> tags,
+	// so special chars should be escaped as Unicode escapes.
+	xssPayloads := []struct {
+		input string
+		check string // substring that must NOT appear in output
+	}{
+		{`admin"; alert(1); "`, `"; alert(1); "`},
+		{`</script><script>alert(1)</script>`, `</script><script>`},
+		{`" + document.cookie + "`, `" + document.cookie + "`},
+		{`<img src=x onerror=alert(1)>`, `<img src=x onerror`},
+	}
+
+	for _, tc := range xssPayloads {
+		userLookup := func(sub string) (*client.UserProfile, error) {
+			return &client.UserProfile{Role: tc.input}, nil
+		}
+		handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), userLookup)
+
+		req := httptest.NewRequest("GET", "/dashboard", nil)
+		addAuthCookie(req, "test-user")
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+		body := w.Body.String()
+
+		// The dangerous substring must NOT appear unescaped in the output
+		if strings.Contains(body, tc.check) {
+			t.Errorf("SECURITY XSS: userRole check %q appears unescaped in dashboard output (input: %q)", tc.check, truncStr(tc.input, 40))
+		}
+	}
+}
+
+func TestDashboardStress_UserRoleInSSRDataBlock(t *testing.T) {
+	// Verify userRole is present in __VIRE_DATA__ for SSR hydration
+	userLookup := func(sub string) (*client.UserProfile, error) {
+		return &client.UserProfile{Role: "admin"}, nil
+	}
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), userLookup)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+	body := w.Body.String()
+
+	if !strings.Contains(body, `userRole:`) {
+		t.Error("__VIRE_DATA__ missing userRole field")
+	}
+}
+
+func TestDashboardStress_BugSectionHasAdminGuard(t *testing.T) {
+	// The BUG findings section must have x-show guard requiring isAdmin
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+	body := w.Body.String()
+
+	// Both the indicator and the section must require isAdmin
+	if !strings.Contains(body, `x-show="isAdmin && complianceHasBugs"`) {
+		t.Error("SECURITY: compliance-bug-indicator missing isAdmin guard in x-show")
+	}
+	if !strings.Contains(body, `x-show="isAdmin && bugFindingsExpanded && complianceHasBugs"`) {
+		t.Error("SECURITY: compliance-bug-section missing isAdmin guard in x-show")
+	}
+}
+
+func TestDashboardStress_BugFindingsFilteredFromMainCompliance(t *testing.T) {
+	// Verify that common.js complianceFindings getter filters out BUG severity
+	js := readStaticFile(t, "common.js")
+
+	// complianceFindings must filter out BUG
+	if !strings.Contains(js, `f.severity !== 'BUG'`) {
+		t.Error("complianceFindings getter does not filter out BUG severity")
+	}
+	// complianceBugFindings must select only BUG
+	if !strings.Contains(js, `f.severity === 'BUG'`) {
+		t.Error("complianceBugFindings getter does not filter for BUG severity")
+	}
+}
+
+func TestDashboardStress_NonAdminUserRoleRendered(t *testing.T) {
+	// For a non-admin user, userRole should be "user" (or whatever the server returns)
+	// and the BUG section should be hidden via x-show="isAdmin"
+	userLookup := func(sub string) (*client.UserProfile, error) {
+		return &client.UserProfile{Role: "user"}, nil
+	}
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), userLookup)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+	body := w.Body.String()
+
+	// userRole should contain the actual role, not "admin"
+	if strings.Contains(body, `userRole: "admin"`) {
+		t.Error("non-admin user got admin role in SSR data")
+	}
+}
+
+func TestDashboardStress_EmptyUserRoleWhenLookupFails(t *testing.T) {
+	// If userLookupFn returns error, userRole should default to empty
+	userLookup := func(sub string) (*client.UserProfile, error) {
+		return nil, fmt.Errorf("lookup failed")
+	}
+	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), userLookup)
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+	body := w.Body.String()
+
+	// userRole should be empty, meaning isAdmin will be false
+	if strings.Contains(body, `userRole: "admin"`) {
+		t.Error("SECURITY: failed lookup should not produce admin role")
+	}
+}
+
+func TestDashboardStress_WalkChartBreakevenDatasets(t *testing.T) {
+	// Verify walk chart references close_price and breakeven_price
+	js := readStaticFile(t, "common.js")
+
+	if !strings.Contains(js, "close_price") {
+		t.Error("walk chart missing close_price reference")
+	}
+	if !strings.Contains(js, "breakeven_price") {
+		t.Error("walk chart missing breakeven_price reference")
+	}
+	// Verify fallback guard exists
+	if !strings.Contains(js, "timeline[0].close_price") {
+		t.Error("walk chart missing fallback guard for close_price field")
+	}
+}
+
+func TestDashboardStress_TimezoneAutoDetectCSRF(t *testing.T) {
+	// Verify the timezone auto-POST includes CSRF token
+	js := readStaticFile(t, "common.js")
+
+	if !strings.Contains(js, "_getCsrf()") {
+		t.Error("timezone auto-detect POST missing _getCsrf() call")
+	}
+	if !strings.Contains(js, `'_csrf='`) {
+		t.Error("timezone auto-detect POST missing _csrf form field")
+	}
+	// Verify sessionStorage dedup to prevent repeated POSTs
+	if !strings.Contains(js, "vire_tz_sent") {
+		t.Error("timezone auto-detect missing sessionStorage dedup key")
+	}
+}
+
+func TestDashboardStress_StockPageNoFilings(t *testing.T) {
+	// Verify filings section has been removed from stock.html
+	html := readStaticFile(t, "../stock.html")
+
+	if strings.Contains(html, "Filings") || strings.Contains(html, "filing") {
+		t.Error("stock.html still contains filings section references")
+	}
+	if strings.Contains(html, "expandedFilings") {
+		t.Error("stock.html still references expandedFilings state")
+	}
+}
+
+func TestDashboardStress_KeyEventsReversed(t *testing.T) {
+	// Verify key events are displayed in reverse order
+	html := readStaticFile(t, "../stock.html")
+
+	if !strings.Contains(html, ".reverse()") {
+		t.Error("stock.html key events not reversed — missing .reverse() call")
+	}
+}
+
+func TestDashboardStress_BreadthArrowFontSize(t *testing.T) {
+	// Verify breadth arrow font size is 0.75rem
+	css := readStaticFile(t, "css/portal.css")
+
+	if !strings.Contains(css, ".holding-breadth-arrow { font-size: 0.75rem;") {
+		t.Error("breadth arrow font-size not updated to 0.75rem")
+	}
+	if strings.Contains(css, ".holding-breadth-arrow { font-size: 0.6rem;") {
+		t.Error("breadth arrow still has old 0.6rem font-size")
 	}
 }

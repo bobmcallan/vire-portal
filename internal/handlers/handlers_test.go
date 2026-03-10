@@ -1266,11 +1266,18 @@ func TestProfileHandler_POST_HostileInputs(t *testing.T) {
 			if w.Code != http.StatusFound {
 				t.Errorf("expected 302 for input %q, got %d", tc.name, w.Code)
 			}
-			if len(savedKeys) != 1 {
-				t.Fatalf("expected 1 save call, got %d", len(savedKeys))
-			}
-			if savedKeys[0] != tc.expected {
-				t.Errorf("expected saved key %q, got %q", tc.expected, savedKeys[0])
+			if tc.expected == "" {
+				// Empty fields after trim should skip save entirely
+				if len(savedKeys) != 0 {
+					t.Fatalf("expected 0 save calls for empty input, got %d", len(savedKeys))
+				}
+			} else {
+				if len(savedKeys) != 1 {
+					t.Fatalf("expected 1 save call, got %d", len(savedKeys))
+				}
+				if savedKeys[0] != tc.expected {
+					t.Errorf("expected saved key %q, got %q", tc.expected, savedKeys[0])
+				}
 			}
 		})
 	}

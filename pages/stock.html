@@ -111,54 +111,6 @@
                 </div>
             </section>
 
-            <!-- Filings Timeline -->
-            <section class="panel-headed" x-show="detail && detail.filing_summaries && detail.filing_summaries.length > 0" x-cloak>
-                <div class="panel-header">FILINGS TIMELINE</div>
-                <div class="panel-content">
-                    <div class="table-wrap">
-                        <table class="tool-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Headline</th>
-                                    <th>Type</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <template x-for="(filing, idx) in (detail ? detail.filing_summaries : [])" :key="idx">
-                                    <tr>
-                                        <td>
-                                            <div class="filing-row" @click="toggleFiling(idx)">
-                                                <span x-text="fmtDate(filing.date)"></span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="filing-row" @click="toggleFiling(idx)">
-                                                <span x-text="filing.headline"></span>
-                                            </div>
-                                            <div x-show="expandedFilings[idx]" x-cloak class="filing-key-facts">
-                                                <template x-if="filing.key_facts && filing.key_facts.length > 0">
-                                                    <ul>
-                                                        <template x-for="fact in filing.key_facts" :key="fact">
-                                                            <li x-text="fact"></li>
-                                                        </template>
-                                                    </ul>
-                                                </template>
-                                            </div>
-                                        </td>
-                                        <td x-text="filing.type || ''"></td>
-                                        <td>
-                                            <span x-show="filing.price_sensitive" class="filing-price-sensitive badge badge-filled">PS</span>
-                                        </td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
             <!-- Company Overview -->
             <section class="panel-headed" x-show="detail && (detail.fundamentals || detail.company_timeline)" x-cloak>
                 <div class="panel-header">COMPANY OVERVIEW</div>
@@ -170,7 +122,7 @@
                     <template x-if="detail && detail.company_timeline && detail.company_timeline.key_events && detail.company_timeline.key_events.length > 0">
                         <div class="mb">
                             <span class="label">KEY EVENTS</span>
-                            <template x-for="evt in detail.company_timeline.key_events" :key="evt.date + evt.event">
+                            <template x-for="evt in [...detail.company_timeline.key_events].reverse()" :key="evt.date + evt.event">
                                 <div class="company-event">
                                     <span class="text-muted text-sm" x-text="fmtDate(evt.date)"></span>
                                     <span class="text-bold text-sm" x-text="evt.event"></span>

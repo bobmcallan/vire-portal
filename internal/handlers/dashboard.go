@@ -93,7 +93,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var portfoliosJSON, portfolioJSON, timelineJSON, watchlistJSON, glossaryJSON, complianceJSON, selectedJSON template.JS
+	var portfoliosJSON, portfolioJSON, timelineJSON, watchlistJSON, glossaryJSON, complianceJSON, selectedJSON, userRoleJSON template.JS
 	portfoliosJSON = "null"
 	portfolioJSON = "null"
 	timelineJSON = "null"
@@ -101,6 +101,12 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	glossaryJSON = "null"
 	complianceJSON = "null"
 	selectedJSON = `""`
+	userRoleJSON = `""`
+	if userRole != "" {
+		if b, err := json.Marshal(userRole); err == nil {
+			userRoleJSON = template.JS(b)
+		}
+	}
 	selectedPortfolio := ""
 
 	if h.proxyGetFn != nil && claims != nil && claims.Sub != "" {
@@ -239,6 +245,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"LoggedIn":          loggedIn,
 		"NavexaKeyMissing":  navexaKeyMissing,
 		"UserRole":          userRole,
+		"UserRoleJSON":      userRoleJSON,
 		"PortalVersion":     config.GetVersion(),
 		"ServerVersion":     GetServerVersion(h.apiURL),
 		"PortfoliosJSON":    portfoliosJSON,

@@ -283,6 +283,55 @@ func TestProfile(t *testing.T) {
 		}
 	})
 
+	t.Run("TimezoneFieldVisible", func(t *testing.T) {
+		takeScreenshot(t, ctx, "profile", "timezone-field.png")
+
+		inputVisible, err := isVisible(ctx, `input#timezone`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inputVisible {
+			t.Error("timezone input field not visible")
+		}
+
+		// Check label text
+		hasLabel, err := common.EvalBool(ctx, `
+			(() => {
+				const labels = document.querySelectorAll('.form-label');
+				return Array.from(labels).some(l => l.textContent.includes('TIMEZONE'));
+			})()
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !hasLabel {
+			t.Error("TIMEZONE label not found on profile page")
+		}
+
+		// Check datalist exists
+		datalistExists, err := common.Exists(ctx, `datalist#tz-list`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !datalistExists {
+			t.Error("timezone datalist #tz-list not found")
+		}
+
+		// Check placeholder text
+		hasPlaceholder, err := common.EvalBool(ctx, `
+			(() => {
+				const input = document.getElementById('timezone');
+				return input && input.placeholder.includes('Australia/Sydney');
+			})()
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !hasPlaceholder {
+			t.Error("timezone input missing placeholder text")
+		}
+	})
+
 	t.Run("EmailLockedForOAuth", func(t *testing.T) {
 		takeScreenshot(t, ctx, "profile", "email-locked.png")
 

@@ -181,8 +181,8 @@ func TestStock(t *testing.T) {
 		}
 	})
 
-	t.Run("FilingsSection", func(t *testing.T) {
-		takeScreenshot(t, ctx, "stock", "filings-section.png")
+	t.Run("FilingsSectionRemoved", func(t *testing.T) {
+		takeScreenshot(t, ctx, "stock", "filings-removed.png")
 
 		sectionExists, err := commontest.EvalBool(ctx, `
 			(() => {
@@ -193,40 +193,8 @@ func TestStock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error checking filings section: %v", err)
 		}
-		if !sectionExists {
-			t.Skip("FILINGS TIMELINE section not found (no filing data available)")
-		}
-
-		headersCorrect, err := commontest.EvalBool(ctx, `
-			(() => {
-				const sections = document.querySelectorAll('.panel-headed');
-				for (const sec of sections) {
-					const header = sec.querySelector('.panel-header');
-					if (header && header.textContent.includes('FILINGS TIMELINE')) {
-						const ths = sec.querySelectorAll('.tool-table thead th');
-						if (ths.length >= 3) {
-							return ths[0].textContent.includes('Date') &&
-								ths[1].textContent.includes('Headline') &&
-								ths[2].textContent.includes('Type');
-						}
-					}
-				}
-				return false;
-			})()
-		`)
-		if err != nil {
-			t.Fatalf("error checking filings table headers: %v", err)
-		}
-		if !headersCorrect {
-			t.Error("filings table headers do not match expected: Date, Headline, Type")
-		}
-
-		filingRowCount, err := elementCount(ctx, ".filing-row")
-		if err != nil {
-			t.Fatalf("error counting filing rows: %v", err)
-		}
-		if filingRowCount == 0 {
-			t.Skip("no filing rows available in test environment")
+		if sectionExists {
+			t.Error("FILINGS TIMELINE section should have been removed from the stock page")
 		}
 	})
 

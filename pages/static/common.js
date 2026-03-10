@@ -259,6 +259,8 @@ function portfolioDashboard() {
         complianceReport: null,
         complianceExpanded: false,
         complianceRunning: false,
+        bugFindingsExpanded: false,
+        userRole: '',
         refreshing: false,
         growthData: [],
         hasGrowthData: false,
@@ -329,12 +331,21 @@ function portfolioDashboard() {
             return this.complianceState === 'never' || this.complianceState === 'dirty';
         },
         get complianceHasFindings() {
-            const r = this.complianceReport;
-            return r && r.findings && r.findings.length > 0;
+            return this.complianceFindings.length > 0;
         },
         get complianceFindings() {
             if (!this.complianceReport || !this.complianceReport.findings) return [];
-            return this.complianceReport.findings;
+            return this.complianceReport.findings.filter(f => f.severity !== 'BUG');
+        },
+        get complianceBugFindings() {
+            if (!this.complianceReport || !this.complianceReport.findings) return [];
+            return this.complianceReport.findings.filter(f => f.severity === 'BUG');
+        },
+        get complianceHasBugs() {
+            return this.complianceBugFindings.length > 0;
+        },
+        get isAdmin() {
+            return this.userRole === 'admin';
         },
         get complianceDisclaimer() {
             return this.complianceReport?.disclaimer || '';
@@ -443,6 +454,9 @@ function portfolioDashboard() {
             try {
                 const initStart = performance.now();
                 const ssrData = window.__VIRE_DATA__;
+                if (ssrData && ssrData.userRole) {
+                    this.userRole = ssrData.userRole;
+                }
                 if (ssrData && ssrData.portfolios) {
                     // --- SSR path: hydrate from server-embedded data ---
                     const data = ssrData.portfolios;
@@ -486,6 +500,21 @@ function portfolioDashboard() {
                     this.loading = false;
                     this._updateURL();
                     console.log(`[dashboard] SSR hydration: ${(performance.now() - initStart).toFixed(0)}ms`);
+
+                    // Auto-detect and store browser timezone
+                    try {
+                        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                        if (tz && document.cookie.includes('vire_session')) {
+                            const storedTz = sessionStorage.getItem('vire_tz_sent');
+                            if (storedTz !== tz) {
+                                fetch('/profile', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                    body: '_csrf=' + encodeURIComponent(this._getCsrf()) + '&timezone=' + encodeURIComponent(tz)
+                                }).then(() => sessionStorage.setItem('vire_tz_sent', tz)).catch(() => {});
+                            }
+                        }
+                    } catch(e) {}
 
                     // Set up watchers (same as client-side path)
                     this.$watch('showClosed', (val) => {
@@ -667,6 +696,11 @@ function portfolioDashboard() {
                 debugLog('portfolioDashboard', 'watchlist fetch failed', e);
                 this.watchlist = [];
             }
+        },
+
+        _getCsrf() {
+            const c = document.cookie.split('; ').find(c => c.startsWith('_csrf='));
+            return c ? c.split('=')[1] : '';
         },
 
         _fmtComplianceTime(isoStr) {
@@ -1331,7 +1365,6 @@ function stockDetail() {
         holding: null,
         portfolioName: '',
         detail: null,
-        expandedFilings: {},
         trades: [],
         position: null,
         positionTimeline: [],
@@ -1362,9 +1395,6 @@ function stockDetail() {
             if (score > 0) return 'change-up';
             if (score < 0) return 'change-down';
             return 'change-neutral';
-        },
-        toggleFiling(index) {
-            this.expandedFilings[index] = !this.expandedFilings[index];
         },
         holdingCurrency() {
             return this.position?.original_currency || this.holding?.original_currency || 'AUD';
@@ -1406,8 +1436,100 @@ function stockDetail() {
 
             const timeline = this.positionTimeline;
             const labels = timeline.map(p => this.fmtDate(p.date));
-            const plData = timeline.map(p => p.net_return);
 
+            // New chart: close_price vs breakeven_price with fill between
+            if (timeline[0] && timeline[0].close_price != null) {
+                const closeData = timeline.map(p => p.close_price);
+                const breakevenData = timeline.map(p => p.breakeven_price);
+
+                const buyPoints = [];
+                const sellPoints = [];
+                for (let i = 0; i < timeline.length; i++) {
+                    const p = timeline[i];
+                    if (p.trade_events) {
+                        for (const te of p.trade_events) {
+                            const point = { x: labels[i], y: p.close_price };
+                            if (te.type === 'Buy') buyPoints.push(point);
+                            else sellPoints.push(point);
+                        }
+                    }
+                }
+
+                this.walkChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            {
+                                label: 'Close Price',
+                                data: closeData,
+                                borderColor: '#334155',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                fill: { target: 1, above: 'rgba(45, 138, 79, 0.15)', below: 'rgba(192, 96, 96, 0.15)' },
+                            },
+                            {
+                                label: 'Breakeven',
+                                data: breakevenData,
+                                borderColor: '#888',
+                                borderWidth: 1.5,
+                                borderDash: [4, 3],
+                                pointRadius: 0,
+                                fill: false,
+                            },
+                            {
+                                label: 'Buy',
+                                data: buyPoints,
+                                type: 'scatter',
+                                pointRadius: 6,
+                                pointStyle: 'triangle',
+                                backgroundColor: '#16a34a',
+                                borderColor: '#16a34a',
+                            },
+                            {
+                                label: 'Sell',
+                                data: sellPoints,
+                                type: 'scatter',
+                                pointRadius: 6,
+                                pointStyle: 'triangle',
+                                rotation: 180,
+                                backgroundColor: '#dc2626',
+                                borderColor: '#dc2626',
+                            },
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10, family: "'IBM Plex Mono', monospace" } } },
+                            filler: {},
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => {
+                                        if (ctx.dataset.label === 'Buy' || ctx.dataset.label === 'Sell') {
+                                            return ctx.dataset.label;
+                                        }
+                                        return ctx.dataset.label + ': $' + Number(ctx.parsed.y).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { display: true, ticks: { maxTicksLimit: 8, font: { size: 9, family: "'IBM Plex Mono', monospace" } }, grid: { display: false } },
+                            y: {
+                                display: true,
+                                ticks: { font: { size: 9, family: "'IBM Plex Mono', monospace" } },
+                                grid: { color: '#eee' },
+                            },
+                        },
+                    },
+                });
+                return;
+            }
+
+            // Fallback: old P&L chart logic
+            const plData = timeline.map(p => p.net_return);
             const aboveZero = plData.map(v => v >= 0 ? v : 0);
             const belowZero = plData.map(v => v < 0 ? v : 0);
 

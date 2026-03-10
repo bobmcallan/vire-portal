@@ -14,6 +14,7 @@ type UserProfile struct {
 	Username         string `json:"username"`
 	Email            string `json:"email"`
 	Role             string `json:"role"`
+	Timezone         string `json:"timezone"`
 	NavexaKeySet     bool   `json:"navexa_key_set"`
 	NavexaKeyPreview string `json:"navexa_key_preview"`
 }

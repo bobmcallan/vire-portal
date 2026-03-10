@@ -108,6 +108,7 @@ func (h *ProfileHandler) HandleProfile(w http.ResponseWriter, r *http.Request) {
 			data["NavexaKeySet"] = user.NavexaKeySet
 			data["NavexaKeyPreview"] = user.NavexaKeyPreview
 			data["UserRole"] = user.Role
+			data["UserTimezone"] = user.Timezone
 		}
 	}
 
@@ -157,8 +158,22 @@ func (h *ProfileHandler) HandleSaveProfile(w http.ResponseWriter, r *http.Reques
 	}
 
 	navexaKey := strings.TrimSpace(r.FormValue("navexa_key"))
+	timezone := strings.TrimSpace(r.FormValue("timezone"))
 
-	if err := h.userSaveFn(claims.Sub, map[string]string{"navexa_key": navexaKey}); err != nil {
+	fields := map[string]string{}
+	if navexaKey != "" {
+		fields["navexa_key"] = navexaKey
+	}
+	if timezone != "" {
+		fields["timezone"] = timezone
+	}
+
+	if len(fields) == 0 {
+		http.Redirect(w, r, "/profile?saved=1", http.StatusFound)
+		return
+	}
+
+	if err := h.userSaveFn(claims.Sub, fields); err != nil {
 		if h.logger != nil {
 			h.logger.Error().Str("error", err.Error()).Msg("failed to save user profile")
 		}

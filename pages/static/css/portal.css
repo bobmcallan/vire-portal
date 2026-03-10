@@ -1142,6 +1142,12 @@ code {
     color: #fff;
 }
 
+.compliance-bug { border-left-color: #d97706; }
+.compliance-bug .compliance-severity { color: #d97706; }
+.compliance-bug-indicator { margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+.compliance-bug-title { font-weight: 700; font-size: 0.75rem; letter-spacing: 0.05em; margin-bottom: 0.5rem; color: #d97706; }
+.compliance-bug-section { margin-top: 0.5rem; }
+
 .compliance-ticker {
     font-weight: 700;
     font-size: 0.8125rem;
@@ -1355,7 +1361,7 @@ code {
     width: 1.5rem;
 }
 
-.holding-breadth-arrow { font-size: 0.6rem; margin-right: 0.25rem; }
+.holding-breadth-arrow { font-size: 0.75rem; margin-right: 0.25rem; }
 .holding-breadth-arrow.breadth-rising { color: #5a9e6f; }
 .holding-breadth-arrow.breadth-flat { color: #aaa; }
 .holding-breadth-arrow.breadth-falling { color: #c06060; }
