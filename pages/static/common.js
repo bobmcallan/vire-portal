@@ -425,7 +425,11 @@ function portfolioDashboard() {
             this.currencyGainLoss = holdingsData.currency_gain_loss != null ? Number(holdingsData.currency_gain_loss) : null;
             this.currencyGainLossPct = holdingsData.currency_gain_loss_pct != null ? Number(holdingsData.currency_gain_loss_pct) : null;
             this.hasCurrencyData = this.currencyGainLoss != null;
-            this.breadth = holdingsData.breadth || this.computeBreadth();
+            const serverBreadth = holdingsData.breadth;
+            this.breadth = this.computeBreadth();
+            if (this.breadth && serverBreadth?.yesterday_change != null) {
+                this.breadth.yesterday_change = serverBreadth.yesterday_change;
+            }
             this.hasBreadth = this.breadth !== null;
         },
 
