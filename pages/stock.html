@@ -112,7 +112,7 @@
                                     <td class="text-right" x-text="position?.units?.toLocaleString() || ''"></td>
                                     <td></td>
                                     <td class="text-right" x-text="fmt(tradeTotalFees())"></td>
-                                    <td class="text-right" x-text="fmt(tradeTotalValue())"></td>
+                                    <td class="text-right" :class="gainClass(-tradeTotalValue())" x-text="fmt(tradeTotalValue())"></td>
                                     <td class="text-right" :class="gainClass(position?.realized_return)" x-text="position?.realized_return != null ? fmt(position.realized_return) : '-'"></td>
                                 </tr>
                             </tfoot>

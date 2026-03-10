@@ -1444,11 +1444,34 @@ function stockDetail() {
             return this.trades.reduce((sum, t) => sum + (Number(t.fees) || 0), 0);
         },
         tradeTotalValue() {
-            return this.trades.reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+            return this.trades.reduce((sum, t) => {
+                const v = Number(t.value) || 0;
+                return sum + (t.type === 'Buy' ? v : -v);
+            }, 0);
+        },
+        _buildRealisedPLMap() {
+            if (this._realisedPLMap) return this._realisedPLMap;
+            const map = new Map();
+            for (const p of (this.positionTimeline || [])) {
+                if (p.trade_events) {
+                    for (const te of p.trade_events) {
+                        if (te.realised_pnl != null) {
+                            const key = te.type.toLowerCase() + '|' + te.units + '|' + Number(te.price).toFixed(4);
+                            map.set(key, te.realised_pnl);
+                        }
+                    }
+                }
+            }
+            this._realisedPLMap = map;
+            return map;
         },
         tradeRealisedPL(t) {
-            if (t.type !== 'Sell' || !this.position) return null;
-            return t.value - (this.position.holding_cost_avg * t.units);
+            if (t.type !== 'Sell') return null;
+            const map = this._buildRealisedPLMap();
+            const key = t.type.toLowerCase() + '|' + t.units + '|' + Number(t.price).toFixed(4);
+            const val = map.get(key);
+            if (val != null) return val;
+            return null;
         },
 
         renderWalkChart() {
