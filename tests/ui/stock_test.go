@@ -156,8 +156,8 @@ func TestStock(t *testing.T) {
 		}
 	})
 
-	t.Run("PriceChartSection", func(t *testing.T) {
-		takeScreenshot(t, ctx, "stock", "price-chart-section.png")
+	t.Run("PriceChartRemoved", func(t *testing.T) {
+		takeScreenshot(t, ctx, "stock", "price-chart-removed.png")
 
 		sectionExists, err := commontest.EvalBool(ctx, `
 			(() => {
@@ -168,24 +168,16 @@ func TestStock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error checking price chart section: %v", err)
 		}
-		if !sectionExists {
-			t.Skip("STOCK PRICE TREND section not found (no candle data available)")
+		if sectionExists {
+			t.Error("STOCK PRICE TREND section should have been removed from the stock page")
 		}
 
 		canvasExists, err := commontest.EvalBool(ctx, `!!document.getElementById('stock-price-chart')`)
 		if err != nil {
 			t.Fatalf("error checking chart canvas: %v", err)
 		}
-		if !canvasExists {
-			t.Error("stock-price-chart canvas not found")
-		}
-
-		toggleCount, err := elementCount(ctx, ".growth-chart-controls .chart-toggle-label")
-		if err != nil {
-			t.Fatalf("error counting SMA toggles: %v", err)
-		}
-		if toggleCount < 3 {
-			t.Errorf("SMA toggle count = %d, want >= 3 (SMA 20, SMA 50, SMA 200)", toggleCount)
+		if canvasExists {
+			t.Error("stock-price-chart canvas should have been removed")
 		}
 	})
 
@@ -261,14 +253,14 @@ func TestStock(t *testing.T) {
 		sectionExists, err := commontest.EvalBool(ctx, `
 			(() => {
 				const headers = document.querySelectorAll('.panel-header');
-				return Array.from(headers).some(h => h.textContent.includes('POSITION WALK'));
+				return Array.from(headers).some(h => h.textContent.includes('POSITION P&L'));
 			})()
 		`)
 		if err != nil {
 			t.Fatalf("error checking walk chart section: %v", err)
 		}
 		if !sectionExists {
-			t.Skip("POSITION WALK section not found (no position timeline data available)")
+			t.Skip("POSITION P&L section not found (no position timeline data available)")
 		}
 
 		canvasExists, err := commontest.EvalBool(ctx, `!!document.getElementById('walkChart')`)
@@ -319,13 +311,14 @@ func TestStock(t *testing.T) {
 					const header = sec.querySelector('.panel-header');
 					if (header && header.textContent.trim() === 'TRADE HISTORY') {
 						const ths = sec.querySelectorAll('.tool-table thead th');
-						if (ths.length >= 6) {
+						if (ths.length >= 7) {
 							return ths[0].textContent.includes('Date') &&
 								ths[1].textContent.includes('Type') &&
 								ths[2].textContent.includes('Units') &&
 								ths[3].textContent.includes('Price') &&
 								ths[4].textContent.includes('Fees') &&
-								ths[5].textContent.includes('Value');
+								ths[5].textContent.includes('Value') &&
+								ths[6].textContent.includes('Realised P&L');
 						}
 					}
 				}
@@ -336,7 +329,7 @@ func TestStock(t *testing.T) {
 			t.Fatalf("error checking trade table headers: %v", err)
 		}
 		if !headersCorrect {
-			t.Error("trade history table headers do not match expected: Date, Type, Units, Price, Fees, Value")
+			t.Error("trade history table headers do not match expected: Date, Type, Units, Price, Fees, Value, Realised P&L")
 		}
 	})
 

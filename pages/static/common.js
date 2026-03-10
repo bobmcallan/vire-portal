@@ -1325,11 +1325,7 @@ function stockDetail() {
         holding: null,
         portfolioName: '',
         detail: null,
-        showSMA20: true,
-        showSMA50: true,
-        showSMA200: false,
         expandedFilings: {},
-        priceChart: null,
         trades: [],
         position: null,
         positionTimeline: [],
@@ -1391,84 +1387,9 @@ function stockDetail() {
             return d.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
         },
 
-        renderPriceChart() {
-            this.destroyPriceChart();
-            const canvas = document.getElementById('stock-price-chart');
-            if (!canvas || !this.detail || !this.detail.candles || this.detail.candles.length === 0) return;
-            if (typeof Chart === 'undefined') return;
-
-            const candles = [...this.detail.candles].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-            const labels = candles.map(c => {
-                const d = new Date(c.date);
-                return isNaN(d) ? (c.date || '') : d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
-            });
-            const closeData = candles.map(c => c.close);
-
-            const datasets = [{
-                label: 'Close',
-                data: closeData,
-                borderColor: '#000',
-                borderWidth: 1.5,
-                pointRadius: 0,
-                fill: false,
-            }];
-
-            const signals = this.detail.signals || {};
-            const price = signals.price || {};
-
-            if (this.showSMA20 && price.sma_20) {
-                datasets.push({
-                    label: 'SMA 20',
-                    data: price.sma_20,
-                    borderColor: '#2d8a4e',
-                    borderWidth: 1,
-                    borderDash: [4, 2],
-                    pointRadius: 0,
-                    fill: false,
-                });
-            }
-            if (this.showSMA50 && price.sma_50) {
-                datasets.push({
-                    label: 'SMA 50',
-                    data: price.sma_50,
-                    borderColor: '#d97706',
-                    borderWidth: 1,
-                    borderDash: [4, 2],
-                    pointRadius: 0,
-                    fill: false,
-                });
-            }
-            if (this.showSMA200 && price.sma_200) {
-                datasets.push({
-                    label: 'SMA 200',
-                    data: price.sma_200,
-                    borderColor: '#c53030',
-                    borderWidth: 1,
-                    borderDash: [4, 2],
-                    pointRadius: 0,
-                    fill: false,
-                });
-            }
-
-            this.priceChart = new Chart(canvas.getContext('2d'), {
-                type: 'line',
-                data: { labels, datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10, family: "'IBM Plex Mono', monospace" } } } },
-                    scales: {
-                        x: { display: true, ticks: { maxTicksLimit: 8, font: { size: 9, family: "'IBM Plex Mono', monospace" } }, grid: { display: false } },
-                        y: { display: true, ticks: { font: { size: 9, family: "'IBM Plex Mono', monospace" } }, grid: { color: '#eee' } },
-                    },
-                },
-            });
-        },
-        destroyPriceChart() {
-            if (this.priceChart) {
-                this.priceChart.destroy();
-                this.priceChart = null;
-            }
+        tradeRealisedPL(t) {
+            if (t.type !== 'Sell' || !this.position) return null;
+            return t.value - (this.position.holding_cost_avg * t.units);
         },
 
         renderWalkChart() {
@@ -1477,9 +1398,12 @@ function stockDetail() {
             if (this.walkChart) { this.walkChart.destroy(); }
             if (typeof Chart === 'undefined') return;
 
-            const labels = this.positionTimeline.map(p => this.fmtDate(p.date));
-            const marketValues = this.positionTimeline.map(p => p.market_value);
-            const costBases = this.positionTimeline.map(p => p.cost_basis);
+            const timeline = this.positionTimeline;
+            const labels = timeline.map(p => this.fmtDate(p.date));
+            const plData = timeline.map(p => p.net_return);
+
+            const aboveZero = plData.map(v => v >= 0 ? v : 0);
+            const belowZero = plData.map(v => v < 0 ? v : 0);
 
             const buyPoints = [];
             const sellPoints = [];
@@ -1487,7 +1411,7 @@ function stockDetail() {
                 const dateStr = this.fmtDate(t.date);
                 const idx = labels.indexOf(dateStr);
                 if (idx >= 0) {
-                    const point = { x: dateStr, y: marketValues[idx] };
+                    const point = { x: dateStr, y: plData[idx] };
                     if (t.type === 'Buy') buyPoints.push(point);
                     else sellPoints.push(point);
                 }
@@ -1498,19 +1422,68 @@ function stockDetail() {
                 data: {
                     labels,
                     datasets: [
-                        { label: 'Market Value', data: marketValues, borderColor: '#000', borderWidth: 2, pointRadius: 0, fill: false },
-                        { label: 'Cost Basis', data: costBases, borderColor: '#888', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, fill: false },
-                        { label: 'Buy', data: buyPoints, type: 'scatter', pointRadius: 6, pointStyle: 'triangle', backgroundColor: '#16a34a', borderColor: '#16a34a' },
-                        { label: 'Sell', data: sellPoints, type: 'scatter', pointRadius: 6, pointStyle: 'triangle', rotation: 180, backgroundColor: '#dc2626', borderColor: '#dc2626' },
+                        {
+                            label: 'P&L (gain)',
+                            data: aboveZero,
+                            borderColor: '#2d8a4e',
+                            backgroundColor: 'rgba(45, 138, 79, 0.15)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: 'origin',
+                        },
+                        {
+                            label: 'P&L (loss)',
+                            data: belowZero,
+                            borderColor: '#c06060',
+                            backgroundColor: 'rgba(192, 96, 96, 0.15)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: 'origin',
+                        },
+                        {
+                            label: 'Buy',
+                            data: buyPoints,
+                            type: 'scatter',
+                            pointRadius: 6,
+                            pointStyle: 'triangle',
+                            backgroundColor: '#16a34a',
+                            borderColor: '#16a34a',
+                        },
+                        {
+                            label: 'Sell',
+                            data: sellPoints,
+                            type: 'scatter',
+                            pointRadius: 6,
+                            pointStyle: 'triangle',
+                            rotation: 180,
+                            backgroundColor: '#dc2626',
+                            borderColor: '#dc2626',
+                        },
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10, family: "'IBM Plex Mono', monospace" } } } },
+                    plugins: {
+                        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10, family: "'IBM Plex Mono', monospace" } } },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    if (ctx.dataset.label === 'Buy' || ctx.dataset.label === 'Sell') {
+                                        return ctx.dataset.label;
+                                    }
+                                    return 'P&L: $' + Number(ctx.parsed.y).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                                }
+                            }
+                        }
+                    },
                     scales: {
                         x: { display: true, ticks: { maxTicksLimit: 8, font: { size: 9, family: "'IBM Plex Mono', monospace" } }, grid: { display: false } },
-                        y: { display: true, ticks: { font: { size: 9, family: "'IBM Plex Mono', monospace" } }, grid: { color: '#eee' } },
+                        y: {
+                            display: true,
+                            ticks: { font: { size: 9, family: "'IBM Plex Mono', monospace" } },
+                            grid: { color: (ctx) => ctx.tick.value === 0 ? '#000' : '#eee', lineWidth: (ctx) => ctx.tick.value === 0 ? 2 : 1 },
+                        },
                     },
                 },
             });
@@ -1536,16 +1509,10 @@ function stockDetail() {
                 this.hasTrades = this.trades.length > 0;
             }
             this.$nextTick(() => {
-                if (this.detail) {
-                    this.renderPriceChart();
-                    if (this.hasWalkData) this.renderWalkChart();
+                if (this.detail && this.hasWalkData) {
+                    this.renderWalkChart();
                 }
             });
-
-            // Watch SMA toggles to re-render chart
-            this.$watch('showSMA20', () => this.renderPriceChart());
-            this.$watch('showSMA50', () => this.renderPriceChart());
-            this.$watch('showSMA200', () => this.renderPriceChart());
         },
     };
 }

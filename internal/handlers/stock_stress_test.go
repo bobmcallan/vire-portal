@@ -1076,7 +1076,7 @@ func TestStockStress_TickerInjectionInDetailPath(t *testing.T) {
 // --- Template structure (new sections) ---
 
 func TestStockStress_WalkChartNullTimeline(t *testing.T) {
-	// When position_timeline is null/empty, POSITION WALK section should be guarded by x-show
+	// When position_timeline is null/empty, POSITION P&amp;L section should be guarded by x-show
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
 	}
@@ -1119,12 +1119,12 @@ func TestStockStress_WalkChartNullTimeline(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	// The template must have x-show="hasWalkData" guard on POSITION WALK
-	if !strings.Contains(body, "POSITION WALK") {
-		t.Error("POSITION WALK section not found in template")
+	// The template must have x-show="hasWalkData" guard on POSITION P&amp;L
+	if !strings.Contains(body, "POSITION P&amp;L") {
+		t.Error("POSITION P&amp;L section not found in template")
 	}
 	if !strings.Contains(body, "hasWalkData") {
-		t.Error("POSITION WALK section missing hasWalkData x-show guard")
+		t.Error("POSITION P&amp;L section missing hasWalkData x-show guard")
 	}
 }
 
@@ -1564,7 +1564,7 @@ func TestStockStress_TradeHistoryPlaceholderGone(t *testing.T) {
 }
 
 func TestStockStress_WalkChartCanvasPresent(t *testing.T) {
-	// POSITION WALK section must include a walkChart canvas
+	// POSITION P&amp;L section must include a walkChart canvas
 	lookupFn := func(userID string) (*client.UserProfile, error) {
 		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
 	}
@@ -1868,5 +1868,254 @@ func TestStockStress_NilUserLookupFn(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 with nil userLookupFn, got %d", w.Code)
+	}
+}
+
+// --- Stock page restructure template validation ---
+
+func stockStressRenderPage(t *testing.T) string {
+	t.Helper()
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return json.Marshal(map[string]interface{}{
+				"position": map[string]interface{}{
+					"holding_cost_avg": 1.38,
+					"realized_return":  -100.0,
+				},
+				"trades": []map[string]interface{}{
+					{"id": "1", "type": "Buy", "date": "2026-01-01", "units": 1000, "price": 1.38, "fees": 10, "value": 1390},
+					{"id": "2", "type": "Sell", "date": "2026-02-01", "units": 500, "price": 1.50, "fees": 10, "value": 740},
+				},
+				"position_timeline": []map[string]interface{}{
+					{"date": "2026-01-01", "net_return": -50},
+					{"date": "2026-02-01", "net_return": 100},
+				},
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Commonwealth Bank"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	return w.Body.String()
+}
+
+func TestStockPage_StressNoPriceChartSection(t *testing.T) {
+	body := stockStressRenderPage(t)
+	if strings.Contains(body, "STOCK PRICE TREND") {
+		t.Error("STOCK PRICE TREND section should be removed from template but still present")
+	}
+	if strings.Contains(body, "stock-price-chart") {
+		t.Error("stock-price-chart element should be removed from template but still present")
+	}
+}
+
+func TestStockPage_StressNoSMACheckboxes(t *testing.T) {
+	body := stockStressRenderPage(t)
+	for _, sma := range []string{"showSMA20", "showSMA50", "showSMA200"} {
+		if strings.Contains(body, sma) {
+			t.Errorf("SMA reference %q should be removed from template but still present", sma)
+		}
+	}
+}
+
+func TestStockPage_StressPandLChartPresent(t *testing.T) {
+	body := stockStressRenderPage(t)
+	if !strings.Contains(body, "POSITION P&amp;L") {
+		t.Error("POSITION P&L header not found in template")
+	}
+}
+
+func TestStockPage_StressTradeRealisedPLColumn(t *testing.T) {
+	body := stockStressRenderPage(t)
+	if !strings.Contains(body, "Realised P&amp;L") {
+		t.Error("Realised P&L column header not found in trade history table")
+	}
+}
+
+func TestStockPage_StressTradeRealisedPLUsesXText(t *testing.T) {
+	body := stockStressRenderPage(t)
+	if !strings.Contains(body, "tradeRealisedPL") {
+		t.Error("tradeRealisedPL helper not referenced in template")
+	}
+	// Must use x-text, not x-html (XSS safety)
+	if strings.Contains(body, "x-html=\"tradeRealisedPL") {
+		t.Error("tradeRealisedPL must use x-text, not x-html")
+	}
+}
+
+func TestStockPage_StressWalkChartCanvasExists(t *testing.T) {
+	body := stockStressRenderPage(t)
+	if !strings.Contains(body, `id="walkChart"`) {
+		t.Error("walkChart canvas not found in template")
+	}
+}
+
+// --- Devils-advocate adversarial tests ---
+
+func TestStockPage_StressNullPositionRealisedPL(t *testing.T) {
+	// When position is null (stock not held), tradeRealisedPL must not crash.
+	// The template guards trade table with x-show="hasTrades" and the JS helper
+	// returns null when position is nil, so the column should show '-'.
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			// position is null, but trades and timeline exist
+			return json.Marshal(map[string]interface{}{
+				"position": nil,
+				"trades": []map[string]interface{}{
+					{"id": "1", "type": "Sell", "date": "2026-02-01", "units": 500, "price": 1.50, "fees": 10, "value": 740},
+				},
+				"position_timeline": []map[string]interface{}{},
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Commonwealth Bank"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with null position, got %d", w.Code)
+	}
+	// Page must render without error — the tradeRealisedPL guard handles null position
+}
+
+func TestStockPage_StressNoOrphanedPriceChartJS(t *testing.T) {
+	// Verify the rendered page does not contain orphaned JS function references
+	// from the removed price chart feature
+	body := stockStressRenderPage(t)
+	orphans := []string{"renderPriceChart", "destroyPriceChart", "showSMA20", "showSMA50", "showSMA200"}
+	for _, ref := range orphans {
+		if strings.Contains(body, ref) {
+			t.Errorf("orphaned JS reference %q still present in rendered page", ref)
+		}
+	}
+}
+
+func TestStockPage_StressNoOrphanedPriceChartCSS(t *testing.T) {
+	// Verify removed CSS classes are no longer in the template
+	body := stockStressRenderPage(t)
+	removedClasses := []string{"stock-price-chart-section", "stock-trend-badge", "stock-rsi-value"}
+	for _, cls := range removedClasses {
+		if strings.Contains(body, cls) {
+			t.Errorf("orphaned CSS class %q still present in rendered page", cls)
+		}
+	}
+}
+
+func TestStockPage_StressAllZeroTimeline(t *testing.T) {
+	// When all net_return values are zero, the P&L chart split (aboveZero/belowZero)
+	// produces all-zero arrays. The template must still render without error.
+	lookupFn := func(userID string) (*client.UserProfile, error) {
+		return &client.UserProfile{Username: "test-user", Role: "user"}, nil
+	}
+	proxyGetFn := func(path, userID string) ([]byte, error) {
+		if path == "/api/portfolios" {
+			return json.Marshal(map[string]interface{}{
+				"portfolios": []map[string]string{{"name": "Main"}},
+				"default":    "Main",
+			})
+		}
+		if strings.Contains(path, "/detail") {
+			return json.Marshal(map[string]interface{}{
+				"position": map[string]interface{}{
+					"holding_cost_avg": 1.00,
+					"realized_return":  0.0,
+				},
+				"trades": []map[string]interface{}{
+					{"id": "1", "type": "Buy", "date": "2026-01-01", "units": 100, "price": 1.00, "fees": 0, "value": 100},
+				},
+				"position_timeline": []map[string]interface{}{
+					{"date": "2026-01-01", "net_return": 0},
+					{"date": "2026-01-02", "net_return": 0},
+					{"date": "2026-01-03", "net_return": 0},
+				},
+			})
+		}
+		if strings.Contains(path, "/api/portfolios/Main") {
+			return json.Marshal(map[string]interface{}{
+				"holdings": []map[string]interface{}{
+					{"ticker": "CBA.AX", "name": "Commonwealth Bank"},
+				},
+			})
+		}
+		return []byte("null"), nil
+	}
+
+	handler := NewStockHandler(nil, true, []byte(testJWTSecret), lookupFn)
+	handler.SetProxyGetFn(proxyGetFn)
+
+	req := httptest.NewRequest("GET", "/stock/CBA.AX", nil)
+	addAuthCookie(req, "test-user")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with all-zero timeline, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `id="walkChart"`) {
+		t.Error("walkChart canvas should still be present with all-zero timeline")
+	}
+	if !strings.Contains(body, "hasWalkData") {
+		t.Error("hasWalkData guard missing — all-zero timeline should still show chart section")
+	}
+}
+
+func TestStockPage_StressRealisedPLNotXHTML(t *testing.T) {
+	// Adversarial: ensure no x-html binding exists anywhere in stock.html template output
+	// This prevents future regressions where someone might switch from x-text to x-html
+	body := stockStressRenderPage(t)
+	if strings.Contains(body, "x-html=") {
+		t.Error("stock page template contains x-html binding — all dynamic content must use x-text for XSS safety")
 	}
 }
