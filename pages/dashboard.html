@@ -61,20 +61,18 @@
             <!-- Row 1: Composition -->
             <div class="portfolio-summary" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="portfolio-summary-item">
-                    <span class="label">PORTFOLIO VALUE <span class="label-info" :data-tooltip="glossaryDef('portfolio_value')">i</span></span>
+                    <span class="label">PORTFOLIO VALUE <span class="text-muted" x-text="currencyShort"></span> <span class="label-info" :data-tooltip="glossaryDef('portfolio_value')">i</span></span>
                     <span class="text-bold" x-text="fmt(totalValue)"></span>
-                    <span class="portfolio-changes" x-show="hasChanges" x-cloak>
-                        <span :class="changeClass(changeDayPct)" x-text="'D:' + changePct(changeDayPct)"></span>
-                        <span :class="changeClass(changeWeekPct)" x-text="'W:' + changePct(changeWeekPct)"></span>
-                        <span :class="changeClass(changeMonthPct)" x-text="'M:' + changePct(changeMonthPct)"></span>
+                    <span class="portfolio-change-today" x-show="changeDayPct != null" x-cloak>
+                        <span :class="changeClass(changeDayPct)" x-text="changePct(changeDayPct) + ' 1D'"></span>
                     </span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">AVAILABLE CASH <span class="label-info" :data-tooltip="glossaryDef('capital_available')">i</span></span>
+                    <span class="label">AVAILABLE CASH <span class="text-muted" x-text="currencyShort"></span> <span class="label-info" :data-tooltip="glossaryDef('capital_available')">i</span></span>
                     <span class="text-bold" x-text="fmt(availableCash)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">GROSS CONTRIBUTIONS <span class="label-info" :data-tooltip="glossaryDef('capital_contributions_gross')">i</span></span>
+                    <span class="label">GROSS CONTRIBUTIONS <span class="text-muted" x-text="currencyShort"></span> <span class="label-info" :data-tooltip="glossaryDef('capital_contributions_gross')">i</span></span>
                     <span class="text-bold" x-text="fmt(grossContributions)"></span>
                 </div>
             </div>
@@ -82,11 +80,11 @@
             <!-- Row 2: Performance -->
             <div class="portfolio-summary portfolio-summary-performance" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="portfolio-summary-item">
-                    <span class="label">NET EQUITY <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_value')">i</span></span>
+                    <span class="label">NET EQUITY <span class="text-muted" x-text="currencyShort"></span> <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_value')">i</span></span>
                     <span class="text-bold" x-text="fmt(equityValue)"></span>
                 </div>
                 <div class="portfolio-summary-item">
-                    <span class="label">NET RETURN $ <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_return')">i</span></span>
+                    <span class="label">NET RETURN <span class="text-muted" x-text="currencyShort"></span> <span class="label-info" :data-tooltip="glossaryDef('equity_holdings_return')">i</span></span>
                     <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>
                     <span class="portfolio-change-today" x-show="changeReturnDayDollar != null" x-cloak>
                         <span :class="changeClass(changeReturnDayDollar)" x-text="changeDollar(changeReturnDayDollar) + ' 1D'"></span>
@@ -100,7 +98,7 @@
                     </span>
                 </div>
                 <div class="portfolio-summary-item" x-show="hasCurrencyData" x-cloak>
-                    <span class="label">CURRENCY GAIN/LOSS <span class="label-info" :data-tooltip="glossaryDef('currency_gain_loss')">i</span></span>
+                    <span class="label">CURRENCY GAIN/LOSS <span class="text-muted" x-text="currencyShort"></span> <span class="label-info" :data-tooltip="glossaryDef('currency_gain_loss')">i</span></span>
                     <span class="text-bold" :class="gainClass(currencyGainLoss)" x-text="fmt(currencyGainLoss)"></span>
                 </div>
             </div>

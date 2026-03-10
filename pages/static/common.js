@@ -222,6 +222,7 @@ function portfolioDashboard() {
         closedHoldings: null,
         closedLoading: false,
         portfolioTotalValue: 0,
+        portfolioCurrency: '',
         portfolioGain: 0,
         portfolioGainPct: 0,
         portfolioCost: 0,
@@ -235,8 +236,6 @@ function portfolioDashboard() {
         ledgerDividendReturn: 0,
         lastSynced: '',
         changeDayPct: null,
-        changeWeekPct: null,
-        changeMonthPct: null,
         hasChanges: false,
         changeCashDayPct: null,
         changeCashWeekPct: null,
@@ -285,6 +284,12 @@ function portfolioDashboard() {
         },
         get totalValue() {
             return this.portfolioTotalValue;
+        },
+        get currencyShort() {
+            const c = this.portfolioCurrency;
+            if (c === 'USD') return 'U';
+            if (c === 'AUD') return 'A';
+            return c ? c.charAt(0) : '';
         },
         get totalCost() {
             return this.portfolioCost;
@@ -366,32 +371,45 @@ function portfolioDashboard() {
             // Parse changes
             const changes = holdingsData.changes;
             if (changes) {
-                this.changeDayPct = changes.yesterday?.portfolio_value?.has_previous ? changes.yesterday.portfolio_value.pct_change : null;
-                this.changeWeekPct = changes.week?.portfolio_value?.has_previous ? changes.week.portfolio_value.pct_change : null;
-                this.changeMonthPct = changes.month?.portfolio_value?.has_previous ? changes.month.portfolio_value.pct_change : null;
-                this.hasChanges = this.changeDayPct !== null || this.changeWeekPct !== null || this.changeMonthPct !== null;
+                // Compute capital-flow-adjusted % change for a period.
+                // Subtracts deposits/withdrawals so only market movement is reflected.
+                const adjPct = (period) => {
+                    const pv = period?.portfolio_value;
+                    const cg = period?.capital_gross;
+                    if (!pv?.has_previous || !pv.previous) return null;
+                    const capitalFlow = cg?.raw_change || 0;
+                    return ((pv.raw_change - capitalFlow) / pv.previous) * 100;
+                };
+                this.changeDayPct = adjPct(changes.yesterday);
+                this.hasChanges = this.changeDayPct !== null;
                 this.changeCashDayPct = changes.yesterday?.capital_gross?.has_previous ? changes.yesterday.capital_gross.pct_change : null;
                 this.changeCashWeekPct = changes.week?.capital_gross?.has_previous ? changes.week.capital_gross.pct_change : null;
                 this.changeCashMonthPct = changes.month?.capital_gross?.has_previous ? changes.month.capital_gross.pct_change : null;
                 this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
-                // Net Return uses portfolio_value change (equity + cash), which is immune to
+                // Net Return $ uses portfolio_value change (equity + cash), which is immune to
                 // BUY/SELL capital flow (sells reduce equity but increase cash by the same amount).
                 // Subtract capital_gross change to exclude deposits/withdrawals.
-                this.changeReturnDayDollar = changes.yesterday?.portfolio_value?.has_previous ? (changes.yesterday.portfolio_value.raw_change - (changes.yesterday.capital_gross?.raw_change || 0)) : null;
-                this.changeReturnWeekDollar = changes.week?.portfolio_value?.has_previous ? (changes.week.portfolio_value.raw_change - (changes.week.capital_gross?.raw_change || 0)) : null;
-                this.changeReturnMonthDollar = changes.month?.portfolio_value?.has_previous ? (changes.month.portfolio_value.raw_change - (changes.month.capital_gross?.raw_change || 0)) : null;
+                const adjDollar = (period) => {
+                    const pv = period?.portfolio_value;
+                    if (!pv?.has_previous) return null;
+                    return pv.raw_change - (period?.capital_gross?.raw_change || 0);
+                };
+                this.changeReturnDayDollar = adjDollar(changes.yesterday);
+                this.changeReturnWeekDollar = adjDollar(changes.week);
+                this.changeReturnMonthDollar = adjDollar(changes.month);
                 this.hasReturnDollarChanges = this.changeReturnDayDollar !== null || this.changeReturnWeekDollar !== null || this.changeReturnMonthDollar !== null;
-                this.changeReturnDayPct = changes.yesterday?.portfolio_value?.has_previous ? changes.yesterday.portfolio_value.pct_change : null;
-                this.changeReturnWeekPct = changes.week?.portfolio_value?.has_previous ? changes.week.portfolio_value.pct_change : null;
-                this.changeReturnMonthPct = changes.month?.portfolio_value?.has_previous ? changes.month.portfolio_value.pct_change : null;
+                this.changeReturnDayPct = adjPct(changes.yesterday);
+                this.changeReturnWeekPct = adjPct(changes.week);
+                this.changeReturnMonthPct = adjPct(changes.month);
                 this.hasReturnPctChanges = this.changeReturnDayPct !== null || this.changeReturnWeekPct !== null || this.changeReturnMonthPct !== null;
             } else {
-                this.changeDayPct = null; this.changeWeekPct = null; this.changeMonthPct = null; this.hasChanges = false;
+                this.changeDayPct = null; this.hasChanges = false;
                 this.changeCashDayPct = null; this.changeCashWeekPct = null; this.changeCashMonthPct = null; this.hasCashChanges = false;
                 this.changeReturnDayDollar = null; this.changeReturnWeekDollar = null; this.changeReturnMonthDollar = null; this.hasReturnDollarChanges = false;
                 this.changeReturnDayPct = null; this.changeReturnWeekPct = null; this.changeReturnMonthPct = null; this.hasReturnPctChanges = false;
             }
             this.portfolioTotalValue = Number(holdingsData.portfolio_value) || 0;
+            this.portfolioCurrency = holdingsData.currency || 'AUD';
             this.portfolioGain = Number(holdingsData.equity_holdings_return) || 0;
             this.portfolioGainPct = Number(holdingsData.equity_holdings_return_pct) || 0;
             this.portfolioCost = Number(holdingsData.equity_holdings_cost) || 0;
@@ -561,8 +579,6 @@ function portfolioDashboard() {
                     this.ledgerDividendReturn = 0;
                     this.lastSynced = '';
                     this.changeDayPct = null;
-                    this.changeWeekPct = null;
-                    this.changeMonthPct = null;
                     this.hasChanges = false;
                     this.changeCashDayPct = null;
                     this.changeCashWeekPct = null;

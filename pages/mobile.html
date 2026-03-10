@@ -56,19 +56,17 @@
 
             <!-- Portfolio value -->
             <div class="mobile-value-section" x-show="filteredHoldings.length > 0" x-cloak>
-                <span class="label">PORTFOLIO VALUE</span>
+                <span class="label">PORTFOLIO VALUE <span class="text-muted" x-text="currencyShort"></span></span>
                 <span class="mobile-value-amount" x-text="fmt(totalValue)"></span>
-                <div class="mobile-changes-row" x-show="hasChanges" x-cloak>
-                    <span :class="changeClass(changeDayPct)" x-text="'D:' + changePct(changeDayPct)"></span>
-                    <span :class="changeClass(changeWeekPct)" x-text="'W:' + changePct(changeWeekPct)"></span>
-                    <span :class="changeClass(changeMonthPct)" x-text="'M:' + changePct(changeMonthPct)"></span>
-                </div>
+                <span class="mobile-today-change" x-show="changeDayPct != null" x-cloak>
+                    <span :class="changeClass(changeDayPct)" x-text="changePct(changeDayPct) + ' 1D'"></span>
+                </span>
             </div>
 
             <!-- Performance -->
             <div class="mobile-performance-row" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="mobile-perf-item">
-                    <span class="label">NET RETURN $</span>
+                    <span class="label">NET RETURN <span class="text-muted" x-text="currencyShort"></span></span>
                     <span class="text-bold" :class="gainClass(totalGain)" x-text="fmt(totalGain)"></span>
                     <span class="mobile-today-change" x-show="changeReturnDayDollar != null" x-cloak>
                         <span :class="changeClass(changeReturnDayDollar)" x-text="changeDollar(changeReturnDayDollar) + ' 1D'"></span>
