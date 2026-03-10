@@ -616,8 +616,8 @@ func TestDashboardHandler_StressCapitalPerformanceLabels(t *testing.T) {
 		}
 	}
 
-	// Row 2: Performance labels
-	performanceLabels := []string{"NET RETURN $", "NET RETURN %"}
+	// Row 2: Performance labels (NET RETURN without $ — currency shown via currencyShort)
+	performanceLabels := []string{"NET RETURN", "NET RETURN %"}
 	for _, label := range performanceLabels {
 		if !strings.Contains(body, label) {
 			t.Errorf("expected performance row label %q in dashboard", label)
@@ -1115,26 +1115,14 @@ func TestDashboardHandler_StressChangesBindingsUseXText(t *testing.T) {
 
 	body := w.Body.String()
 
-	// changePct must be rendered via x-text (safe)
-	if !strings.Contains(body, `x-text="'D:' + changePct(changeDayPct)"`) {
-		t.Error("expected changeDayPct rendered with x-text")
-	}
-	if !strings.Contains(body, `x-text="'W:' + changePct(changeWeekPct)"`) {
-		t.Error("expected changeWeekPct rendered with x-text")
-	}
-	if !strings.Contains(body, `x-text="'M:' + changePct(changeMonthPct)"`) {
-		t.Error("expected changeMonthPct rendered with x-text")
+	// Portfolio value daily change must be rendered via x-text (safe)
+	if !strings.Contains(body, `x-text="changePct(changeDayPct) + ' 1D'"`) {
+		t.Error("expected changeDayPct rendered with x-text and 1D suffix")
 	}
 
 	// changeClass must be rendered via :class (safe — sets className)
 	if !strings.Contains(body, `:class="changeClass(changeDayPct)"`) {
 		t.Error("expected changeDayPct color via :class binding")
-	}
-	if !strings.Contains(body, `:class="changeClass(changeWeekPct)"`) {
-		t.Error("expected changeWeekPct color via :class binding")
-	}
-	if !strings.Contains(body, `:class="changeClass(changeMonthPct)"`) {
-		t.Error("expected changeMonthPct color via :class binding")
 	}
 
 	// fmtSynced must be rendered via x-text (safe)
@@ -1156,9 +1144,9 @@ func TestDashboardHandler_StressChangesRowConditionalDisplay(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Changes row gated on hasChanges
-	if !strings.Contains(body, `x-show="hasChanges"`) {
-		t.Error("portfolio-changes row must be conditional on hasChanges")
+	// Daily change gated on changeDayPct != null
+	if !strings.Contains(body, `x-show="changeDayPct != null"`) {
+		t.Error("portfolio daily change must be conditional on changeDayPct != null")
 	}
 	// Net return $ daily change gated on changeReturnDayDollar
 	if !strings.Contains(body, `x-show="changeReturnDayDollar != null"`) {
@@ -1248,21 +1236,21 @@ func TestDashboardHandler_StressChangesInsidePortfolioValueItem(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Find PORTFOLIO VALUE label and portfolio-changes — they should be
+	// Find PORTFOLIO VALUE label and portfolio-change-today — they should be
 	// within the same portfolio-summary-item div
 	pvIdx := strings.Index(body, "PORTFOLIO VALUE")
-	pcIdx := strings.Index(body, "portfolio-changes")
+	pcIdx := strings.Index(body, "portfolio-change-today")
 	if pvIdx < 0 || pcIdx < 0 {
-		t.Fatal("expected both PORTFOLIO VALUE and portfolio-changes in template")
+		t.Fatal("expected both PORTFOLIO VALUE and portfolio-change-today in template")
 	}
 
-	// The changes row should come after PORTFOLIO VALUE but before the performance row
+	// The daily change should come after PORTFOLIO VALUE but before the performance row
 	perfIdx := strings.Index(body, "portfolio-summary-performance")
 	if perfIdx < 0 {
 		t.Skip("Performance summary row not found")
 	}
 	if pcIdx > perfIdx {
-		t.Error("portfolio-changes appears after performance summary — should be inside PORTFOLIO VALUE item")
+		t.Error("portfolio-change-today appears after performance summary — should be inside PORTFOLIO VALUE item")
 	}
 }
 
@@ -1310,16 +1298,9 @@ func TestDashboardHandler_StressChangeClassBindingsPresent(t *testing.T) {
 
 	body := w.Body.String()
 
-	// All three D/W/M periods must use :class with changeClass()
-	bindings := []string{
-		`:class="changeClass(changeDayPct)"`,
-		`:class="changeClass(changeWeekPct)"`,
-		`:class="changeClass(changeMonthPct)"`,
-	}
-	for _, binding := range bindings {
-		if !strings.Contains(body, binding) {
-			t.Errorf("expected %s in dashboard template", binding)
-		}
+	// Daily change must use :class with changeClass()
+	if !strings.Contains(body, `:class="changeClass(changeDayPct)"`) {
+		t.Error("expected :class=\"changeClass(changeDayPct)\" in dashboard template")
 	}
 
 	// Verify portal.css is referenced (it contains .change-up, .change-down, .change-neutral)
