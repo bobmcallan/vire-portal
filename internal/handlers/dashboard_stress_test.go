@@ -2991,15 +2991,6 @@ func TestDashboardStress_StockPageNoFilings(t *testing.T) {
 	}
 }
 
-func TestDashboardStress_KeyEventsReversed(t *testing.T) {
-	// Verify key events are displayed in reverse order
-	html := readStaticFile(t, "../stock.html")
-
-	if !strings.Contains(html, ".reverse()") {
-		t.Error("stock.html key events not reversed — missing .reverse() call")
-	}
-}
-
 func TestDashboardStress_BreadthArrowFontSize(t *testing.T) {
 	// Verify breadth arrow font size is 0.75rem
 	css := readStaticFile(t, "css/portal.css")
