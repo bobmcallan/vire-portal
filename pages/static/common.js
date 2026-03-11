@@ -1145,8 +1145,12 @@ function portfolioDashboard() {
             return 'change-neutral';
         },
         holdingTodayChange(h) {
-            if (h.current_price == null || h.yesterday_close_price == null || h.units == null) return null;
-            return (h.current_price - h.yesterday_close_price) * h.units;
+            if (h.yesterday_price_change == null || h.yesterday_price_change === 0) {
+                // Fallback for holdings without server-computed change
+                if (h.current_price == null || h.yesterday_close_price == null || h.units == null) return null;
+                return (h.current_price - h.yesterday_close_price) * h.units;
+            }
+            return h.yesterday_price_change;
         },
         fmtTodayChange(val) {
             if (val == null) return '';
