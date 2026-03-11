@@ -33,6 +33,10 @@
                     <span>{{.UserRole}}</span>
                 </div>
                 {{end}}
+                <div class="dashboard-field">
+                    <span class="dashboard-label">TIMEZONE</span>
+                    <span>{{if .UserTimezone}}{{.UserTimezone}}{{else}}<span class="text-muted">Not set</span>{{end}}</span>
+                </div>
             </section>
 
             <section class="dashboard-section">

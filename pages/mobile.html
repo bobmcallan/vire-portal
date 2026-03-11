@@ -90,10 +90,10 @@
                 </div>
             </div>
 
-            <!-- Breadth bar -->
+            <!-- Holding breadth bar -->
             <div class="mobile-breadth-section" x-show="hasBreadth" x-cloak>
                 <div class="breadth-summary-row">
-                    <span class="breadth-trend" :class="trendArrowClass(breadth?.trend_score)" x-text="breadth?.trend_label || ''"></span>
+                    <span class="breadth-bar-label">HOLDING</span>
                     <span :class="changeClass(breadth?.today_change)" x-text="breadth?.today_change != null ? fmtTodayChange(breadth.today_change) : ''"></span>
                 </div>
                 <div class="breadth-bar">
@@ -102,7 +102,6 @@
                              :class="'breadth-' + seg.status"
                              :style="'width:' + (seg.bar_pct || 0) + '%'"
                              :title="segmentTooltip(seg)">
-                            <span class="breadth-segment-label" x-text="seg.ticker"></span>
                         </div>
                     </template>
                 </div>
@@ -110,6 +109,28 @@
                     <span x-text="(breadth?.falling_count || 0) + ' Falling'"></span>
                     <span x-text="(breadth?.flat_count || 0) + ' Flat'"></span>
                     <span x-text="(breadth?.rising_count || 0) + ' Rising'"></span>
+                </div>
+            </div>
+
+            <!-- Stock trend bar -->
+            <div class="mobile-breadth-section" x-show="hasStockTrend" x-cloak>
+                <div class="breadth-summary-row">
+                    <span class="breadth-bar-label">STOCK</span>
+                    <span class="breadth-trend" :class="trendArrowClass(breadth?.trend_score)" x-text="breadth?.trend_label || ''"></span>
+                </div>
+                <div class="breadth-bar">
+                    <template x-for="seg in (stockTrend?.segments || [])" :key="seg.ticker">
+                        <div class="breadth-segment"
+                             :class="'trend-' + seg.status"
+                             :style="'width:' + (seg.bar_pct || 0) + '%'"
+                             :title="trendSegmentTooltip(seg)">
+                        </div>
+                    </template>
+                </div>
+                <div class="breadth-counts">
+                    <span x-text="(stockTrend?.downtrend_count || 0) + ' Downtrend'"></span>
+                    <span x-text="(stockTrend?.consolidating_count || 0) + ' Consolidating'"></span>
+                    <span x-text="(stockTrend?.uptrend_count || 0) + ' Uptrend'"></span>
                 </div>
             </div>
 

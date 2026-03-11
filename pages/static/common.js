@@ -254,6 +254,8 @@ function portfolioDashboard() {
         hasCurrencyData: false,
         breadth: null,
         hasBreadth: false,
+        stockTrend: null,
+        hasStockTrend: false,
         watchlist: [],
         glossary: {},
         complianceReport: null,
@@ -450,6 +452,31 @@ function portfolioDashboard() {
             } else {
                 this.breadth = null;
                 this.hasBreadth = false;
+            }
+            // Build stock trend bar from per-holding price_trend_score
+            const openHoldings = (holdingsData.holdings || []).filter(h => h.holding_value_market > 0);
+            if (openHoldings.length > 0) {
+                const trendSegs = openHoldings.map(h => {
+                    const score = h.price_trend_score;
+                    let status = 'consolidating';
+                    if (score > 0.1) status = 'uptrend';
+                    else if (score < -0.1) status = 'downtrend';
+                    return { ticker: h.ticker, name: h.name, status, weight_pct: h.holding_weight_pct || 0, label: h.price_trend_label || '', score: score || 0 };
+                });
+                const trendTotal = trendSegs.reduce((sum, s) => sum + s.weight_pct, 0);
+                const normTrend = trendTotal > 0
+                    ? trendSegs.map(s => ({ ...s, bar_pct: (s.weight_pct / trendTotal) * 100 }))
+                    : trendSegs.map(s => ({ ...s, bar_pct: 0 }));
+                this.stockTrend = {
+                    uptrend_count: trendSegs.filter(s => s.status === 'uptrend').length,
+                    consolidating_count: trendSegs.filter(s => s.status === 'consolidating').length,
+                    downtrend_count: trendSegs.filter(s => s.status === 'downtrend').length,
+                    segments: normTrend,
+                };
+                this.hasStockTrend = true;
+            } else {
+                this.stockTrend = null;
+                this.hasStockTrend = false;
             }
         },
 
@@ -648,6 +675,8 @@ function portfolioDashboard() {
                     this.hasCapitalData = false;
                     this.breadth = null;
                     this.hasBreadth = false;
+                    this.stockTrend = null;
+                    this.hasStockTrend = false;
                 }
                 console.log(`[dashboard] fetch /api/portfolios/${this.selected}: ${(performance.now() - lpStart).toFixed(0)}ms`);
                 // Fetch growth history, watchlist, and compliance (non-blocking, non-fatal)
@@ -1152,13 +1181,10 @@ function portfolioDashboard() {
             return this.holdings.find(h => h.ticker === seg.ticker);
         },
         segmentTooltip(seg) {
-            const h = this.holdingForSegment(seg);
-            let tip = seg.ticker + ' ' + seg.status + ' (' + (seg.weight_pct || 0).toFixed(1) + '%)';
-            if (h) {
-                if (h.price_trend_label) tip += ' — ' + h.price_trend_label;
-                if (h.current_price != null) tip += ' $' + Number(h.current_price).toFixed(2);
-            }
-            return tip;
+            return seg.ticker + ' ' + seg.status + ' (' + (seg.weight_pct || 0).toFixed(1) + '%)';
+        },
+        trendSegmentTooltip(seg) {
+            return seg.ticker + ' ' + (seg.label || seg.status) + ' (' + (seg.weight_pct || 0).toFixed(1) + '%)';
         },
         fmtPrice(val) {
             return val != null ? '$' + Number(val).toFixed(2) : '';

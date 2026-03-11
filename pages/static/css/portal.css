@@ -1321,16 +1321,15 @@ code {
 .breadth-segment.breadth-flat { background: #aaa; }
 .breadth-segment.breadth-falling { background: #c06060; }
 
-.breadth-segment-label {
-    display: block;
-    font-size: 0.5rem;
+.breadth-segment.trend-uptrend { background: #5a9e6f; }
+.breadth-segment.trend-consolidating { background: #aaa; }
+.breadth-segment.trend-downtrend { background: #c06060; }
+
+.breadth-bar-label {
     font-weight: 700;
-    color: rgba(255,255,255,0.85);
-    text-align: center;
-    line-height: 1rem;
-    overflow: hidden;
-    text-overflow: clip;
-    white-space: nowrap;
+    font-size: 0.6875rem;
+    letter-spacing: 0.05em;
+    color: #888;
 }
 
 .breadth-counts {
