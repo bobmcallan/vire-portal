@@ -425,16 +425,26 @@ function portfolioDashboard() {
             // Use server-computed breadth (live prices, exchange-aware)
             const serverBreadth = holdingsData.breadth;
             if (serverBreadth) {
+                const segs = serverBreadth.segments || [];
+                // Derive counts from segments (single source of truth)
+                const risingCount = segs.filter(s => s.status === 'rising').length;
+                const flatCount = segs.filter(s => s.status === 'flat').length;
+                const fallingCount = segs.filter(s => s.status === 'falling').length;
+                // Normalize weight_pct so segments fill 100% of the bar
+                const totalWeight = segs.reduce((sum, s) => sum + (s.weight_pct || 0), 0);
+                const normalizedSegs = totalWeight > 0
+                    ? segs.map(s => ({ ...s, bar_pct: ((s.weight_pct || 0) / totalWeight) * 100 }))
+                    : segs.map(s => ({ ...s, bar_pct: 0 }));
                 this.breadth = {
-                    rising_count: serverBreadth.rising_count || 0,
-                    flat_count: serverBreadth.flat_count || 0,
-                    falling_count: serverBreadth.falling_count || 0,
+                    rising_count: risingCount,
+                    flat_count: flatCount,
+                    falling_count: fallingCount,
                     trend_label: serverBreadth.price_trend_label || '',
                     trend_score: serverBreadth.price_trend_score || 0,
                     today_change: serverBreadth.today_change,
                     today_change_pct: serverBreadth.today_change_pct,
                     yesterday_change: serverBreadth.yesterday_change,
-                    segments: serverBreadth.segments || [],
+                    segments: normalizedSegs,
                 };
                 this.hasBreadth = true;
             } else {

@@ -154,7 +154,7 @@
                     <template x-for="seg in (breadth?.segments || [])" :key="seg.ticker">
                         <div class="breadth-segment"
                              :class="'breadth-' + seg.status"
-                             :style="'width:' + (seg.weight_pct || 0) + '%'"
+                             :style="'width:' + (seg.bar_pct || 0) + '%'"
                              :title="seg.ticker + ' ' + seg.status + ' (' + (seg.weight_pct || 0).toFixed(1) + '%)'">
                         </div>
                     </template>
