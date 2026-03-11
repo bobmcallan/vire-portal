@@ -102,7 +102,7 @@
                                     <td class="text-right" x-text="t.units.toLocaleString()"></td>
                                     <td class="text-right" x-text="'$' + Number(t.price).toFixed(4)"></td>
                                     <td class="text-right" x-text="fmt(t.fees)"></td>
-                                    <td class="text-right" x-text="fmt(t.value)"></td>
+                                    <td class="text-right" :class="gainClass(tradeSignedValue(t))" x-text="fmt(tradeSignedValue(t))"></td>
                                     <td class="text-right" :class="tradeRealisedPL(t) != null ? gainClass(tradeRealisedPL(t)) : ''" x-text="tradeRealisedPL(t) != null ? fmt(tradeRealisedPL(t)) : '-'"></td>
                                 </tr></tbody>
                             </template>
@@ -112,7 +112,7 @@
                                     <td class="text-right" x-text="position?.units?.toLocaleString() || ''"></td>
                                     <td></td>
                                     <td class="text-right" x-text="fmt(tradeTotalFees())"></td>
-                                    <td class="text-right" :class="gainClass(-tradeTotalValue())" x-text="fmt(tradeTotalValue())"></td>
+                                    <td class="text-right" :class="gainClass(tradeTotalValue())" x-text="fmt(tradeTotalValue())"></td>
                                     <td class="text-right" :class="gainClass(position?.realized_return)" x-text="position?.realized_return != null ? fmt(position.realized_return) : '-'"></td>
                                 </tr>
                             </tfoot>

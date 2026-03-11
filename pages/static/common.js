@@ -1443,11 +1443,12 @@ function stockDetail() {
         tradeTotalFees() {
             return this.trades.reduce((sum, t) => sum + (Number(t.fees) || 0), 0);
         },
+        tradeSignedValue(t) {
+            const v = Number(t.value) || 0;
+            return t.type === 'Buy' ? v : -v;
+        },
         tradeTotalValue() {
-            return this.trades.reduce((sum, t) => {
-                const v = Number(t.value) || 0;
-                return sum + (t.type === 'Buy' ? v : -v);
-            }, 0);
+            return this.trades.reduce((sum, t) => sum + this.tradeSignedValue(t), 0);
         },
         _buildRealisedPLMap() {
             if (this._realisedPLMap) return this._realisedPLMap;
@@ -1568,7 +1569,17 @@ function stockDetail() {
                                             }
                                             return lines;
                                         }
-                                        return ctx.dataset.label + ': $' + Number(ctx.parsed.y).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                                        const idx = ctx.dataIndex;
+                                        const p = timeline[idx];
+                                        const price = '$' + Number(ctx.parsed.y).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                        const lines = [ctx.dataset.label + ': ' + price];
+                                        if (p && p.close_price != null && p.breakeven_price != null && p.units) {
+                                            const plDollar = (p.close_price - p.breakeven_price) * p.units;
+                                            const plPct = (p.close_price - p.breakeven_price) / p.breakeven_price * 100;
+                                            const sign = plDollar >= 0 ? '+' : '';
+                                            lines.push('P&L: ' + sign + '$' + Number(plDollar).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' (' + sign + plPct.toFixed(2) + '%)');
+                                        }
+                                        return lines;
                                     }
                                 }
                             }
