@@ -63,6 +63,43 @@
                             <span :class="gainClass(position?.currency_gain_loss ?? holding?.currency_gain_loss)" x-text="fmt(position?.currency_gain_loss ?? holding?.currency_gain_loss)"></span>
                         </div>
                     </div>
+                    <!-- Company Overview (inline) -->
+                    <div x-show="detail && detail.company_timeline && detail.company_timeline.business_model" x-cloak class="stock-company-inline">
+                        <span class="label">BUSINESS MODEL</span>
+                        <p class="text-sm" x-text="detail && detail.company_timeline ? detail.company_timeline.business_model : ''"></p>
+                    </div>
+                    <template x-if="detail && detail.fundamentals">
+                        <div class="stock-detail-grid" style="margin-top: 0.5rem;">
+                            <div class="stock-detail-field" x-show="detail.fundamentals.market_cap">
+                                <span class="label">MARKET CAP</span>
+                                <span x-text="fmtMarketCap(detail.fundamentals.market_cap)"></span>
+                            </div>
+                            <div class="stock-detail-field" x-show="detail.fundamentals.pe_ratio != null">
+                                <span class="label">P/E RATIO</span>
+                                <span x-text="detail.fundamentals.pe_ratio != null ? Number(detail.fundamentals.pe_ratio).toFixed(2) : '-'"></span>
+                            </div>
+                            <div class="stock-detail-field" x-show="detail.fundamentals.dividend_yield != null">
+                                <span class="label">DIVIDEND YIELD</span>
+                                <span x-text="detail.fundamentals.dividend_yield != null ? Number(detail.fundamentals.dividend_yield).toFixed(2) + '%' : '-'"></span>
+                            </div>
+                            <div class="stock-detail-field" x-show="detail.fundamentals.sector">
+                                <span class="label">SECTOR</span>
+                                <span x-text="detail.fundamentals.sector || '-'"></span>
+                            </div>
+                            <div class="stock-detail-field" x-show="detail.fundamentals.industry">
+                                <span class="label">INDUSTRY</span>
+                                <span x-text="detail.fundamentals.industry || '-'"></span>
+                            </div>
+                            <div class="stock-detail-field" x-show="detail.fundamentals.beta != null">
+                                <span class="label">BETA</span>
+                                <span x-text="detail.fundamentals.beta != null ? Number(detail.fundamentals.beta).toFixed(2) : '-'"></span>
+                            </div>
+                            <div class="stock-detail-field" x-show="detail.fundamentals.eps != null">
+                                <span class="label">EPS</span>
+                                <span x-text="detail.fundamentals.eps != null ? '$' + Number(detail.fundamentals.eps).toFixed(2) : '-'"></span>
+                            </div>
+                        </div>
+                    </template>
                 </div>
             </section>
 
@@ -118,52 +155,6 @@
                             </tfoot>
                         </table>
                     </div>
-                </div>
-            </section>
-
-            <!-- Company Overview -->
-            <section class="panel-headed" x-show="detail && (detail.fundamentals || detail.company_timeline)" x-cloak>
-                <div class="panel-header">COMPANY OVERVIEW</div>
-                <div class="panel-content">
-                    <div x-show="detail && detail.company_timeline && detail.company_timeline.business_model" class="mb">
-                        <span class="label">BUSINESS MODEL</span>
-                        <p class="text-sm" x-text="detail && detail.company_timeline ? detail.company_timeline.business_model : ''"></p>
-                    </div>
-                    <template x-if="detail && detail.fundamentals">
-                        <div>
-                            <span class="label">FUNDAMENTALS</span>
-                            <div class="fundamentals-grid">
-                                <div class="stock-detail-field" x-show="detail.fundamentals.market_cap">
-                                    <span class="label">MARKET CAP</span>
-                                    <span x-text="fmtMarketCap(detail.fundamentals.market_cap)"></span>
-                                </div>
-                                <div class="stock-detail-field" x-show="detail.fundamentals.pe_ratio != null">
-                                    <span class="label">P/E RATIO</span>
-                                    <span x-text="detail.fundamentals.pe_ratio != null ? Number(detail.fundamentals.pe_ratio).toFixed(2) : '-'"></span>
-                                </div>
-                                <div class="stock-detail-field" x-show="detail.fundamentals.dividend_yield != null">
-                                    <span class="label">DIVIDEND YIELD</span>
-                                    <span x-text="detail.fundamentals.dividend_yield != null ? Number(detail.fundamentals.dividend_yield).toFixed(2) + '%' : '-'"></span>
-                                </div>
-                                <div class="stock-detail-field" x-show="detail.fundamentals.sector">
-                                    <span class="label">SECTOR</span>
-                                    <span x-text="detail.fundamentals.sector || '-'"></span>
-                                </div>
-                                <div class="stock-detail-field" x-show="detail.fundamentals.industry">
-                                    <span class="label">INDUSTRY</span>
-                                    <span x-text="detail.fundamentals.industry || '-'"></span>
-                                </div>
-                                <div class="stock-detail-field" x-show="detail.fundamentals.beta != null">
-                                    <span class="label">BETA</span>
-                                    <span x-text="detail.fundamentals.beta != null ? Number(detail.fundamentals.beta).toFixed(2) : '-'"></span>
-                                </div>
-                                <div class="stock-detail-field" x-show="detail.fundamentals.eps != null">
-                                    <span class="label">EPS</span>
-                                    <span x-text="detail.fundamentals.eps != null ? '$' + Number(detail.fundamentals.eps).toFixed(2) : '-'"></span>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
                 </div>
             </section>
 

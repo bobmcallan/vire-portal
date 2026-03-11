@@ -2037,21 +2037,26 @@ code {
 }
 
 .stock-detail-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.75rem 1.5rem;
 }
 
-@media (min-width: 48rem) {
-    .stock-detail-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
+.stock-detail-grid .stock-detail-field {
+    min-width: 8rem;
 }
 
 .stock-detail-field {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+}
+
+.stock-company-inline {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e2e8f0;
 }
 
 .stock-placeholder {
@@ -2156,15 +2161,3 @@ code {
     border-bottom: none;
 }
 
-.fundamentals-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-    margin-top: 0.5rem;
-}
-
-@media (min-width: 48rem) {
-    .fundamentals-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
-}
