@@ -441,12 +441,35 @@ function portfolioDashboard() {
             this.currencyGainLoss = holdingsData.currency_gain_loss != null ? Number(holdingsData.currency_gain_loss) : null;
             this.currencyGainLossPct = holdingsData.currency_gain_loss_pct != null ? Number(holdingsData.currency_gain_loss_pct) : null;
             this.hasCurrencyData = this.currencyGainLoss != null;
+            // Use server-computed breadth (live prices, exchange-aware)
             const serverBreadth = holdingsData.breadth;
-            this.breadth = this.computeBreadth();
-            if (this.breadth && serverBreadth?.yesterday_change != null) {
-                this.breadth.yesterday_change = serverBreadth.yesterday_change;
+            if (serverBreadth) {
+                this.breadth = {
+                    rising_count: serverBreadth.rising_count || 0,
+                    flat_count: serverBreadth.flat_count || 0,
+                    falling_count: serverBreadth.falling_count || 0,
+                    trend_label: serverBreadth.price_trend_label || '',
+                    trend_score: serverBreadth.price_trend_score || 0,
+                    today_change: serverBreadth.today_change,
+                    today_change_pct: serverBreadth.today_change_pct,
+                    yesterday_change: serverBreadth.yesterday_change,
+                };
+                this.hasBreadth = true;
+                // Override 1D changes with live breadth today_change (aligns slider with summary cards)
+                if (serverBreadth.today_change != null) {
+                    this.changeReturnDayDollar = serverBreadth.today_change;
+                    this.hasReturnDollarChanges = true;
+                }
+                if (serverBreadth.today_change_pct != null) {
+                    this.changeDayPct = serverBreadth.today_change_pct;
+                    this.hasChanges = true;
+                    this.changeReturnDayPct = serverBreadth.today_change_pct;
+                    this.hasReturnPctChanges = true;
+                }
+            } else {
+                this.breadth = null;
+                this.hasBreadth = false;
             }
-            this.hasBreadth = this.breadth !== null;
         },
 
         _applyTimelineData(timelineData) {
@@ -1149,46 +1172,7 @@ function portfolioDashboard() {
             if (h.current_price == null || h.yesterday_close_price == null || h.yesterday_close_price === 0) return null;
             return ((h.current_price - h.yesterday_close_price) / h.yesterday_close_price) * 100;
         },
-        computeBreadth() {
-            const active = this.holdings.filter(h => h.holding_value_market > 0);
-            if (active.length === 0) return null;
-            let rising = 0, flat = 0, falling = 0;
-            let risingWeight = 0, flatWeight = 0, fallingWeight = 0;
-            let totalWeight = 0;
-            let weightedPct = 0;
-            let todayChange = 0;
-            let todayValid = false;
-            for (const h of active) {
-                const w = h.holding_value_market || 0;
-                const pct = this.holdingDailyPct(h);
-                totalWeight += w;
-                if (pct !== null) weightedPct += pct * w;
-                // Classify by daily price change: >0.5% rising, <-0.5% falling, else flat
-                if (pct !== null && pct > 0.5) { rising++; risingWeight += w; }
-                else if (pct !== null && pct < -0.5) { falling++; fallingWeight += w; }
-                else { flat++; flatWeight += w; }
-                const tc = this.holdingTodayChange(h);
-                if (tc !== null) { todayChange += tc; todayValid = true; }
-            }
-            const avgPct = totalWeight > 0 ? weightedPct / totalWeight : 0;
-            let trend_label;
-            if (avgPct > 1.0) trend_label = 'Strong Up';
-            else if (avgPct > 0.25) trend_label = 'Rising';
-            else if (avgPct > -0.25) trend_label = 'Mixed';
-            else if (avgPct > -1.0) trend_label = 'Falling';
-            else trend_label = 'Strong Down';
-            return {
-                rising_count: rising,
-                flat_count: flat,
-                falling_count: falling,
-                rising_weight_pct: totalWeight > 0 ? (risingWeight / totalWeight) * 100 : 0,
-                flat_weight_pct: totalWeight > 0 ? (flatWeight / totalWeight) * 100 : 0,
-                falling_weight_pct: totalWeight > 0 ? (fallingWeight / totalWeight) * 100 : 0,
-                trend_label: trend_label,
-                trend_score: avgPct,
-                today_change: todayValid ? todayChange : null,
-            };
-        },
+        // computeBreadth — removed: now uses server-computed breadth from API response
         get breadthSegments() {
             const active = this.holdings.filter(h => h.holding_value_market > 0);
             if (active.length === 0) return [];
