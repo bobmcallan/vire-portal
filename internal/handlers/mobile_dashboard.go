@@ -5,7 +5,6 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -30,8 +29,7 @@ type MobileDashboardHandler struct {
 func NewMobileDashboardHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userLookupFn func(string) (*client.UserProfile, error)) *MobileDashboardHandler {
 	pagesDir := FindPagesDir()
 
-	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
-	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
+	templates := ParseTemplates(pagesDir)
 
 	return &MobileDashboardHandler{
 		logger:       logger,

@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path/filepath"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
 	"github.com/bobmcallan/vire-portal/internal/config"
@@ -38,8 +37,7 @@ func NewAdminPromptsHandler(
 ) *AdminPromptsHandler {
 	pagesDir := FindPagesDir()
 
-	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
-	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
+	templates := ParseTemplates(pagesDir)
 
 	return &AdminPromptsHandler{
 		logger:             logger,

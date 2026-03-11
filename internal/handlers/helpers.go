@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"path/filepath"
 	"regexp"
+
+	"github.com/bobmcallan/vire-portal/internal/vire/common"
 )
 
 // RequireMethod validates that the HTTP request uses the specified method.
@@ -33,6 +36,17 @@ var safeScriptRe = regexp.MustCompile(`(?i)</script`)
 // This escapes the "/" in any "</script" sequence to "<\/script".
 func SafeJS(raw []byte) template.JS {
 	return template.JS(safeScriptRe.ReplaceAll(raw, []byte(`<\/script`)))
+}
+
+// ParseTemplates parses page and partial templates with a shared FuncMap.
+// Provides {{cacheBust}} for cache-busting static asset URLs.
+func ParseTemplates(pagesDir string) *template.Template {
+	funcMap := template.FuncMap{
+		"cacheBust": func() string { return common.Build },
+	}
+	t := template.Must(template.New("").Funcs(funcMap).ParseGlob(filepath.Join(pagesDir, "*.html")))
+	template.Must(t.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
+	return t
 }
 
 // WriteError writes a standard error JSON response.

@@ -6,9 +6,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/portal.css">
+<link rel="stylesheet" href="/static/css/portal.css?v={{cacheBust}}">
 {{if .DevMode}}<script>window.VIRE_CLIENT_DEBUG = true;</script>{{end}}
-<script src="/static/common.js"></script>
+<script src="/static/common.js?v={{cacheBust}}"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>

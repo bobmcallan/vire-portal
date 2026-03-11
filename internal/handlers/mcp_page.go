@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"path/filepath"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
 	"github.com/bobmcallan/vire-portal/internal/config"
@@ -37,8 +36,7 @@ type MCPPageHandler struct {
 func NewMCPPageHandler(logger *common.Logger, devMode bool, port int, jwtSecret []byte, catalogFn func() []MCPPageTool, userLookupFn func(string) (*client.UserProfile, error)) *MCPPageHandler {
 	pagesDir := FindPagesDir()
 
-	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
-	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
+	templates := ParseTemplates(pagesDir)
 
 	return &MCPPageHandler{
 		logger:       logger,

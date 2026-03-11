@@ -1768,12 +1768,12 @@ func TestHeadTemplate_AlpineJSNotDeferred(t *testing.T) {
 	body := w.Body.String()
 
 	// common.js must NOT have defer
-	if strings.Contains(body, `defer src="/static/common.js"`) {
+	if strings.Contains(body, `defer src="/static/common.js`) {
 		t.Error("common.js must NOT be deferred — Alpine.data() must register before Alpine.js init")
 	}
-	// Verify common.js IS included
-	if !strings.Contains(body, `src="/static/common.js"`) {
-		t.Error("expected common.js script tag in head")
+	// Verify common.js IS included (with cache-bust query param)
+	if !strings.Contains(body, `src="/static/common.js?v=`) {
+		t.Error("expected common.js script tag with cache-bust in head")
 	}
 	// Alpine.js must have defer
 	if !strings.Contains(body, "defer src=\"https://cdn.jsdelivr.net/npm/alpinejs") {

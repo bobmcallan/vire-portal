@@ -3,7 +3,6 @@ package handlers
 import (
 	"html/template"
 	"net/http"
-	"path/filepath"
 
 	"github.com/bobmcallan/vire-portal/internal/client"
 	"github.com/bobmcallan/vire-portal/internal/config"
@@ -33,8 +32,7 @@ func NewAdminUsersHandler(
 ) *AdminUsersHandler {
 	pagesDir := FindPagesDir()
 
-	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
-	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
+	templates := ParseTemplates(pagesDir)
 
 	return &AdminUsersHandler{
 		logger:           logger,

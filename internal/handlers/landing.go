@@ -29,8 +29,7 @@ type PageHandler struct {
 func NewPageHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userLookupFn func(string) (*client.UserProfile, error)) *PageHandler {
 	pagesDir := FindPagesDir()
 
-	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
-	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
+	templates := ParseTemplates(pagesDir)
 
 	return &PageHandler{
 		logger:       logger,

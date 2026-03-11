@@ -3,7 +3,6 @@ package handlers
 import (
 	"html/template"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,8 +27,7 @@ type ProfileHandler struct {
 func NewProfileHandler(logger *common.Logger, devMode bool, jwtSecret []byte, userLookupFn func(string) (*client.UserProfile, error), userSaveFn func(string, map[string]string) error) *ProfileHandler {
 	pagesDir := FindPagesDir()
 
-	templates := template.Must(template.ParseGlob(filepath.Join(pagesDir, "*.html")))
-	template.Must(templates.ParseGlob(filepath.Join(pagesDir, "partials", "*.html")))
+	templates := ParseTemplates(pagesDir)
 
 	return &ProfileHandler{
 		logger:       logger,
