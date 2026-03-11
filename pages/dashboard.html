@@ -155,7 +155,8 @@
                         <div class="breadth-segment"
                              :class="'breadth-' + seg.status"
                              :style="'width:' + (seg.bar_pct || 0) + '%'"
-                             :title="seg.ticker + ' ' + seg.status + ' (' + (seg.weight_pct || 0).toFixed(1) + '%)'">
+                             :title="segmentTooltip(seg)">
+                            <span class="breadth-segment-label" x-text="seg.ticker"></span>
                         </div>
                     </template>
                 </div>
@@ -241,13 +242,16 @@
                                     </tr>
                                     <tr class="holding-movement-row" x-show="h.holding_value_market > 0">
                                         <td colspan="6" class="holding-movement-content text-right">
-                                            <span class="holding-detail-label">Stock Trend:</span>
+                                            <span class="holding-detail-label">Price:</span>
+                                            <span x-text="fmtPrice(h.current_price)"></span>
+                                            <span class="text-muted" x-show="h.yesterday_price_change_pct != null" x-text="changePct(h.yesterday_price_change_pct)"></span>
+                                            <span class="holding-detail-sep"></span>
+                                            <span class="holding-detail-label">Trend:</span>
                                             <span :class="trendArrowClass(h.price_trend_score)" x-text="trendArrow(h.price_trend_score)"></span>
                                             <span class="text-muted" x-text="h.price_trend_label || ''"></span>
                                             <span class="holding-detail-sep"></span>
                                             <span class="holding-detail-label">Daily Return:</span>
                                             <span :class="changeClass(holdingTodayChange(h))" x-text="fmtTodayChange(holdingTodayChange(h))"></span>
-                                            <span class="text-muted" x-text="h.yesterday_price_change_pct != null ? ' / ' + changePct(h.yesterday_price_change_pct) : ''"></span>
                                         </td>
                                     </tr>
                                 </tbody>

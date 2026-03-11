@@ -1148,6 +1148,21 @@ function portfolioDashboard() {
         holdingDailyPct(h) {
             return h.yesterday_price_change_pct;
         },
+        holdingForSegment(seg) {
+            return this.holdings.find(h => h.ticker === seg.ticker);
+        },
+        segmentTooltip(seg) {
+            const h = this.holdingForSegment(seg);
+            let tip = seg.ticker + ' ' + seg.status + ' (' + (seg.weight_pct || 0).toFixed(1) + '%)';
+            if (h) {
+                if (h.price_trend_label) tip += ' — ' + h.price_trend_label;
+                if (h.current_price != null) tip += ' $' + Number(h.current_price).toFixed(2);
+            }
+            return tip;
+        },
+        fmtPrice(val) {
+            return val != null ? '$' + Number(val).toFixed(2) : '';
+        },
         glossaryDef(term) {
             return this.glossary[term] || '';
         },

@@ -90,22 +90,53 @@
                 </div>
             </div>
 
+            <!-- Breadth bar -->
+            <div class="mobile-breadth-section" x-show="hasBreadth" x-cloak>
+                <div class="breadth-summary-row">
+                    <span class="breadth-trend" :class="trendArrowClass(breadth?.trend_score)" x-text="breadth?.trend_label || ''"></span>
+                    <span :class="changeClass(breadth?.today_change)" x-text="breadth?.today_change != null ? fmtTodayChange(breadth.today_change) : ''"></span>
+                </div>
+                <div class="breadth-bar">
+                    <template x-for="seg in (breadth?.segments || [])" :key="seg.ticker">
+                        <div class="breadth-segment"
+                             :class="'breadth-' + seg.status"
+                             :style="'width:' + (seg.bar_pct || 0) + '%'"
+                             :title="segmentTooltip(seg)">
+                            <span class="breadth-segment-label" x-text="seg.ticker"></span>
+                        </div>
+                    </template>
+                </div>
+                <div class="breadth-counts">
+                    <span x-text="(breadth?.falling_count || 0) + ' Falling'"></span>
+                    <span x-text="(breadth?.flat_count || 0) + ' Flat'"></span>
+                    <span x-text="(breadth?.rising_count || 0) + ' Rising'"></span>
+                </div>
+            </div>
+
             <!-- Holdings -->
             <div class="mobile-holdings-section" x-show="filteredHoldings.length > 0" x-cloak>
                 <div class="panel-header">HOLDINGS</div>
                 <template x-for="h in filteredHoldings" :key="h.ticker">
-                    <div class="mobile-holding-card" x-show="h.holding_value_market > 0">
+                    <a class="mobile-holding-card" :href="'/stock/' + encodeURIComponent(h.ticker)" x-show="h.holding_value_market > 0">
                         <div class="mobile-holding-left">
-                            <span class="mobile-holding-ticker" x-text="h.ticker"></span>
+                            <span class="mobile-holding-ticker">
+                                <span class="holding-breadth-arrow" :class="holdingBreadthClass(h)" x-text="holdingBreadthArrow(h)"></span>
+                                <span x-text="h.ticker"></span>
+                            </span>
                             <span class="mobile-holding-name text-muted" x-text="h.name"></span>
                         </div>
                         <div class="mobile-holding-right">
-                            <span class="text-bold" x-text="fmt(h.holding_value_market)"></span>
-                            <span :class="gainClass(h.holding_return_net_pct)" x-text="pct(h.holding_return_net_pct)"></span>
-                            <span class="mobile-holding-1d" :class="changeClass(h.yesterday_price_change_pct)"
-                                  x-text="h.yesterday_price_change_pct != null ? changePct(h.yesterday_price_change_pct) + ' 1D' : ''"></span>
+                            <span class="text-bold" x-text="fmtPrice(h.current_price)"></span>
+                            <span class="mobile-holding-detail">
+                                <span :class="changeClass(h.yesterday_price_change_pct)" x-text="h.yesterday_price_change_pct != null ? changePct(h.yesterday_price_change_pct) : ''"></span>
+                                <span class="text-muted" x-text="h.price_trend_label || ''"></span>
+                            </span>
+                            <span class="mobile-holding-value">
+                                <span x-text="fmt(h.holding_value_market)"></span>
+                                <span :class="gainClass(h.holding_return_net_pct)" x-text="pct(h.holding_return_net_pct)"></span>
+                            </span>
                         </div>
-                    </div>
+                    </a>
                 </template>
                 <!-- Total -->
                 <div class="mobile-holding-card mobile-holding-total" x-show="filteredHoldings.length > 0">

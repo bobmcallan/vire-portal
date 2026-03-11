@@ -1418,9 +1418,9 @@ func TestDashboardHandler_StressBreadthBarBindings(t *testing.T) {
 	if !strings.Contains(body, `fmtTodayChange(breadth.today_change)`) {
 		t.Error("expected breadth today_change rendered via fmtTodayChange")
 	}
-	// Per-ticker segments use x-for with :style (safe — sets style attribute)
-	if !strings.Contains(body, `seg.weight_pct`) {
-		t.Error("expected seg.weight_pct in breadth bar segment style")
+	// Per-ticker segments use x-for with :style and tooltip via helper
+	if !strings.Contains(body, `segmentTooltip(seg)`) {
+		t.Error("expected segmentTooltip(seg) in breadth bar segment title")
 	}
 	// Counts use x-text (safe)
 	if !strings.Contains(body, `Rising`) {
@@ -2596,11 +2596,11 @@ func TestDashboardHandler_StressMobile1DChangeSpan(t *testing.T) {
 
 	body := w.Body.String()
 
-	if !strings.Contains(body, "mobile-holding-1d") {
-		t.Error("mobile holding card missing 1D change span")
+	if !strings.Contains(body, "mobile-holding-detail") {
+		t.Error("mobile holding card missing detail span")
 	}
 	if !strings.Contains(body, `changePct(h.yesterday_price_change_pct)`) {
-		t.Error("mobile 1D span missing changePct binding")
+		t.Error("mobile detail span missing changePct binding")
 	}
 }
 
@@ -2623,7 +2623,7 @@ func TestDashboardHandler_StressMobileFontSizeOverrides(t *testing.T) {
 		{".mobile-holding-ticker", ".mobile-holding-ticker"},
 		{".mobile-holding-name", ".mobile-holding-name"},
 		{".mobile-holding-right", ".mobile-holding-right"},
-		{".mobile-holding-1d", ".mobile-holding-1d"},
+		{".mobile-holding-detail", ".mobile-holding-detail"},
 		{".mobile-full-link", ".mobile-full-link"},
 	}
 
@@ -2633,8 +2633,8 @@ func TestDashboardHandler_StressMobileFontSizeOverrides(t *testing.T) {
 		}
 	}
 
-	// Verify none of the mobile font sizes are smaller than 1rem
-	smallFontSizes := []string{"font-size: 0.6875rem", "font-size: 0.75rem", "font-size: 0.8125rem"}
+	// Verify no very small font sizes in mobile CSS (0.8125rem allowed for detail text)
+	smallFontSizes := []string{"font-size: 0.6875rem", "font-size: 0.75rem"}
 	for _, sz := range smallFontSizes {
 		// Check within mobile-specific rules (rough check)
 		idx := strings.Index(css, ".mobile-synced")
