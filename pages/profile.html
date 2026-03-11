@@ -35,38 +35,41 @@
                 {{end}}
                 <div class="dashboard-field">
                     <span class="dashboard-label">TIMEZONE</span>
-                    <form method="POST" action="/profile" style="display:inline-flex;align-items:center;gap:0.5rem">
+                    <form method="POST" action="/profile" class="profile-tz-form">
                         <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
-                        <input type="text" id="profile_timezone" name="timezone" class="form-input form-input-inline"
-                               value="{{.UserTimezone}}" list="tz-list"
-                               placeholder="e.g. Australia/Sydney">
-                        <datalist id="tz-list">
-                            <option value="Australia/Sydney">
-                            <option value="Australia/Melbourne">
-                            <option value="Australia/Brisbane">
-                            <option value="Australia/Perth">
-                            <option value="Australia/Adelaide">
-                            <option value="America/New_York">
-                            <option value="America/Chicago">
-                            <option value="America/Denver">
-                            <option value="America/Los_Angeles">
-                            <option value="Europe/London">
-                            <option value="Europe/Berlin">
-                            <option value="Europe/Paris">
-                            <option value="Asia/Tokyo">
-                            <option value="Asia/Singapore">
-                            <option value="Asia/Hong_Kong">
-                            <option value="Pacific/Auckland">
-                        </datalist>
+                        <select id="profile_timezone" name="timezone" class="form-select">
+                            <option value="">— Select timezone —</option>
+                            <option value="Australia/Sydney" {{if eq .UserTimezone "Australia/Sydney"}}selected{{end}}>Australia/Sydney</option>
+                            <option value="Australia/Melbourne" {{if eq .UserTimezone "Australia/Melbourne"}}selected{{end}}>Australia/Melbourne</option>
+                            <option value="Australia/Brisbane" {{if eq .UserTimezone "Australia/Brisbane"}}selected{{end}}>Australia/Brisbane</option>
+                            <option value="Australia/Perth" {{if eq .UserTimezone "Australia/Perth"}}selected{{end}}>Australia/Perth</option>
+                            <option value="Australia/Adelaide" {{if eq .UserTimezone "Australia/Adelaide"}}selected{{end}}>Australia/Adelaide</option>
+                            <option value="America/New_York" {{if eq .UserTimezone "America/New_York"}}selected{{end}}>America/New_York</option>
+                            <option value="America/Chicago" {{if eq .UserTimezone "America/Chicago"}}selected{{end}}>America/Chicago</option>
+                            <option value="America/Denver" {{if eq .UserTimezone "America/Denver"}}selected{{end}}>America/Denver</option>
+                            <option value="America/Los_Angeles" {{if eq .UserTimezone "America/Los_Angeles"}}selected{{end}}>America/Los_Angeles</option>
+                            <option value="Europe/London" {{if eq .UserTimezone "Europe/London"}}selected{{end}}>Europe/London</option>
+                            <option value="Europe/Berlin" {{if eq .UserTimezone "Europe/Berlin"}}selected{{end}}>Europe/Berlin</option>
+                            <option value="Europe/Paris" {{if eq .UserTimezone "Europe/Paris"}}selected{{end}}>Europe/Paris</option>
+                            <option value="Asia/Tokyo" {{if eq .UserTimezone "Asia/Tokyo"}}selected{{end}}>Asia/Tokyo</option>
+                            <option value="Asia/Singapore" {{if eq .UserTimezone "Asia/Singapore"}}selected{{end}}>Asia/Singapore</option>
+                            <option value="Asia/Hong_Kong" {{if eq .UserTimezone "Asia/Hong_Kong"}}selected{{end}}>Asia/Hong_Kong</option>
+                            <option value="Pacific/Auckland" {{if eq .UserTimezone "Pacific/Auckland"}}selected{{end}}>Pacific/Auckland</option>
+                        </select>
                         <button type="submit" class="btn btn-secondary btn-sm">SAVE</button>
                     </form>
                 </div>
             </section>
             <script>
             (function() {
-                var inp = document.getElementById('profile_timezone');
-                if (inp && !inp.value) {
-                    try { inp.value = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e) {}
+                var sel = document.getElementById('profile_timezone');
+                if (sel && !sel.value) {
+                    try {
+                        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                        for (var i = 0; i < sel.options.length; i++) {
+                            if (sel.options[i].value === tz) { sel.value = tz; break; }
+                        }
+                    } catch(e) {}
                 }
             })();
             </script>

@@ -621,9 +621,17 @@ a:hover {
     outline: none;
 }
 
-.form-input-inline {
-    width: auto;
-    min-width: 14rem;
+.profile-tz-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+}
+.profile-tz-form .form-select {
+    flex: 1;
+}
+.profile-tz-form .btn {
+    flex-shrink: 0;
 }
 
 .form-input:focus,

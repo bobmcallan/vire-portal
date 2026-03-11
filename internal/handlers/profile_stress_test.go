@@ -71,8 +71,8 @@ func TestProfileStress_TimezoneFieldPresent(t *testing.T) {
 	if !strings.Contains(body, `name="timezone"`) {
 		t.Error("profile page missing timezone input field")
 	}
-	if !strings.Contains(body, `id="tz-list"`) {
-		t.Error("profile page missing timezone datalist")
+	if !strings.Contains(body, `id="profile_timezone"`) {
+		t.Error("profile page missing timezone select")
 	}
 	if !strings.Contains(body, "Australia/Sydney") {
 		t.Error("profile page missing timezone value")
