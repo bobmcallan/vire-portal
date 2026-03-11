@@ -242,8 +242,8 @@
                                     <tr class="holding-movement-row" x-show="h.holding_value_market > 0">
                                         <td colspan="6" class="holding-movement-content text-right">
                                             <span class="holding-detail-label">Stock Trend:</span>
-                                            <span :class="trendArrowClass(h.trend_score)" x-text="trendArrow(h.trend_score)"></span>
-                                            <span class="text-muted" x-text="h.trend_label || ''"></span>
+                                            <span :class="trendArrowClass(h.price_trend_score)" x-text="trendArrow(h.price_trend_score)"></span>
+                                            <span class="text-muted" x-text="h.price_trend_label || ''"></span>
                                             <span class="holding-detail-sep"></span>
                                             <span class="holding-detail-label">Daily Return:</span>
                                             <span :class="changeClass(holdingTodayChange(h))" x-text="fmtTodayChange(holdingTodayChange(h))"></span>

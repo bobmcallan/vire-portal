@@ -50,8 +50,8 @@
                         </div>
                         <div class="stock-detail-field">
                             <span class="label">TREND</span>
-                            <span :class="trendArrowClass(holding?.trend_score)" x-text="trendArrow(holding?.trend_score)"></span>
-                            <span class="text-muted" x-text="holding?.trend_label || ''"></span>
+                            <span :class="trendArrowClass(holding?.price_trend_score)" x-text="trendArrow(holding?.price_trend_score)"></span>
+                            <span class="text-muted" x-text="holding?.price_trend_label || ''"></span>
                         </div>
                         <!-- Row 3: Dividends & Currency -->
                         <div class="stock-detail-field" x-show="dividendDisplay()" x-cloak>
