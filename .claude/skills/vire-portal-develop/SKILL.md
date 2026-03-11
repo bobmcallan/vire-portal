@@ -439,13 +439,19 @@ The `/commit-push` skill handles version bumping (`.version` patch increment + b
 formatting, and conventional commit format. Skipping it means the version stays stale and the
 deployed build will report an outdated version number.
 
-1. Invoke the `/commit-push` skill to commit and push the changes to `main`
-2. The skill will: bump `.version` patch, update build timestamp, format code, commit, push
-3. Note the short commit hash from the push output (e.g. `a1b2c3d`)
+1. **Run tests locally first** before committing:
+   ```bash
+   go test ./internal/... -timeout 120s
+   go vet ./...
+   ```
+   Fix any failures before proceeding. This catches issues that would fail CI.
+2. Invoke the `/commit-push` skill to commit and push the changes to `main`
+3. The skill will: bump `.version` patch, update build timestamp, format code, commit, push
+4. Note the short commit hash from the push output (e.g. `a1b2c3d`)
 
-**6b — Wait for Deployment:**
+**6b — Wait for CI & Deployment:**
 
-Poll the GitHub Actions workflow until the deploy job completes:
+Poll the GitHub Actions workflow until all jobs complete:
 
 ```bash
 # Get the latest workflow run for the commit
@@ -455,11 +461,24 @@ gh run list --branch main --limit 1 --json databaseId,status,conclusion
 gh run watch <run-id> --exit-status
 ```
 
-If the workflow fails, check the logs:
-```bash
-gh run view <run-id> --log-failed
-```
-Report the failure to the user and stop — do not proceed to verification.
+**CI FAILURE PROTOCOL (MANDATORY):**
+
+If the workflow fails, you MUST fix it before proceeding:
+
+1. **Get failure details:**
+   ```bash
+   gh run view <run-id> --log-failed
+   ```
+2. **Diagnose:** Read the failed test output. Common causes:
+   - Stress/unit tests asserting on HTML patterns or JS code that changed (update the test assertions)
+   - `go vet` failures (fix the code)
+   - Build failures (fix imports, syntax)
+3. **Fix locally:** Update the failing test or code
+4. **Verify locally:** Run the failing tests with `go test ./internal/... -run <TestName> -v`
+5. **Re-commit and push** using the `/commit-push` skill
+6. **Re-poll** the new workflow run — repeat until CI is green
+
+Do NOT proceed to deployment verification (6c) until the workflow succeeds. Do NOT skip or ignore CI failures.
 
 **6c — Verify Version via MCP:**
 

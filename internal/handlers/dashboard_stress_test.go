@@ -1496,9 +1496,9 @@ func TestDashboardHandler_StressBreadthHelpersDefined(t *testing.T) {
 // --- Adversarial: Breadth bar :style binding must not allow CSS injection ---
 
 func TestDashboardHandler_StressBreadthStyleBindingsSafe(t *testing.T) {
-	// The breadth bar per-ticker segments use :style bindings with percentage values.
-	// These MUST use the pattern 'width:' + (seg.weight_pct || 0) + '%' to prevent
-	// injection of arbitrary CSS properties via malicious server data.
+	// The breadth bar per-ticker segments use :style bindings with normalized bar_pct.
+	// bar_pct is computed client-side by normalizing weight_pct values to sum to 100%.
+	// The pattern MUST use || 0 fallback to prevent NaN in CSS.
 	handler := NewDashboardHandler(nil, true, []byte(testJWTSecret), nil)
 
 	req := httptest.NewRequest("GET", "/dashboard", nil)
@@ -1509,14 +1509,14 @@ func TestDashboardHandler_StressBreadthStyleBindingsSafe(t *testing.T) {
 
 	body := w.Body.String()
 
-	// Per-ticker segment must use the safe pattern with || 0 fallback
-	expected := `'width:' + (seg.weight_pct || 0) + '%'`
+	// Per-ticker segment must use the safe pattern with || 0 fallback on bar_pct
+	expected := `'width:' + (seg.bar_pct || 0) + '%'`
 	if !strings.Contains(body, expected) {
 		t.Errorf("SECURITY: breadth segment must use safe :style pattern %q", expected)
 	}
 
 	// Must NOT concatenate raw values into style without || 0 guard
-	if strings.Contains(body, `:style="'width:' + seg.weight_pct + '%'"`) {
+	if strings.Contains(body, `:style="'width:' + seg.bar_pct + '%'"`) {
 		t.Error("SECURITY: raw segment value in :style without fallback guard")
 	}
 }
@@ -1611,15 +1611,20 @@ func TestDashboardHandler_StressBreadthSegmentOrder(t *testing.T) {
 }
 
 func TestDashboardHandler_StressBreadthSegmentsPropertyDeclared(t *testing.T) {
-	// Verify breadth segments are read from server response in common.js.
+	// Verify breadth segments are derived from server response and normalized in common.js.
 	jsBytes, err := os.ReadFile("../../pages/static/common.js")
 	if err != nil {
 		t.Fatalf("failed to read common.js: %v", err)
 	}
 	js := string(jsBytes)
 
-	if !strings.Contains(js, "segments: serverBreadth.segments") {
-		t.Error("expected segments stored from serverBreadth in common.js")
+	// Segments must be read from server breadth
+	if !strings.Contains(js, "serverBreadth.segments") {
+		t.Error("expected segments read from serverBreadth in common.js")
+	}
+	// Segments must be normalized (bar_pct computed from weight_pct)
+	if !strings.Contains(js, "bar_pct") {
+		t.Error("expected bar_pct normalization of segment widths in common.js")
 	}
 }
 
