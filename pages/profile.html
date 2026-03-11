@@ -35,27 +35,9 @@
                 {{end}}
                 <div class="dashboard-field">
                     <span class="dashboard-label">TIMEZONE</span>
-                    <span>{{if .UserTimezone}}{{.UserTimezone}}{{else}}<span class="text-muted">Not set</span>{{end}}</span>
-                </div>
-            </section>
-
-            <section class="dashboard-section">
-                <h2 class="section-title">NAVEXA API KEY</h2>
-                {{if .NavexaKeySet}}
-                <p class="profile-key-status">Current key: <code>****{{.NavexaKeyPreview}}</code></p>
-                {{else}}
-                <p class="profile-key-status profile-key-missing">No API key configured.</p>
-                {{end}}
-                <form method="POST" action="/profile">
-                    <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
-                    <div class="form-group">
-                        <label for="navexa_key" class="form-label">{{if .NavexaKeySet}}NEW KEY{{else}}API KEY{{end}}</label>
-                        <input type="password" id="navexa_key" name="navexa_key" class="form-input"
-                               placeholder="Enter your Navexa API key">
-                    </div>
-                    <div class="form-group" style="margin-top: 1rem">
-                        <label for="timezone" class="form-label">TIMEZONE</label>
-                        <input type="text" id="timezone" name="timezone" class="form-input"
+                    <form method="POST" action="/profile" style="display:inline-flex;align-items:center;gap:0.5rem">
+                        <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+                        <input type="text" id="profile_timezone" name="timezone" class="form-input form-input-inline"
                                value="{{.UserTimezone}}" list="tz-list"
                                placeholder="e.g. Australia/Sydney">
                         <datalist id="tz-list">
@@ -76,6 +58,32 @@
                             <option value="Asia/Hong_Kong">
                             <option value="Pacific/Auckland">
                         </datalist>
+                        <button type="submit" class="btn btn-secondary btn-sm">SAVE</button>
+                    </form>
+                </div>
+            </section>
+            <script>
+            (function() {
+                var inp = document.getElementById('profile_timezone');
+                if (inp && !inp.value) {
+                    try { inp.value = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e) {}
+                }
+            })();
+            </script>
+
+            <section class="dashboard-section">
+                <h2 class="section-title">NAVEXA API KEY</h2>
+                {{if .NavexaKeySet}}
+                <p class="profile-key-status">Current key: <code>****{{.NavexaKeyPreview}}</code></p>
+                {{else}}
+                <p class="profile-key-status profile-key-missing">No API key configured.</p>
+                {{end}}
+                <form method="POST" action="/profile">
+                    <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+                    <div class="form-group">
+                        <label for="navexa_key" class="form-label">{{if .NavexaKeySet}}NEW KEY{{else}}API KEY{{end}}</label>
+                        <input type="password" id="navexa_key" name="navexa_key" class="form-input"
+                               placeholder="Enter your Navexa API key">
                     </div>
                     <button type="submit" class="btn btn-primary">SAVE</button>
                 </form>
