@@ -1489,19 +1489,67 @@ function stockDetail() {
                 const closeData = timeline.map(p => p.close_price);
                 const breakevenData = timeline.map(p => p.breakeven_price);
 
-                const buyPoints = [];
-                const sellPoints = [];
+                // Merge same-day trade events for vertical line annotations
+                const tradeLines = [];
                 for (let i = 0; i < timeline.length; i++) {
                     const p = timeline[i];
-                    if (p.trade_events) {
+                    if (p.trade_events && p.trade_events.length > 0) {
+                        let totalBuyUnits = 0, totalSellUnits = 0;
+                        let totalRealisedPnl = 0, hasRealised = false;
+                        const details = [];
                         for (const te of p.trade_events) {
-                            const bePct = p.breakeven_price ? ((p.close_price - p.breakeven_price) / p.breakeven_price * 100) : null;
-                            const point = { x: labels[i], y: p.close_price, _trade: te, _breakeven_pct: bePct, _date: p.date };
-                            if (te.type.toLowerCase() === 'buy') buyPoints.push(point);
-                            else sellPoints.push(point);
+                            const lbl = te.type.charAt(0).toUpperCase() + te.type.slice(1);
+                            details.push(lbl + ' ' + (te.units || '') + ' @ $' + Number(te.price).toFixed(4));
+                            if (te.type.toLowerCase() === 'buy') totalBuyUnits += (te.units || 0);
+                            else totalSellUnits += (te.units || 0);
+                            if (te.realised_pnl != null) { totalRealisedPnl += te.realised_pnl; hasRealised = true; }
                         }
+                        const isSell = totalSellUnits > 0;
+                        tradeLines.push({
+                            index: i, label: labels[i], date: p.date,
+                            color: isSell ? '#dc2626' : '#16a34a',
+                            isSell, totalBuyUnits, totalSellUnits,
+                            totalRealisedPnl, hasRealised, details,
+                            breakeven: p.breakeven_price, closePrice: p.close_price,
+                        });
                     }
                 }
+
+                // Custom plugin to draw vertical trade lines with markers
+                const tradeLinePlugin = {
+                    id: 'tradeLines',
+                    afterDatasetsDraw(chart) {
+                        const { ctx: c, chartArea, scales: { x, y } } = chart;
+                        for (const tl of tradeLines) {
+                            const xPos = x.getPixelForValue(tl.index);
+                            c.save();
+                            c.strokeStyle = tl.color;
+                            c.lineWidth = 1.5;
+                            c.setLineDash([3, 3]);
+                            c.beginPath();
+                            c.moveTo(xPos, chartArea.top);
+                            c.lineTo(xPos, chartArea.bottom);
+                            c.stroke();
+                            c.restore();
+                            // Draw small marker at close price
+                            const yPos = y.getPixelForValue(tl.closePrice);
+                            c.save();
+                            c.fillStyle = tl.color;
+                            c.beginPath();
+                            if (tl.isSell) {
+                                c.moveTo(xPos, yPos + 5);
+                                c.lineTo(xPos - 4, yPos - 2);
+                                c.lineTo(xPos + 4, yPos - 2);
+                            } else {
+                                c.moveTo(xPos, yPos - 5);
+                                c.lineTo(xPos - 4, yPos + 2);
+                                c.lineTo(xPos + 4, yPos + 2);
+                            }
+                            c.fill();
+                            c.restore();
+                        }
+                    }
+                };
 
                 this.walkChart = new Chart(ctx, {
                     type: 'line',
@@ -1523,26 +1571,8 @@ function stockDetail() {
                                 borderWidth: 1.5,
                                 borderDash: [4, 3],
                                 pointRadius: 0,
+                                stepped: 'before',
                                 fill: false,
-                            },
-                            {
-                                label: 'Buy',
-                                data: buyPoints,
-                                type: 'scatter',
-                                pointRadius: 6,
-                                pointStyle: 'triangle',
-                                backgroundColor: '#16a34a',
-                                borderColor: '#16a34a',
-                            },
-                            {
-                                label: 'Sell',
-                                data: sellPoints,
-                                type: 'scatter',
-                                pointRadius: 6,
-                                pointStyle: 'triangle',
-                                rotation: 180,
-                                backgroundColor: '#dc2626',
-                                borderColor: '#dc2626',
                             },
                         ]
                     },
@@ -1554,22 +1584,15 @@ function stockDetail() {
                             filler: {},
                             tooltip: {
                                 callbacks: {
+                                    title: (items) => {
+                                        if (!items.length) return '';
+                                        const idx = items[0].dataIndex;
+                                        const tl = tradeLines.find(t => t.index === idx);
+                                        if (tl) return [labels[idx], ...tl.details];
+                                        return labels[idx];
+                                    },
                                     label: (ctx) => {
-                                        const raw = ctx.raw;
-                                        if (raw && raw._trade) {
-                                            const te = raw._trade;
-                                            const label = te.type.charAt(0).toUpperCase() + te.type.slice(1);
-                                            const lines = [label + ' ' + (te.units || '') + ' @ $' + Number(te.price).toFixed(4)];
-                                            if (raw._breakeven_pct != null) {
-                                                const sign = raw._breakeven_pct >= 0 ? '+' : '';
-                                                lines.push('vs Breakeven: ' + sign + raw._breakeven_pct.toFixed(2) + '%');
-                                            }
-                                            if (te.realised_pnl != null) {
-                                                lines.push('Realised: $' + Number(te.realised_pnl).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }));
-                                            }
-                                            return lines;
-                                        }
-                                                        const idx = ctx.dataIndex;
+                                        const idx = ctx.dataIndex;
                                         const p = timeline[idx];
                                         const price = '$' + Number(ctx.parsed.y).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                                         const lines = [ctx.dataset.label + ': ' + price];
@@ -1578,6 +1601,11 @@ function stockDetail() {
                                             const plPct = (p.close_price - p.breakeven_price) / p.breakeven_price * 100;
                                             const sign = plDollar >= 0 ? '+' : '';
                                             lines.push('P&L: ' + sign + '$' + Number(plDollar).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' (' + sign + plPct.toFixed(2) + '%)');
+                                        }
+                                        const tl = tradeLines.find(t => t.index === idx);
+                                        if (tl && tl.hasRealised && ctx.datasetIndex === 0) {
+                                            const sign = tl.totalRealisedPnl >= 0 ? '+' : '';
+                                            lines.push('Realised: ' + sign + '$' + Number(tl.totalRealisedPnl).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }));
                                         }
                                         return lines;
                                     }
@@ -1593,6 +1621,7 @@ function stockDetail() {
                             },
                         },
                     },
+                    plugins: [tradeLinePlugin],
                 });
                 return;
             }

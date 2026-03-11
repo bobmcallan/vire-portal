@@ -112,7 +112,7 @@
                                     <td class="text-right" x-text="position?.units?.toLocaleString() || ''"></td>
                                     <td></td>
                                     <td class="text-right" x-text="fmt(tradeTotalFees())"></td>
-                                    <td class="text-right" :class="gainClass(tradeTotalValue())" x-text="fmt(tradeTotalValue())"></td>
+                                    <td class="text-right" x-text="fmt(position?.holding_value_market ?? holding?.holding_value_market)"></td>
                                     <td class="text-right" :class="gainClass(position?.realized_return)" x-text="position?.realized_return != null ? fmt(position.realized_return) : '-'"></td>
                                 </tr>
                             </tfoot>
@@ -129,18 +129,6 @@
                         <span class="label">BUSINESS MODEL</span>
                         <p class="text-sm" x-text="detail && detail.company_timeline ? detail.company_timeline.business_model : ''"></p>
                     </div>
-                    <template x-if="detail && detail.company_timeline && detail.company_timeline.key_events && detail.company_timeline.key_events.length > 0">
-                        <div class="mb">
-                            <span class="label">KEY EVENTS</span>
-                            <template x-for="evt in [...detail.company_timeline.key_events].reverse()" :key="evt.date + evt.event">
-                                <div class="company-event">
-                                    <span class="text-muted text-sm" x-text="fmtDate(evt.date)"></span>
-                                    <span class="text-bold text-sm" x-text="evt.event"></span>
-                                    <span class="text-sm" x-text="evt.detail || ''"></span>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
                     <template x-if="detail && detail.fundamentals">
                         <div>
                             <span class="label">FUNDAMENTALS</span>
