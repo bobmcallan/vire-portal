@@ -1448,11 +1448,11 @@ func TestDashboardHandler_StressTrendArrowBindings(t *testing.T) {
 	body := w.Body.String()
 
 	// Trend arrow bindings in holding movement rows
-	if !strings.Contains(body, `x-text="trendArrow(h.trend_score)"`) {
-		t.Error("expected trendArrow(h.trend_score) in holding movement row")
+	if !strings.Contains(body, `x-text="trendArrow(h.price_trend_score)"`) {
+		t.Error("expected trendArrow(h.price_trend_score) in holding movement row")
 	}
-	if !strings.Contains(body, `:class="trendArrowClass(h.trend_score)"`) {
-		t.Error("expected trendArrowClass(h.trend_score) in holding movement row")
+	if !strings.Contains(body, `:class="trendArrowClass(h.price_trend_score)"`) {
+		t.Error("expected trendArrowClass(h.price_trend_score) in holding movement row")
 	}
 	// Today's dollar change in movement row
 	if !strings.Contains(body, `fmtTodayChange(holdingTodayChange(h))`) {
@@ -1584,7 +1584,7 @@ func TestDashboardHandler_StressTrendArrowNoHTMLEntities(t *testing.T) {
 	body := w.Body.String()
 
 	// Arrow must be rendered via x-text (which safely escapes HTML entities)
-	if !strings.Contains(body, `x-text="trendArrow(h.trend_score)"`) {
+	if !strings.Contains(body, `x-text="trendArrow(h.price_trend_score)"`) {
 		t.Error("trendArrow must use x-text binding (safe, escapes HTML entities)")
 	}
 	// Must NOT use x-html for the arrow (would enable script injection via arrow value)
@@ -1596,44 +1596,30 @@ func TestDashboardHandler_StressTrendArrowNoHTMLEntities(t *testing.T) {
 // --- Adversarial: Concurrent dashboard loads must not race on breadth state ---
 
 func TestDashboardHandler_StressBreadthSegmentOrder(t *testing.T) {
-	// The breadthSegments getter must sort: falling first, then flat, then rising.
-	// With per-ticker x-for rendering, order is determined by the getter sort logic.
+	// Breadth segments are now server-provided via breadth.segments.
+	// Verify that _applyPortfolioData stores them from the server response.
 	jsBytes, err := os.ReadFile("../../pages/static/common.js")
 	if err != nil {
 		t.Fatalf("failed to read common.js: %v", err)
 	}
 	js := string(jsBytes)
 
-	// breadthSegments getter must exist
-	if !strings.Contains(js, "get breadthSegments()") {
-		t.Fatal("expected breadthSegments getter in common.js")
-	}
-	// Must sort by status order: falling=0, flat=1, rising=2
-	if !strings.Contains(js, `falling: 0, flat: 1, rising: 2`) {
-		t.Error("breadthSegments must sort by status order { falling: 0, flat: 1, rising: 2 }")
-	}
-	// Must reference holdingDailyPct for classification (position daily return, not stock trend)
-	if !strings.Contains(js, "holdingDailyPct") {
-		t.Error("breadthSegments must reference holdingDailyPct for status classification")
+	// Must store server-provided segments
+	if !strings.Contains(js, "serverBreadth.segments") {
+		t.Fatal("expected serverBreadth.segments assignment in common.js")
 	}
 }
 
 func TestDashboardHandler_StressBreadthSegmentsPropertyDeclared(t *testing.T) {
-	// Verify breadthSegments getter exists in common.js with correct structure.
+	// Verify breadth segments are read from server response in common.js.
 	jsBytes, err := os.ReadFile("../../pages/static/common.js")
 	if err != nil {
 		t.Fatalf("failed to read common.js: %v", err)
 	}
 	js := string(jsBytes)
 
-	if !strings.Contains(js, "get breadthSegments()") {
-		t.Error("expected breadthSegments getter in common.js")
-	}
-	if !strings.Contains(js, "holdingDailyPct") {
-		t.Error("breadthSegments must reference holdingDailyPct for classification")
-	}
-	if !strings.Contains(js, "segments.sort") {
-		t.Error("breadthSegments must sort segments by status order")
+	if !strings.Contains(js, "segments: serverBreadth.segments") {
+		t.Error("expected segments stored from serverBreadth in common.js")
 	}
 }
 
@@ -1740,8 +1726,8 @@ func TestDashboardHandler_StressBreadthBarStructure(t *testing.T) {
 		t.Error("breadth-holdings should have been removed")
 	}
 	// Per-ticker x-for template must exist
-	if !strings.Contains(body, `x-for="seg in breadthSegments"`) {
-		t.Error("expected x-for=\"seg in breadthSegments\" in breadth bar template")
+	if !strings.Contains(body, `x-for="seg in (breadth?.segments || [])"`) {
+		t.Error("expected x-for=\"seg in (breadth?.segments || [])\" in breadth bar template")
 	}
 	if !strings.Contains(body, `:class="'breadth-' + seg.status"`) {
 		t.Error("expected :class=\"'breadth-' + seg.status\" on breadth segments")
@@ -2608,7 +2594,7 @@ func TestDashboardHandler_StressMobile1DChangeSpan(t *testing.T) {
 	if !strings.Contains(body, "mobile-holding-1d") {
 		t.Error("mobile holding card missing 1D change span")
 	}
-	if !strings.Contains(body, `changePct(holdingDailyPct(h))`) {
+	if !strings.Contains(body, `changePct(h.yesterday_price_change_pct)`) {
 		t.Error("mobile 1D span missing changePct binding")
 	}
 }

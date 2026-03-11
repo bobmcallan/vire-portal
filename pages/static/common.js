@@ -382,45 +382,26 @@ function portfolioDashboard() {
             this.totalDividends = Number(holdingsData.income_dividends_forecast) || 0;
             this.ledgerDividendReturn = Number(holdingsData.income_dividends_received) || 0;
             this.lastSynced = holdingsData.last_synced || '';
-            // Parse changes
+            // 1D/1W/1M changes — flat fields from server
+            this.changeDayPct = holdingsData.change_day_pct ?? null;
+            this.hasChanges = this.changeDayPct != null;
+            this.changeReturnDayDollar = holdingsData.change_day_dollar ?? null;
+            this.changeReturnWeekDollar = holdingsData.change_week_dollar ?? null;
+            this.changeReturnMonthDollar = holdingsData.change_month_dollar ?? null;
+            this.hasReturnDollarChanges = this.changeReturnDayDollar != null || this.changeReturnWeekDollar != null || this.changeReturnMonthDollar != null;
+            this.changeReturnDayPct = holdingsData.change_day_pct ?? null;
+            this.changeReturnWeekPct = holdingsData.change_week_pct ?? null;
+            this.changeReturnMonthPct = holdingsData.change_month_pct ?? null;
+            this.hasReturnPctChanges = this.changeReturnDayPct != null || this.changeReturnWeekPct != null || this.changeReturnMonthPct != null;
+            // Cash changes — simple field reads
             const changes = holdingsData.changes;
             if (changes) {
-                // Compute capital-flow-adjusted % change for a period.
-                // Subtracts deposits/withdrawals so only market movement is reflected.
-                const adjPct = (period) => {
-                    const pv = period?.portfolio_value;
-                    const cg = period?.capital_gross;
-                    if (!pv?.has_previous || !pv.previous) return null;
-                    const capitalFlow = cg?.raw_change || 0;
-                    return ((pv.raw_change - capitalFlow) / pv.previous) * 100;
-                };
-                this.changeDayPct = adjPct(changes.yesterday);
-                this.hasChanges = this.changeDayPct !== null;
                 this.changeCashDayPct = changes.yesterday?.capital_gross?.has_previous ? changes.yesterday.capital_gross.pct_change : null;
                 this.changeCashWeekPct = changes.week?.capital_gross?.has_previous ? changes.week.capital_gross.pct_change : null;
                 this.changeCashMonthPct = changes.month?.capital_gross?.has_previous ? changes.month.capital_gross.pct_change : null;
                 this.hasCashChanges = this.changeCashDayPct !== null || this.changeCashWeekPct !== null || this.changeCashMonthPct !== null;
-                // Net Return $ uses portfolio_value change (equity + cash), which is immune to
-                // BUY/SELL capital flow (sells reduce equity but increase cash by the same amount).
-                // Subtract capital_gross change to exclude deposits/withdrawals.
-                const adjDollar = (period) => {
-                    const pv = period?.portfolio_value;
-                    if (!pv?.has_previous) return null;
-                    return pv.raw_change - (period?.capital_gross?.raw_change || 0);
-                };
-                this.changeReturnDayDollar = adjDollar(changes.yesterday);
-                this.changeReturnWeekDollar = adjDollar(changes.week);
-                this.changeReturnMonthDollar = adjDollar(changes.month);
-                this.hasReturnDollarChanges = this.changeReturnDayDollar !== null || this.changeReturnWeekDollar !== null || this.changeReturnMonthDollar !== null;
-                this.changeReturnDayPct = adjPct(changes.yesterday);
-                this.changeReturnWeekPct = adjPct(changes.week);
-                this.changeReturnMonthPct = adjPct(changes.month);
-                this.hasReturnPctChanges = this.changeReturnDayPct !== null || this.changeReturnWeekPct !== null || this.changeReturnMonthPct !== null;
             } else {
-                this.changeDayPct = null; this.hasChanges = false;
                 this.changeCashDayPct = null; this.changeCashWeekPct = null; this.changeCashMonthPct = null; this.hasCashChanges = false;
-                this.changeReturnDayDollar = null; this.changeReturnWeekDollar = null; this.changeReturnMonthDollar = null; this.hasReturnDollarChanges = false;
-                this.changeReturnDayPct = null; this.changeReturnWeekPct = null; this.changeReturnMonthPct = null; this.hasReturnPctChanges = false;
             }
             this.portfolioTotalValue = Number(holdingsData.portfolio_value) || 0;
             this.portfolioCurrency = holdingsData.currency || 'AUD';
@@ -453,19 +434,9 @@ function portfolioDashboard() {
                     today_change: serverBreadth.today_change,
                     today_change_pct: serverBreadth.today_change_pct,
                     yesterday_change: serverBreadth.yesterday_change,
+                    segments: serverBreadth.segments || [],
                 };
                 this.hasBreadth = true;
-                // Override 1D changes with live breadth today_change (aligns slider with summary cards)
-                if (serverBreadth.today_change != null) {
-                    this.changeReturnDayDollar = serverBreadth.today_change;
-                    this.hasReturnDollarChanges = true;
-                }
-                if (serverBreadth.today_change_pct != null) {
-                    this.changeDayPct = serverBreadth.today_change_pct;
-                    this.hasChanges = true;
-                    this.changeReturnDayPct = serverBreadth.today_change_pct;
-                    this.hasReturnPctChanges = true;
-                }
             } else {
                 this.breadth = null;
                 this.hasBreadth = false;
@@ -1145,11 +1116,6 @@ function portfolioDashboard() {
             return 'change-neutral';
         },
         holdingTodayChange(h) {
-            if (h.yesterday_price_change == null || h.yesterday_price_change === 0) {
-                // Fallback for holdings without server-computed change
-                if (h.current_price == null || h.yesterday_close_price == null || h.units == null) return null;
-                return (h.current_price - h.yesterday_close_price) * h.units;
-            }
             return h.yesterday_price_change;
         },
         fmtTodayChange(val) {
@@ -1161,46 +1127,16 @@ function portfolioDashboard() {
             return sign + '$' + abs.toFixed(0);
         },
         holdingBreadthClass(h) {
-            const pct = this.holdingDailyPct(h);
-            if (pct !== null && pct > 0.5) return 'breadth-rising';
-            if (pct !== null && pct < -0.5) return 'breadth-falling';
-            return 'breadth-flat';
+            return 'breadth-' + (h.breadth_status || 'flat');
         },
         holdingBreadthArrow(h) {
-            const pct = this.holdingDailyPct(h);
-            if (pct !== null && pct > 0.5) return '\u25B2';
-            if (pct !== null && pct < -0.5) return '\u25BC';
+            const s = h.breadth_status;
+            if (s === 'rising') return '\u25B2';
+            if (s === 'falling') return '\u25BC';
             return '\u25C6';
         },
         holdingDailyPct(h) {
-            if (h.current_price == null || h.yesterday_close_price == null || h.yesterday_close_price === 0) return null;
-            return ((h.current_price - h.yesterday_close_price) / h.yesterday_close_price) * 100;
-        },
-        // computeBreadth — removed: now uses server-computed breadth from API response
-        get breadthSegments() {
-            const active = this.holdings.filter(h => h.holding_value_market > 0);
-            if (active.length === 0) return [];
-            const totalWeight = active.reduce((sum, h) => sum + (h.holding_value_market || 0), 0);
-            if (totalWeight === 0) return [];
-
-            const segments = active.map(h => {
-                const pct = this.holdingDailyPct(h);
-                let status;
-                if (pct !== null && pct > 0.5) status = 'rising';
-                else if (pct !== null && pct < -0.5) status = 'falling';
-                else status = 'flat';
-                return {
-                    ticker: h.ticker,
-                    status: status,
-                    weight_pct: (h.holding_value_market / totalWeight) * 100,
-                };
-            });
-
-            // Sort: falling first, then flat, then rising (secondary: ticker alpha)
-            const order = { falling: 0, flat: 1, rising: 2 };
-            segments.sort((a, b) => order[a.status] - order[b.status] || a.ticker.localeCompare(b.ticker));
-
-            return segments;
+            return h.yesterday_price_change_pct;
         },
         glossaryDef(term) {
             return this.glossary[term] || '';

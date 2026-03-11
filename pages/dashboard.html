@@ -151,7 +151,7 @@
                     </span>
                 </div>
                 <div class="breadth-bar">
-                    <template x-for="seg in breadthSegments" :key="seg.ticker">
+                    <template x-for="seg in (breadth?.segments || [])" :key="seg.ticker">
                         <div class="breadth-segment"
                              :class="'breadth-' + seg.status"
                              :style="'width:' + (seg.weight_pct || 0) + '%'"
