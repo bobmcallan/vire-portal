@@ -112,6 +112,7 @@ func (h *MCPPageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"UserRole":       userRole,
 		"PortalVersion":  config.GetVersion(),
 		"ServerVersion":  GetServerVersion(h.apiURL),
+		"TokenExpiry":    claims.Exp,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "mcp.html", data); err != nil {

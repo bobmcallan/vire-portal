@@ -186,6 +186,7 @@ func (h *MobileDashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		"TimelineJSON":      timelineJSON,
 		"SelectedPortfolio": selectedPortfolio,
 		"SelectedJSON":      selectedJSON,
+		"TokenExpiry":       claims.Exp,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "mobile.html", data); err != nil {

@@ -37,6 +37,61 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// Session expiry — auto-logout when JWT token expires, warn 2 minutes before
+function sessionExpiry() {
+    return {
+        warning: false,
+        timeLeft: '',
+        _timer: null,
+        _warningTimer: null,
+        _intervalId: null,
+        init() {
+            const exp = window.__VIRE_TOKEN_EXPIRY__;
+            if (!exp) return;
+            const nowSec = Math.floor(Date.now() / 1000);
+            const remainSec = exp - nowSec;
+            if (remainSec <= 0) {
+                this._doLogout();
+                return;
+            }
+            // Warning 2 minutes before expiry
+            const warnSec = remainSec - 120;
+            if (warnSec > 0) {
+                this._warningTimer = setTimeout(() => {
+                    this.warning = true;
+                    this._startCountdown();
+                }, warnSec * 1000);
+            } else {
+                this.warning = true;
+                this._startCountdown();
+            }
+            // Logout at expiry
+            this._timer = setTimeout(() => this._doLogout(), remainSec * 1000);
+        },
+        _startCountdown() {
+            const update = () => {
+                const exp = window.__VIRE_TOKEN_EXPIRY__;
+                const now = Math.floor(Date.now() / 1000);
+                const left = Math.max(0, exp - now);
+                const m = Math.floor(left / 60);
+                const s = left % 60;
+                this.timeLeft = m > 0 ? m + 'm ' + s + 's' : s + 's';
+            };
+            update();
+            this._intervalId = setInterval(update, 1000);
+        },
+        _doLogout() {
+            fetch('/api/auth/logout', { method: 'POST' })
+                .finally(() => { window.location.href = '/'; });
+        },
+        destroy() {
+            if (this._timer) clearTimeout(this._timer);
+            if (this._warningTimer) clearTimeout(this._warningTimer);
+            if (this._intervalId) clearInterval(this._intervalId);
+        }
+    };
+}
+
 document.addEventListener('alpine:init', () => {
 
     // Dropdown
@@ -1156,9 +1211,6 @@ function portfolioDashboard() {
             if (score < -0.1) return 'change-down';
             return 'change-neutral';
         },
-        holdingTodayChange(h) {
-            return h.yesterday_price_change;
-        },
         fmtTodayChange(val) {
             if (val == null) return '';
             const sign = val >= 0 ? '+' : '-';
@@ -1166,18 +1218,6 @@ function portfolioDashboard() {
             if (abs >= 1000000) return sign + '$' + (abs / 1000000).toFixed(1) + 'M';
             if (abs >= 1000) return sign + '$' + (abs / 1000).toFixed(1) + 'K';
             return sign + '$' + abs.toFixed(0);
-        },
-        holdingBreadthClass(h) {
-            return 'breadth-' + (h.breadth_status || 'flat');
-        },
-        holdingBreadthArrow(h) {
-            const s = h.breadth_status;
-            if (s === 'rising') return '\u25B2';
-            if (s === 'falling') return '\u25BC';
-            return '\u25C6';
-        },
-        holdingDailyPct(h) {
-            return h.yesterday_price_change_pct;
         },
         holdingForSegment(seg) {
             return this.holdings.find(h => h.ticker === seg.ticker);

@@ -639,9 +639,11 @@ func TestRoutes_DashboardXSSEscape(t *testing.T) {
 	// except for the SSR hydration block (window.__VIRE_DATA__), same as strategy/cash
 	scriptCount := strings.Count(body, "<script>")
 	ssrScripts := strings.Count(body, "window.__VIRE_DATA__")
-	if scriptCount > ssrScripts {
-		t.Errorf("dashboard contains %d unescaped <script> tags beyond %d SSR hydration — potential XSS",
-			scriptCount-ssrScripts, ssrScripts)
+	tokenExpiryScripts := strings.Count(body, "window.__VIRE_TOKEN_EXPIRY__")
+	knownScripts := ssrScripts + tokenExpiryScripts
+	if scriptCount > knownScripts {
+		t.Errorf("dashboard contains %d unescaped <script> tags beyond %d known (SSR+token expiry) — potential XSS",
+			scriptCount-knownScripts, knownScripts)
 	}
 }
 

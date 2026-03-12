@@ -97,6 +97,7 @@ func (h *AdminUsersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"FetchError":    fetchErr,
 		"PortalVersion": config.GetVersion(),
 		"ServerVersion": GetServerVersion(h.apiURL),
+		"TokenExpiry":   claims.Exp,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "users.html", data); err != nil {

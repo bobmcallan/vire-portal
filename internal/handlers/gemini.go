@@ -87,6 +87,7 @@ func (h *AdminGeminiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"UsageJSON":     usageJSON,
 		"PortalVersion": config.GetVersion(),
 		"ServerVersion": GetServerVersion(h.apiURL),
+		"TokenExpiry":   claims.Exp,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "gemini.html", data); err != nil {

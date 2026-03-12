@@ -252,7 +252,7 @@
                                 <tbody>
                                     <tr class="holding-row-clickable" @click="window.location.href='/stock/' + encodeURIComponent(h.ticker)" style="cursor:pointer;">
                                         <td class="tool-name">
-                                            <span class="holding-breadth-arrow" :class="holdingBreadthClass(h)" x-text="holdingBreadthArrow(h)"></span>
+                                            <span class="holding-breadth-arrow" :class="'breadth-' + (h.breadth_status || 'flat')" x-text="h.breadth_status === 'rising' ? '\u25B2' : h.breadth_status === 'falling' ? '\u25BC' : '\u25C6'"></span>
                                             <a :href="'/stock/' + encodeURIComponent(h.ticker)" x-text="h.ticker" @click.stop></a>
                                         </td>
                                         <td x-text="h.name"></td>
@@ -271,11 +271,11 @@
                                             <span :class="trendArrowClass(h.price_trend_score)" x-text="trendArrow(h.price_trend_score)"></span>
                                             <span class="text-muted" x-text="h.price_trend_label || ''"></span>
                                             <span class="text-muted">/</span>
-                                            <span class="holding-breadth-arrow" :class="holdingBreadthClass(h)" x-text="holdingBreadthArrow(h)"></span>
+                                            <span class="holding-breadth-arrow" :class="'breadth-' + (h.breadth_status || 'flat')" x-text="h.breadth_status === 'rising' ? '\u25B2' : h.breadth_status === 'falling' ? '\u25BC' : '\u25C6'"></span>
                                             <span class="text-muted" x-text="h.breadth_status || ''"></span>
                                             <span class="holding-detail-sep"></span>
                                             <span class="holding-detail-label">Daily Return:</span>
-                                            <span :class="changeClass(holdingTodayChange(h))" x-text="fmtTodayChange(holdingTodayChange(h))"></span>
+                                            <span :class="changeClass(h.yesterday_price_change)" x-text="fmtTodayChange(h.yesterday_price_change)"></span>
                                         </td>
                                     </tr>
                                 </tbody>

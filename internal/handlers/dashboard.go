@@ -254,6 +254,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"ComplianceJSON":    complianceJSON,
 		"SelectedPortfolio": selectedPortfolio,
 		"SelectedJSON":      selectedJSON,
+		"TokenExpiry":       claims.Exp,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "dashboard.html", data); err != nil {

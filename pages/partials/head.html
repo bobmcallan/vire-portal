@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/portal.css?v={{cacheBust}}">
 {{if .DevMode}}<script>window.VIRE_CLIENT_DEBUG = true;</script>{{end}}
+{{if .TokenExpiry}}<script>window.__VIRE_TOKEN_EXPIRY__ = {{.TokenExpiry}};</script>{{end}}
 <script src="/static/common.js?v={{cacheBust}}"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>

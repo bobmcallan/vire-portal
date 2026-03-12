@@ -136,6 +136,7 @@ func (h *StockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"PortfolioNameJSON": portfolioNameJSON,
 		"TickerJSON":        tickerJSON,
 		"StockDetailJSON":   stockDetailJSON,
+		"TokenExpiry":       claims.Exp,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "stock.html", data); err != nil {

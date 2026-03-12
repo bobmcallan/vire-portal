@@ -110,6 +110,7 @@ func (h *StrategyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"PortfoliosJSON":   portfoliosJSON,
 		"StrategyJSON":     strategyJSON,
 		"PlanJSON":         planJSON,
+		"TokenExpiry":      claims.Exp,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "strategy.html", data); err != nil {

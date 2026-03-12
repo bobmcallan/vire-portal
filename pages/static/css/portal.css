@@ -249,6 +249,22 @@ a:hover {
     color: #fff;
 }
 
+.session-expiry-banner {
+    background: #ff6b35;
+    color: #000;
+    text-align: center;
+    padding: 0.3rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.session-expiry-link {
+    color: #000;
+    text-decoration: underline;
+}
+
 .nav-dropdown a.nav-admin-item,
 .mobile-menu a.nav-admin-item {
     background: #fee2e2;

@@ -92,14 +92,14 @@ func (h *AdminPromptsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	case r.Method == http.MethodPost && name != "":
 		h.handleSave(w, r, userID, name)
 	case name != "":
-		h.serveEdit(w, r, loggedIn, userRole, userID, name)
+		h.serveEdit(w, r, loggedIn, userRole, userID, name, claims.Exp)
 	default:
-		h.serveList(w, r, loggedIn, userRole, userID)
+		h.serveList(w, r, loggedIn, userRole, userID, claims.Exp)
 	}
 }
 
 // serveList renders the prompts list page.
-func (h *AdminPromptsHandler) serveList(w http.ResponseWriter, r *http.Request, loggedIn bool, userRole, userID string) {
+func (h *AdminPromptsHandler) serveList(w http.ResponseWriter, r *http.Request, loggedIn bool, userRole, userID string, tokenExpiry int64) {
 	var prompts []client.AdminPrompt
 	var fetchErr string
 	if h.adminListPromptsFn != nil && userID != "" {
@@ -125,6 +125,7 @@ func (h *AdminPromptsHandler) serveList(w http.ResponseWriter, r *http.Request, 
 		"FetchError":    fetchErr,
 		"PortalVersion": config.GetVersion(),
 		"ServerVersion": GetServerVersion(h.apiURL),
+		"TokenExpiry":   tokenExpiry,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "prompts.html", data); err != nil {
@@ -136,7 +137,7 @@ func (h *AdminPromptsHandler) serveList(w http.ResponseWriter, r *http.Request, 
 }
 
 // serveEdit renders the prompt edit page.
-func (h *AdminPromptsHandler) serveEdit(w http.ResponseWriter, r *http.Request, loggedIn bool, userRole, userID, name string) {
+func (h *AdminPromptsHandler) serveEdit(w http.ResponseWriter, r *http.Request, loggedIn bool, userRole, userID, name string, tokenExpiry int64) {
 	var prompt *client.AdminPrompt
 	var fetchErr string
 	if h.adminGetPromptFn != nil && userID != "" {
@@ -168,6 +169,7 @@ func (h *AdminPromptsHandler) serveEdit(w http.ResponseWriter, r *http.Request, 
 		"FetchError":    fetchErr,
 		"PortalVersion": config.GetVersion(),
 		"ServerVersion": GetServerVersion(h.apiURL),
+		"TokenExpiry":   tokenExpiry,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "prompt-edit.html", data); err != nil {

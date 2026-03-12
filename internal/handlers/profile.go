@@ -98,6 +98,7 @@ func (h *ProfileHandler) HandleProfile(w http.ResponseWriter, r *http.Request) {
 		"UserName":         userName,
 		"AuthMethod":       authMethod,
 		"IsOAuth":          isOAuth,
+		"TokenExpiry":      claims.Exp,
 	}
 
 	if claims != nil && claims.Sub != "" && h.userLookupFn != nil {

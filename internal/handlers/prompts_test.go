@@ -166,8 +166,9 @@ func TestAdminPromptsHandler_ListXSSEscaping(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	body := w.Body.String()
-	if strings.Contains(body, "<script>") {
-		t.Error("SECURITY: script tag not escaped in prompt data")
+	// Verify XSS payload specifically is escaped — legitimate scripts (e.g. __VIRE_TOKEN_EXPIRY__) are allowed.
+	if strings.Contains(body, "<script>alert(") {
+		t.Error("SECURITY: XSS script tag not escaped in prompt data")
 	}
 	if !strings.Contains(body, "alert") {
 		t.Error("expected escaped alert() function name to be visible")

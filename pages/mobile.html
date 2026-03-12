@@ -141,7 +141,7 @@
                     <a class="mobile-holding-card" :href="'/stock/' + encodeURIComponent(h.ticker)" x-show="h.holding_value_market > 0">
                         <div class="mobile-holding-left">
                             <span class="mobile-holding-ticker">
-                                <span class="holding-breadth-arrow" :class="holdingBreadthClass(h)" x-text="holdingBreadthArrow(h)"></span>
+                                <span class="holding-breadth-arrow" :class="'breadth-' + (h.breadth_status || 'flat')" x-text="h.breadth_status === 'rising' ? '\u25B2' : h.breadth_status === 'falling' ? '\u25BC' : '\u25C6'"></span>
                                 <span x-text="h.ticker"></span>
                             </span>
                             <span class="mobile-holding-name text-muted" x-text="h.name"></span>

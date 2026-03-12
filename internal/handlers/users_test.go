@@ -198,8 +198,9 @@ func TestAdminUsersHandler_XSSEscaping(t *testing.T) {
 	// Go's html/template automatically escapes user data in {{ }} expressions.
 	// Verify that dangerous constructs are not rendered as executable code.
 	// The template uses {{.Name}} which is safe; Go escapes < > & " '
-	if strings.Contains(body, "<script>") {
-		t.Error("SECURITY: script tag not escaped in user data")
+	// Legitimate inline scripts (e.g. window.__VIRE_TOKEN_EXPIRY__) are allowed.
+	if strings.Contains(body, "<script>alert(") {
+		t.Error("SECURITY: XSS script tag not escaped in user data")
 	}
 	// Verify the content is present but escaped (as HTML entities)
 	if !strings.Contains(body, "alert") {

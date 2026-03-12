@@ -415,9 +415,10 @@ func TestMCPPageHandler_XSSEscaping(t *testing.T) {
 
 	body := w.Body.String()
 
-	// html/template auto-escapes; verify raw HTML tags are NOT present
-	if strings.Contains(body, "<script>") {
-		t.Error("expected <script> tag to be escaped in MCP page output")
+	// html/template auto-escapes; verify XSS-injected script tags are NOT present.
+	// Legitimate inline scripts (e.g. window.__VIRE_TOKEN_EXPIRY__) are allowed.
+	if strings.Contains(body, "<script>alert(") {
+		t.Error("expected XSS <script>alert script tag to be escaped in MCP page output")
 	}
 	if strings.Contains(body, "<img onerror") {
 		t.Error("expected <img onerror> to be escaped in MCP page output")

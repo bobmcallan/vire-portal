@@ -1208,9 +1208,11 @@ func TestDashboardHandler_StressChangeClassReturnsHardcodedStrings(t *testing.T)
 	inlineScriptCount := strings.Count(bodyLower, "<script>")
 	inlineWithSrc := strings.Count(bodyLower, "<script src=")
 	ssrHydrationScripts := strings.Count(body, "window.__VIRE_DATA__")
-	if inlineScriptCount > inlineWithSrc+ssrHydrationScripts {
-		t.Errorf("SECURITY: found %d inline <script> tags (vs %d with src + %d SSR hydration) — JS should be external",
-			inlineScriptCount, inlineWithSrc, ssrHydrationScripts)
+	tokenExpiryScripts := strings.Count(body, "window.__VIRE_TOKEN_EXPIRY__")
+	knownInline := ssrHydrationScripts + tokenExpiryScripts
+	if inlineScriptCount > inlineWithSrc+knownInline {
+		t.Errorf("SECURITY: found %d inline <script> tags (vs %d with src + %d known inline) — JS should be external",
+			inlineScriptCount, inlineWithSrc, knownInline)
 	}
 }
 
@@ -1454,9 +1456,9 @@ func TestDashboardHandler_StressTrendArrowBindings(t *testing.T) {
 	if !strings.Contains(body, `:class="trendArrowClass(h.price_trend_score)"`) {
 		t.Error("expected trendArrowClass(h.price_trend_score) in holding movement row")
 	}
-	// Today's dollar change in movement row
-	if !strings.Contains(body, `fmtTodayChange(holdingTodayChange(h))`) {
-		t.Error("expected fmtTodayChange(holdingTodayChange(h)) in holding movement row")
+	// Today's dollar change in movement row — uses direct field reference
+	if !strings.Contains(body, `fmtTodayChange(h.yesterday_price_change)`) {
+		t.Error("expected fmtTodayChange(h.yesterday_price_change) in holding movement row")
 	}
 	// holding-movement-row must exist
 	if !strings.Contains(body, `holding-movement-row`) {
@@ -2525,8 +2527,8 @@ func TestDashboardHandler_StressBreadthArrowPresent(t *testing.T) {
 	if !strings.Contains(body, "holding-breadth-arrow") {
 		t.Error("holdings table missing breadth arrow span")
 	}
-	if !strings.Contains(body, "holdingBreadthArrow(h)") {
-		t.Error("holdings table missing holdingBreadthArrow(h) binding")
+	if !strings.Contains(body, "h.breadth_status === 'rising'") {
+		t.Error("holdings table missing inline breadth arrow ternary binding")
 	}
 }
 

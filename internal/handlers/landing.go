@@ -110,6 +110,11 @@ func (h *PageHandler) ServePage(templateName string, pageName string) http.Handl
 			}
 		}
 
+		var tokenExpiry int64
+		if claims != nil {
+			tokenExpiry = claims.Exp
+		}
+
 		data := map[string]interface{}{
 			"Page":          pageName,
 			"DevMode":       h.devMode,
@@ -117,6 +122,7 @@ func (h *PageHandler) ServePage(templateName string, pageName string) http.Handl
 			"UserRole":      userRole,
 			"PortalVersion": config.GetVersion(),
 			"ServerVersion": GetServerVersion(h.apiURL),
+			"TokenExpiry":   tokenExpiry,
 		}
 
 		if err := h.templates.ExecuteTemplate(w, templateName, data); err != nil {
@@ -152,6 +158,11 @@ func (h *PageHandler) ServeErrorPage() http.HandlerFunc {
 			msg = "Something went wrong. Please try again."
 		}
 
+		var tokenExpiry int64
+		if claims != nil {
+			tokenExpiry = claims.Exp
+		}
+
 		data := map[string]interface{}{
 			"Page":          "error",
 			"DevMode":       h.devMode,
@@ -160,6 +171,7 @@ func (h *PageHandler) ServeErrorPage() http.HandlerFunc {
 			"PortalVersion": config.GetVersion(),
 			"ServerVersion": GetServerVersion(h.apiURL),
 			"ErrorMessage":  msg,
+			"TokenExpiry":   tokenExpiry,
 		}
 		h.templates.ExecuteTemplate(w, "error.html", data)
 	}
@@ -243,6 +255,11 @@ func (h *PageHandler) ServeGlossaryPage() http.HandlerFunc {
 			}
 		}
 
+		var tokenExpiry int64
+		if claims != nil {
+			tokenExpiry = claims.Exp
+		}
+
 		data := map[string]interface{}{
 			"Page":          "glossary",
 			"DevMode":       h.devMode,
@@ -253,6 +270,7 @@ func (h *PageHandler) ServeGlossaryPage() http.HandlerFunc {
 			"Categories":    categories,
 			"FetchError":    fetchError,
 			"TermParam":     r.URL.Query().Get("term"),
+			"TokenExpiry":   tokenExpiry,
 		}
 		h.templates.ExecuteTemplate(w, "glossary.html", data)
 	}
@@ -282,6 +300,11 @@ func (h *PageHandler) ServeChangelogPage() http.HandlerFunc {
 			}
 		}
 
+		var tokenExpiry int64
+		if claims != nil {
+			tokenExpiry = claims.Exp
+		}
+
 		data := map[string]interface{}{
 			"Page":          "changelog",
 			"DevMode":       h.devMode,
@@ -290,6 +313,7 @@ func (h *PageHandler) ServeChangelogPage() http.HandlerFunc {
 			"PortalVersion": config.GetVersion(),
 			"ServerVersion": GetServerVersion(h.apiURL),
 			"EntriesJSON":   entriesJSON,
+			"TokenExpiry":   tokenExpiry,
 		}
 		h.templates.ExecuteTemplate(w, "changelog.html", data)
 	}
@@ -338,6 +362,7 @@ func (h *PageHandler) ServeHelpPage() http.HandlerFunc {
 			"ServerVersion": GetServerVersion(h.apiURL),
 			"FeedbackJSON":  feedbackJSON,
 			"FeedbackTotal": feedbackTotal,
+			"TokenExpiry":   claims.Exp,
 		}
 		h.templates.ExecuteTemplate(w, "help.html", data)
 	}

@@ -105,6 +105,7 @@ func (h *CashHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"ServerVersion":    GetServerVersion(h.apiURL),
 		"PortfoliosJSON":   portfoliosJSON,
 		"TransactionsJSON": transactionsJSON,
+		"TokenExpiry":      claims.Exp,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "cash.html", data); err != nil {

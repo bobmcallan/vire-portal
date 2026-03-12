@@ -33,6 +33,10 @@
         </div>
     </nav>
 
+    <div x-data="sessionExpiry()" x-show="warning" x-cloak class="session-expiry-banner">
+        Session expires in <span x-text="timeLeft"></span> — <a href="/" class="session-expiry-link">login again</a>
+    </div>
+
     <template x-if="mobileOpen">
         <div>
             <div class="mobile-overlay" @click="closeMobile()"></div>
