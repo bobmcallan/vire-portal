@@ -464,9 +464,11 @@ function portfolioDashboard() {
                     return { ticker: h.ticker, name: h.name, status, weight_pct: h.holding_weight_pct || 0, label: h.price_trend_label || '', score: score || 0 };
                 });
                 const trendTotal = trendSegs.reduce((sum, s) => sum + s.weight_pct, 0);
-                const normTrend = trendTotal > 0
+                const trendOrder = { downtrend: 0, consolidating: 1, uptrend: 2 };
+                const normTrend = (trendTotal > 0
                     ? trendSegs.map(s => ({ ...s, bar_pct: (s.weight_pct / trendTotal) * 100 }))
-                    : trendSegs.map(s => ({ ...s, bar_pct: 0 }));
+                    : trendSegs.map(s => ({ ...s, bar_pct: 0 }))
+                ).sort((a, b) => (trendOrder[a.status] ?? 1) - (trendOrder[b.status] ?? 1));
                 this.stockTrend = {
                     uptrend_count: trendSegs.filter(s => s.status === 'uptrend').length,
                     consolidating_count: trendSegs.filter(s => s.status === 'consolidating').length,
