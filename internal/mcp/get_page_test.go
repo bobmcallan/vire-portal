@@ -424,6 +424,127 @@ func TestResolvePage_StockPages(t *testing.T) {
 	}
 }
 
+func TestExtractHydrationData(t *testing.T) {
+	tests := []struct {
+		name     string
+		html     string
+		contains []string
+		empty    bool
+	}{
+		{
+			name:  "no hydration data",
+			html:  `<html><body><main>Content</main></body></html>`,
+			empty: true,
+		},
+		{
+			name:     "dashboard hydration",
+			html:     `<html><body><main>Content</main><script>window.__VIRE_DATA__ = {"portfolios":[{"name":"SMSF"}],"portfolio":null};</script></body></html>`,
+			contains: []string{"portfolios", "SMSF"},
+		},
+		{
+			name:     "single-line assignment",
+			html:     `<script>window.__VIRE_DATA__ = {"entries":[]};</script>`,
+			contains: []string{"entries"},
+		},
+		{
+			name:     "nested objects",
+			html:     `<script>window.__VIRE_DATA__ = {"data":{"inner":{"deep":"value"}}};</script>`,
+			contains: []string{"deep", "value"},
+		},
+		{
+			name:  "malformed JSON returns raw",
+			html:  `<script>window.__VIRE_DATA__ = {broken json};</script>`,
+			empty: false,
+		},
+		{
+			name:  "no equals sign",
+			html:  `<script>window.__VIRE_DATA__;</script>`,
+			empty: true,
+		},
+		{
+			name:  "no opening brace",
+			html:  `<script>window.__VIRE_DATA__ = "not object";</script>`,
+			empty: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractHydrationData(tt.html)
+			if tt.empty {
+				if result != "" {
+					t.Errorf("expected empty result, got:\n%s", result)
+				}
+				return
+			}
+			if result == "" {
+				t.Fatal("expected non-empty result")
+			}
+			for _, want := range tt.contains {
+				if !strings.Contains(result, want) {
+					t.Errorf("expected result to contain %q, got:\n%s", want, result)
+				}
+			}
+		})
+	}
+}
+
+func TestGetPageToolHandler_IncludesHydrationData(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`<html><body><main class="page"><div>Loading...</div></main>` +
+			`<script>window.__VIRE_DATA__ = {"portfolios":[{"name":"SMSF"}],"selected":"SMSF"};</script></body></html>`))
+	}))
+	defer srv.Close()
+
+	handler := GetPageToolHandler(srv.URL, []byte("test-secret"))
+	ctx := WithUserContext(context.Background(), UserContext{UserID: "user123"})
+
+	req := mcpgo.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{"page": "dashboard"}
+
+	result, err := handler(ctx, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %v", result.Content)
+	}
+	text := result.Content[0].(mcpgo.TextContent).Text
+	if !strings.Contains(text, "Page Data (SSR)") {
+		t.Error("expected SSR data section header")
+	}
+	if !strings.Contains(text, "SMSF") {
+		t.Error("expected hydration data to contain portfolio name")
+	}
+	if !strings.Contains(text, "portfolios") {
+		t.Error("expected hydration data to contain portfolios key")
+	}
+}
+
+func TestGetPageToolHandler_NoHydrationForStaticPages(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`<html><body><main class="page"><h1>Glossary</h1><p>Term: definition</p></main></body></html>`))
+	}))
+	defer srv.Close()
+
+	handler := GetPageToolHandler(srv.URL, []byte("test-secret"))
+	ctx := WithUserContext(context.Background(), UserContext{UserID: "user123"})
+
+	req := mcpgo.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{"page": "glossary"}
+
+	result, err := handler(ctx, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := result.Content[0].(mcpgo.TextContent).Text
+	if strings.Contains(text, "Page Data (SSR)") {
+		t.Error("should not include SSR data section for pages without hydration")
+	}
+	if !strings.Contains(text, "Glossary") {
+		t.Error("expected page content")
+	}
+}
+
 func TestExtractMainContent(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -126,7 +126,14 @@ func GetPageToolHandler(portalBaseURL string, jwtSecret []byte) server.ToolHandl
 			return errorResult(fmt.Sprintf("Error: portal returned status %d: %s", resp.StatusCode, string(body))), nil
 		}
 
-		text := extractMainContent(string(body))
+		html := string(body)
+		text := extractMainContent(html)
+
+		// Append SSR hydration data if present — Alpine.js pages embed data
+		// in window.__VIRE_DATA__ which is stripped by extractMainContent.
+		if hydration := extractHydrationData(html); hydration != "" {
+			text += "\n\n--- Page Data (SSR) ---\n" + hydration
+		}
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{mcp.NewTextContent(text)},
@@ -179,6 +186,65 @@ func extractMainContent(html string) string {
 	content = collapseWhitespace(content)
 
 	return strings.TrimSpace(content)
+}
+
+// extractHydrationData extracts the window.__VIRE_DATA__ JSON from the HTML.
+// Pages using Alpine.js embed SSR data in this object for client-side hydration.
+// Returns pretty-printed JSON, or empty string if not found.
+func extractHydrationData(html string) string {
+	const marker = "window.__VIRE_DATA__"
+	idx := strings.Index(html, marker)
+	if idx == -1 {
+		return ""
+	}
+
+	// Find the '=' after the marker
+	rest := html[idx+len(marker):]
+	eqIdx := strings.Index(rest, "=")
+	if eqIdx == -1 {
+		return ""
+	}
+	rest = strings.TrimSpace(rest[eqIdx+1:])
+
+	// Find the closing '};' or '};\n' — the assignment terminator
+	// We need to find the matching closing brace for the opening '{'
+	braceStart := strings.Index(rest, "{")
+	if braceStart == -1 {
+		return ""
+	}
+	rest = rest[braceStart:]
+
+	depth := 0
+	end := -1
+	for i, ch := range rest {
+		switch ch {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				end = i + 1
+				break
+			}
+		}
+		if end > 0 {
+			break
+		}
+	}
+	if end <= 0 {
+		return ""
+	}
+
+	raw := rest[:end]
+
+	// Try to pretty-print it; fall back to raw if invalid JSON
+	var obj json.RawMessage
+	if json.Unmarshal([]byte(raw), &obj) == nil {
+		if pretty, err := json.MarshalIndent(obj, "", "  "); err == nil {
+			return string(pretty)
+		}
+	}
+	return raw
 }
 
 // removeBlocks removes all occurrences of content between startTag and endTag (inclusive).
