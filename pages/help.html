@@ -19,8 +19,8 @@
                             <a href="mailto:bobmcallan@gmail.com">bobmcallan@gmail.com</a>
                         </div>
                         <div class="btn-group">
-                            <a href="/docs" class="btn btn-secondary btn-sm">DOCUMENTATION</a>
-                            <a href="/glossary" class="btn btn-secondary btn-sm">GLOSSARY</a>
+                            <a href="/docs" class="btn btn-secondary">DOCUMENTATION</a>
+                            <a href="/glossary" class="btn btn-secondary">GLOSSARY</a>
                         </div>
                     </div>
 
@@ -53,7 +53,7 @@
                             <textarea class="form-textarea" rows="3" x-model="fb.description" placeholder="Describe the issue or observation..."></textarea>
                         </div>
                         <div style="display:flex;align-items:center;gap:1rem">
-                            <button class="btn btn-primary btn-sm" @click="submitFeedback()" :disabled="fbSubmitting || !fb.description.trim()">
+                            <button class="btn btn-primary" @click="submitFeedback()" :disabled="fbSubmitting || !fb.description.trim()">
                                 <span x-show="!fbSubmitting">SUBMIT</span>
                                 <span x-show="fbSubmitting" x-cloak>SENDING...</span>
                             </button>

@@ -30,7 +30,7 @@
                     <textarea class="prompt-textarea" x-model="content" rows="20" spellcheck="false"></textarea>
 
                     <div class="prompt-actions">
-                        <button class="btn-save" @click="save()" :disabled="saving" x-text="saving ? 'SAVING...' : 'SAVE'">SAVE</button>
+                        <button class="btn btn-primary" @click="save()" :disabled="saving" x-text="saving ? 'SAVING...' : 'SAVE'">SAVE</button>
                         <span x-show="message" :class="success ? 'prompt-success' : 'prompt-error'" x-text="message" style="font-size:0.85rem;"></span>
                     </div>
                 </div>

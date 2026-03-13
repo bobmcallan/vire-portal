@@ -713,11 +713,6 @@ a:hover {
     color: #fff;
 }
 
-.btn-sm {
-    padding: 0.25rem 0.6rem;
-    font-size: 0.75rem;
-}
-
 .btn-group {
     display: flex;
     gap: 0.5rem;
@@ -2071,21 +2066,6 @@ a.mobile-holding-card:hover {
     gap: 1rem;
 }
 
-.btn-save {
-    padding: 0.5rem 2rem;
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-weight: 700;
-    font-size: 0.8rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    border: 1px solid #888;
-    background: none;
-    color: #333;
-    cursor: pointer;
-}
-
-.btn-save:hover { background: #eee; }
-.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .prompt-success { color: #2e7d32; }
 .prompt-error { color: #c62828; }

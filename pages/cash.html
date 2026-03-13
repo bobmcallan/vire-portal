@@ -101,9 +101,9 @@
 
             <!-- Pagination -->
             <div class="pagination" x-show="totalPages > 1" x-cloak>
-                <button class="btn btn-secondary btn-sm" @click="prevPage()" :disabled="currentPage <= 1">PREV</button>
+                <button class="btn btn-secondary" @click="prevPage()" :disabled="currentPage <= 1">PREV</button>
                 <span class="pagination-info" x-text="'PAGE ' + currentPage + ' OF ' + totalPages"></span>
-                <button class="btn btn-secondary btn-sm" @click="nextPage()" :disabled="currentPage >= totalPages">NEXT</button>
+                <button class="btn btn-secondary" @click="nextPage()" :disabled="currentPage >= totalPages">NEXT</button>
             </div>
 
         </div>

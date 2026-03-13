@@ -253,12 +253,12 @@ func TestPrompts(t *testing.T) {
 		}
 
 		// Check save button
-		saveVisible, err := isVisible(ctx, ".btn-save")
+		saveVisible, err := isVisible(ctx, ".prompt-actions .btn")
 		if err != nil {
 			t.Fatalf("error checking save button visibility: %v", err)
 		}
 		if !saveVisible {
-			t.Error("btn-save not visible")
+			t.Error("save button not visible")
 		}
 
 		// Check prompt meta section
