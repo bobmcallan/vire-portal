@@ -59,6 +59,17 @@
                         <button type="submit" class="btn btn-primary">SAVE</button>
                     </form>
                 </div>
+                <div class="dashboard-field">
+                    <span class="dashboard-label">DAILY RETURN MODE <a href="/docs#daily-return-mode" class="help-link" title="How daily return is attributed to your calendar day">?</a></span>
+                    <form method="POST" action="/profile" class="profile-tz-form">
+                        <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+                        <select name="daily_return_mode" class="form-select">
+                            <option value="market_close" {{if ne .DailyReturnMode "market_open"}}selected{{end}}>Market Close (default)</option>
+                            <option value="market_open" {{if eq .DailyReturnMode "market_open"}}selected{{end}}>Market Open</option>
+                        </select>
+                        <button type="submit" class="btn btn-primary">SAVE</button>
+                    </form>
+                </div>
             </section>
             <script>
             (function() {

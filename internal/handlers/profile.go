@@ -108,6 +108,7 @@ func (h *ProfileHandler) HandleProfile(w http.ResponseWriter, r *http.Request) {
 			data["NavexaKeyPreview"] = user.NavexaKeyPreview
 			data["UserRole"] = user.Role
 			data["UserTimezone"] = user.Timezone
+			data["DailyReturnMode"] = user.DailyReturnMode
 		}
 	}
 
@@ -158,6 +159,7 @@ func (h *ProfileHandler) HandleSaveProfile(w http.ResponseWriter, r *http.Reques
 
 	navexaKey := strings.TrimSpace(r.FormValue("navexa_key"))
 	timezone := strings.TrimSpace(r.FormValue("timezone"))
+	dailyReturnMode := strings.TrimSpace(r.FormValue("daily_return_mode"))
 
 	fields := map[string]string{}
 	if navexaKey != "" {
@@ -165,6 +167,9 @@ func (h *ProfileHandler) HandleSaveProfile(w http.ResponseWriter, r *http.Reques
 	}
 	if timezone != "" {
 		fields["timezone"] = timezone
+	}
+	if dailyReturnMode == "market_close" || dailyReturnMode == "market_open" {
+		fields["daily_return_mode"] = dailyReturnMode
 	}
 
 	if len(fields) == 0 {
