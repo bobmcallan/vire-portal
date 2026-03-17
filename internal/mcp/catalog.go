@@ -157,6 +157,16 @@ func GenericToolHandler(p *MCPProxy, ct CatalogTool) server.ToolHandlerFunc {
 				path = strings.ReplaceAll(path, "{"+param.Name+"}", url.PathEscape(strVal))
 			case "query":
 				if val != nil {
+					// Array params: add each element as a separate query value
+					// so ?include=position&include=price instead of ?include=[position price]
+					if param.Type == "array" {
+						if arr, ok := val.([]interface{}); ok {
+							for _, item := range arr {
+								queryParams.Add(param.Name, fmt.Sprint(item))
+							}
+							continue
+						}
+					}
 					strVal := fmt.Sprint(val)
 					if strVal != "" {
 						queryParams.Set(param.Name, strVal)
